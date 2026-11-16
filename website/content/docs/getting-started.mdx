@@ -1,0 +1,186 @@
+---
+title: Getting started
+description: Install capacitor-arcore, wire it into a Capacitor app, and place your first model — then test on a real phone over HTTPS.
+---
+
+## Installation
+
+<InstallTabs />
+
+The package ships as plain ESM source — there is no build step and no
+transpilation. Two runtime dependencies come with it:
+
+| Package | Version (from `package.json`) | Why |
+| --- | --- | --- |
+| `@capacitor/core` | `^8.5.2` | The Capacitor bridge the native facade registers with |
+| `three` | `^0.180.0` | The WebXR runtime's renderer, scene and GLTF loader |
+
+`react` (`>=16.8.0`) is declared as a peer dependency for the
+[`useARCore` hook](/docs/api#usearcore).
+
+<Note>
+In v1.0.0 the package entry re-exports the React hook, and the hook module
+imports React at the top level — so in practice React must be installed even
+if you only use the framework-agnostic API. This is a known packaging issue
+(see [Known issues](/docs/known-issues)); a `capacitor-arcore/react` subpath
+export is on the roadmap.
+</Note>
+
+There are no type declarations in the package yet: it is untyped JavaScript
+with JSDoc. TypeScript projects can still consume it, but get no checking
+until declarations ship.
+
+## Capacitor setup
+
+For a Capacitor app, install the package and sync:
+
+```bash title="Terminal"
+npm install capacitor-arcore
+npx cap sync
+```
+
+<Warning title="Capacitor discovery caveat (PKG-01)">
+The package's `package.json` does not yet contain the
+`"capacitor": { "android": { "src": "android" } }` metadata pointer, so
+automatic plugin discovery by `cap sync` is **not backed by package
+metadata** and has not been verified end-to-end in a clean consumer app.
+The repository's own example works because its
+`example/android/settings.gradle` includes the plugin by hand:
+
+```groovy title="example/android/settings.gradle"
+include ':capacitor-arcore'
+project(':capacitor-arcore').projectDir = new File(rootDir, '../../android')
+```
+
+If `cap sync` does not pick the plugin up in your app, add the equivalent
+include for your project layout, pointing at
+`node_modules/capacitor-arcore/android`.
+</Warning>
+
+<Todo>
+Verify the clean consumer flow — fresh Capacitor app, `npm install
+capacitor-arcore`, `npx cap sync`, build, run — and update this page with
+the confirmed result. Until then, treat the settings.gradle include above
+as the known-good path.
+</Todo>
+
+The native Android side, once wired, provides session management, hit
+testing and surface events through ARCore. Be aware of what it does
+**not** do yet: native model rendering is not implemented — models render
+in the WebXR runtime. Read
+[WebXR vs native ARCore](/docs/concepts/webxr-vs-native) before planning
+an Android-native-only experience.
+
+## Your first AR view
+
+The high-level API is `createARView()`. It needs a DOM element to use as
+the immersive session's overlay — your buttons and product UI live there.
+
+```js title="first-ar.js"
+import { createARView } from 'capacitor-arcore';
+
+const ar = createARView({
+  overlay: document.querySelector('#ar-overlay'),
+});
+
+// Starts the WebXR session. Defaults shown; every option is optional.
+await ar.create({
+  showReticle: true,     // centre placement reticle
+  showPlaneDots: true,   // dotted visualisation over detected planes
+  showShadow: true,      // soft blob shadow under the model
+  planeDetection: true,
+  lightEstimation: true,
+});
+
+// Cache the parsed models so placement and switching are fast.
+await ar.preloadModels(['/models/sofa.glb', '/models/chair.glb']);
+
+// Places at the current centre hit test.
+const result = await ar.placeModel('/models/sofa.glb');
+if (!result.success) {
+  // result.reason === 'NO_SURFACE' when no surface is in view yet
+  console.log('Keep scanning:', result.reason);
+}
+```
+
+```html title="index.html"
+<div id="ar-overlay">
+  <!-- Buttons here are normal DOM. Mark interactive UI with data-ui so
+       the gesture layer ignores it. -->
+  <button data-ui onclick="...">Add to cart</button>
+</div>
+```
+
+What happens next is covered by the guides:
+[React integration](/docs/guides/react-integration) for component-shaped
+usage, [Gestures](/docs/guides/gestures) for tap/pinch/twist, and
+[Model preloading & switching](/docs/guides/model-preloading-and-switching)
+for product catalogues.
+
+<Note>
+`create()` asks the browser for an `immersive-ar` session with the
+`hit-test` and `local-floor` features required. A device/browser without
+`local-floor` will fail session creation rather than degrade — see
+[Known issues](/docs/known-issues).
+</Note>
+
+## HTTPS and phone testing
+
+WebXR immersive AR only runs in a **secure context**: HTTPS, or
+`localhost`. A page served over plain HTTP on a LAN address will load, but
+session creation will fail — and `checkSupport()` does not currently
+distinguish "insecure origin" from "not supported", so check the URL
+scheme first when AR refuses to start.
+
+### Zero-setup option
+
+Open this site's [live demo](/demo) on the phone. It is served over HTTPS,
+so the only requirements are the device ones below.
+
+### Testing your own app on a phone
+
+Requirements (from the repository's phone-testing guide):
+
+- An ARCore-capable Android phone with Google Play Services for AR
+- Current Chrome on the phone
+- Phone and development computer on the same Wi-Fi
+
+The example app ships LAN HTTPS tooling with a self-signed development CA:
+
+```bash title="Terminal"
+cd example
+npm install
+npm run cert        # generates a private dev CA + server cert for your LAN IP
+npm run dev:https   # serves https://<LAN-IP>:5173
+```
+
+Then:
+
+1. Transfer **only** `example/certs/dev-ca.crt` to the phone — never the
+   `.key` file.
+2. Install it as a CA certificate (Settings → Security → Encryption &
+   credentials; exact wording varies by vendor).
+3. Restart Chrome on the phone.
+4. Open the printed `https://<LAN-IP>:5173` URL, tap **Start AR**, grant
+   camera access, and move the phone slowly over a textured floor or
+   table until surface dots appear.
+
+<Tip>
+A self-signed certificate without the CA install also works for a quick
+look: Chrome will warn once per origin; choose **Advanced → Proceed**.
+Pages still count as secure contexts, so WebXR runs — but the warning
+returns on every new origin, which is why the CA flow is worth it for
+repeated testing.
+</Tip>
+
+<Warning>
+The generated certificates are development-only and git-ignored. Remove
+the development CA from the phone when you finish testing, and never use
+these keys in production.
+</Warning>
+
+### iOS
+
+iOS Safari does not expose the immersive-ar WebXR flow this SDK's browser
+runtime is built on. The WebXR path is an Android Chrome path; plan a
+separate implementation for iOS if you need it.

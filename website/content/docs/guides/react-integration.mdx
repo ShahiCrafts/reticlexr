@@ -1,0 +1,155 @@
+---
+title: React integration
+description: Two ways to use the SDK from React — an ARView held in a ref for product viewers, and the useARCore hook when you want engine state in React state.
+---
+
+There are two React-shaped ways to use the SDK. Pick based on how much of
+the engine you want mirrored into React state:
+
+- **`createARView()` in a ref** — the pattern the repository's example uses.
+  Best for product viewers: the engine runs imperatively, React only tracks
+  UI state (active product, placed or not, current scale).
+- **[`useARCore()`](/docs/api#usearcore)** — a hook that wraps the engine
+  and mirrors support, session, placed models, planes, surface state and
+  errors into React state.
+
+## Product viewer with `createARView`
+
+```jsx title="ProductAR.jsx"
+import { useEffect, useRef, useState } from 'react';
+import { createARView } from 'capacitor-arcore';
+
+const MODELS = {
+  Sofa: '/models/sofa.glb',
+  Chair: '/models/chair.glb',
+};
+
+export default function ProductAR() {
+  const overlayRef = useRef(null);
+  const arRef = useRef(null);
+  const [active, setActive] = useState('Sofa');
+
+  useEffect(() => {
+    const ar = createARView({ overlay: overlayRef.current });
+    arRef.current = ar;
+    return () => {
+      ar.destroy().catch(() => {});
+      arRef.current = null;
+    };
+  }, []);
+
+  async function start() {
+    const ar = arRef.current;
+    await ar.create({ showReticle: true, showPlaneDots: true });
+    await ar.preloadModels(Object.values(MODELS));
+    await ar.placeModel(MODELS[active]);
+  }
+
+  async function switchTo(name) {
+    setActive(name);
+    // switchModel — NOT placeModel — keeps placement, scale and rotation.
+    await arRef.current?.switchModel(MODELS[name]);
+  }
+
+  return (
+    <>
+      <button onClick={start}>View in your room</button>
+      <div id="ar-overlay" ref={overlayRef}>
+        {Object.keys(MODELS).map((name) => (
+          <button key={name} data-ui onClick={() => switchTo(name)}>
+            {name}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+```
+
+Three details matter:
+
+1. **One `ARView` per mount, destroyed in the cleanup.** `destroy()` ends
+   the XR session and removes the placed models. Under React StrictMode's
+   dev double-mount you will build a throwaway engine instance — harmless
+   in production, noticeable as extra startup cost in dev.
+2. **`data-ui` on interactive overlay children.** The gesture layer
+   ignores pointer events on elements matching `[data-ui]`, so buttons
+   don't also place or drag the model.
+3. **`switchModel` for switching.** The older README example used
+   `placeModel` here with a comment claiming state carries over — it does
+   not. `placeModel` performs a fresh centre hit test and adds a new model
+   (the old one stays, unreachable). See
+   [Model preloading & switching](/docs/guides/model-preloading-and-switching).
+
+## The `useARCore` hook
+
+```jsx title="HookExample.jsx"
+import { useARCore } from 'capacitor-arcore';
+
+export default function HookExample({ overlayRef }) {
+  const ar = useARCore();
+
+  if (ar.isSupported === null) return <p>Checking AR support…</p>;
+  if (ar.isSupported === false) return <p>AR is not available here.</p>;
+
+  return (
+    <div>
+      <button
+        onClick={() => ar.startSession({ domOverlay: overlayRef.current })}
+        disabled={ar.isSessionActive}
+      >
+        Start AR
+      </button>
+      <button onClick={() => ar.placeModel('/models/sofa.glb')}>
+        Place sofa
+      </button>
+      <p>
+        Planes: {ar.detectedPlanes.total} · Surface:{' '}
+        {ar.surfaceState.hasSurface ? ar.surfaceState.planeType : 'none'}
+      </p>
+      {ar.error && <p role="alert">{ar.error}</p>}
+    </div>
+  );
+}
+```
+
+The hook returns state (`isSupported`, `isSessionActive`, `placedModels`,
+`detectedPlanes`, `surfaceState`, `error`) and methods mirroring the
+engine — the full list is in the [API reference](/docs/api#usearcore).
+
+<Warning>
+Two hook caveats, both verified in the audit:
+
+- **Shared engine.** All `useARCore()` consumers share one module-level
+  engine instance. When any one consumer unmounts, its cleanup stops the
+  session for all of them. Mount the hook in exactly one place in your
+  tree (or lift it into a provider you control).
+- **Transform argument shapes.** The hook's `placeModel(modelUrl,
+  position, rotation, scale)` expects the engine's **array** shapes
+  (`[x, y, z]`, quaternion `[x, y, z, w]`, `[sx, sy, sz]`) — despite older
+  JSDoc describing `{x, y, z}` objects. Passing objects produces `NaN`
+  transforms and the model never appears.
+</Warning>
+
+<Note>
+`detectedPlanes` in the hook currently always reads zero — the hook reads
+array fields the engine doesn't emit (it emits counts as numbers). Until
+that fix lands, read plane counts from the engine's plane listener via
+`ARView.onPlanes()` instead. See [Known issues](/docs/known-issues).
+</Note>
+
+## Overlays and SSR
+
+Overlay children are regular React DOM rendered into the element you pass
+as `overlay`; the same element is handed to the XR session as its
+DOM overlay. Styling, routing and state inside it are entirely yours —
+see [Overlays](/docs/guides/overlays).
+
+<Todo>
+SSR safety is unverified: the package entry runs an event-bridge setup at
+import time and the hook module constructs an engine at module scope.
+Neither obviously touches `window`/`document` at import, but no SSR
+render was exercised during the audit. Until verified, load AR components
+client-side only (e.g. Next.js `dynamic(..., { ssr: false })`) — which is
+what this site's own [demo](/demo) does.
+</Todo>

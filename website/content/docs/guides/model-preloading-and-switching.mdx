@@ -1,0 +1,80 @@
+---
+title: Model preloading & switching
+description: How the model cache works, why preloadModels makes switching fast, and why switchModel — never placeModel — is the switching call.
+---
+
+## Preloading
+
+`preloadModels(urls)` loads each URL through the engine's GLTF loader and
+stores the parsed result in the engine's model cache:
+
+```js
+await ar.preloadModels(['/models/sofa.glb', '/models/chair.glb', '/models/table.glb']);
+```
+
+Every later placement of a cached URL clones from the parsed in-memory
+model instead of fetching and parsing again. For a product catalogue,
+preload the visible products when the AR view is created (or when the
+product page loads), so the first tap doesn't pay network + parse time.
+
+Things to know about the cache:
+
+- It is keyed by URL and lives for the life of the page. There is no
+  eviction API in v1.0.0 — every URL you load stays resident (a known
+  issue for very large catalogues; see
+  [Known issues](/docs/known-issues)).
+- Preloading is a `Promise.all` over the URLs: one failing URL rejects
+  the batch. Load stragglers individually if your catalogue has optional
+  items.
+- Model files are fetched with the page's origin rules — cross-origin
+  models need CORS headers from the host serving them, and URLs must be
+  app-controlled (the loader parses whatever it is given).
+
+## Switching models in place
+
+Use `switchModel()` to change the product a shopper is looking at:
+
+```js
+// The shopper placed the sofa and scaled it to fit the corner.
+await ar.switchModel('/models/chair.glb');
+// The chair appears at the same anchor, with the same scale and rotation.
+```
+
+`switchModel(modelUrl, { preserveMaterial = true })`:
+
+- Keeps the existing anchor, position, scale and rotation.
+- With `preserveMaterial` (the default), carries the current color/texture
+  over to the new model.
+- Falls back to a fresh `placeModel()` when nothing is placed yet, so it
+  is safe to call from a product-switcher UI unconditionally.
+
+<Warning>
+**Do not use `placeModel()` to switch.** `placeModel` always performs a
+fresh centre hit test, creates a *new* anchor and model, and leaves the
+previous model in the scene — unreachable through the facade and never
+removed. An earlier version of the README's API table (and its React
+example) claimed `placeModel` switching "keeps placement, scale and
+rotation"; that was wrong, and the docs now teach `switchModel`.
+</Warning>
+
+## Removing the model
+
+```js
+await ar.removeModel(); // removes the active model; no-op if none is placed
+```
+
+`ARView` tracks a single **active model**. `removeModel()` removes that
+one and clears the active id/URL. There is currently no facade API to
+enumerate placed models or clear all of them — another reason to switch
+with `switchModel()` instead of stacking `placeModel()` calls.
+
+## Material carry-over caveat
+
+With `preserveMaterial`, the engine copies the **first** material found on
+the old model onto **every** material of the new model. Single-material
+products carry over exactly as you'd expect. A multi-material product
+(fabric body + wooden legs) comes back uniformly colored/textured after a
+switch. If your products are multi-material, pass
+`{ preserveMaterial: false }` and re-apply styling explicitly with
+[`setColor`](/docs/guides/colors-and-textures) /
+`applyTexture` after the switch.

@@ -1,0 +1,90 @@
+---
+title: Gestures
+description: Tap to place, drag, pinch to scale and two-finger twist to rotate — via ARView.enableCustomization or the standalone gesture controller.
+---
+
+## The built-in wiring: `enableCustomization`
+
+The fastest way to get gestures is `ARView.enableCustomization()`. It
+attaches a gesture controller to the view's overlay and wires the gestures
+to the active model:
+
+```js title="gestures.js"
+const cleanup = ar.enableCustomization({
+  // REQUIRED, and it is a function: the controller calls it on every tap
+  // to learn which model a tap should place.
+  modelUrl: () => currentModelUrl,
+  onTap: () => console.log('placed'),
+  onScale: (factor) => console.log('scale is now', factor),
+  onRotate: (radians) => console.log('rotationY is now', radians),
+});
+
+// Later, to detach:
+cleanup();
+```
+
+| Gesture | Effect |
+| --- | --- |
+| One-finger tap | Places `modelUrl()` at the centre hit test (or re-places) |
+| Pinch (two fingers, in/out) | Scales the active model — `ARView.setScale` clamps to **[0.1, 5]** |
+| Twist (two fingers, rotate) | Rotates the active model around Y |
+| Drag (one finger) | Available in the standalone controller (`onDrag`); `enableCustomization` does not bind it to the model |
+
+<Warning>
+`modelUrl` is **invoked as a function** on every tap. Passing a plain
+string — which the name invites — throws a `TypeError` inside the tap
+handler on every tap. Always pass `() => url`. (The example app does this
+via a ref so the latest selected product is used.)
+</Warning>
+
+Overlay elements marked with `data-ui` are ignored by the gesture layer,
+so your buttons and sheets never double as scene gestures.
+
+## The standalone controller
+
+For custom interactions, use the exported controller directly. It is
+framework-agnostic Pointer Events code and knows nothing about AR:
+
+```js title="custom-gestures.js"
+import { createARGestureController } from 'capacitor-arcore';
+
+const gestures = createARGestureController({
+  element: document.querySelector('#ar-overlay'), // required
+  onTap: ({ x, y }) => { /* pointerup point, px */ },
+  onDrag: ({ dx, dy, x, y }) => { /* per-move deltas, px */ },
+  onPinch: ({ factor, center }) => { /* factor is incremental */ },
+  onRotate: ({ delta, center }) => { /* delta in radians, incremental */ },
+  tapMaxDuration: 260,   // ms — longer presses are not taps
+  tapMaxDistance: 12,    // px — further movement is not a tap
+  preventDefault: true,
+  ignoreSelector: '[data-ui]',
+});
+
+// When the view goes away:
+gestures.destroy();
+```
+
+Payload semantics worth knowing:
+
+- `onPinch`'s `factor` is **incremental** — relative to the previous move
+  event, not the gesture start. Multiply your running scale by it.
+- `onRotate`'s `delta` is likewise incremental, in radians, wrapped to
+  ±π.
+- A tap is a pointer down/up pair within `tapMaxDuration` and
+  `tapMaxDistance`. One low-severity quirk: a `pointercancel` (system
+  gesture, notification) that happens to be short and stationary is
+  currently treated as a completed tap and can place a model.
+
+## Driving transforms yourself
+
+If you bypass `enableCustomization`, the facade exposes the same
+operations the gestures use:
+
+```js
+ar.setScale(1.4);        // clamped to [0.1, 5], applied uniformly
+ar.rotateBy(Math.PI / 8); // accumulates rotationY, radians
+```
+
+Scale limits differ per layer in v1.0.0 — the facade clamps to [0.1, 5],
+the engine accepts any scale, the native registry clamps to [0.25, 3] —
+so prefer the facade methods when you want the documented clamp.

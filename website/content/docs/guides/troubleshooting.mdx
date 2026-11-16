@@ -1,0 +1,116 @@
+---
+title: Troubleshooting
+description: Symptom-by-symptom fixes for the problems developers actually hit with v1.0.0 — most trace back to a short list of known behaviours.
+---
+
+## AR won't start on my phone, but works on desktop localhost
+
+Almost certainly the **secure context**. WebXR immersive AR requires
+HTTPS (or `localhost`). A LAN address over plain HTTP loads the page but
+session creation fails, and `checkSupport()` does not yet distinguish
+"insecure origin" from "not supported" in its `reason`. Serve the page
+over HTTPS — see
+[HTTPS and phone testing](/docs/getting-started#https-and-phone-testing) —
+or open this site's [live demo](/demo), which is already HTTPS.
+
+## The session fails immediately on some Android devices
+
+Session creation requires the WebXR features `hit-test` **and**
+`local-floor`. Devices/browsers with immersive AR + hit-test but no
+`local-floor` fail outright instead of degrading to a simpler reference
+space. There is no configuration workaround in v1.0.0; it's a known issue
+with a planned fallback chain (`local-floor` → `local` → `viewer`).
+
+## `checkSupport()` says yes, but the native session fails later
+
+On the native Android facade, `checkSupport` currently resolves
+`{supported: true}` unconditionally — it never asks ARCore for real
+availability. Gate your UI on it if you like, but handle `startSession`
+failure as the real support test on Android. (The WebXR
+`checkSupport()` used by `ARView`/the hook does perform a real check.)
+
+## My model never appears (hook `placeModel`)
+
+If you're calling the hook's `placeModel(modelUrl, position, rotation,
+scale)`, pass **arrays**: position `[x, y, z]`, rotation as a quaternion
+`[x, y, z, w]`, scale `[sx, sy, sz]`. Older JSDoc described `{x, y, z}`
+objects; objects produce `NaN` components and the model is placed
+nowhere, silently. The facade's `ARView.placeModel(url)` doesn't take
+transform arguments at all — prefer it unless you need the engine-level
+control.
+
+## `detectedPlanes` in the hook is always zero
+
+Known bug: the hook reads array fields (`horizontalPlanes.length`, …)
+while the engine emits counts as numbers. Until it's fixed, subscribe to
+plane updates through `ARView.onPlanes()` or the engine's plane listener,
+whose payload is `{type, total, horizontal, vertical}`.
+
+## `placeModel(url, {x, y})` ignores where I tapped
+
+Correct — in v1.0.0 the WebXR `hitTest({x, y})` ignores its coordinates
+and always returns the centre-screen hit. Everything built on it (facade
+placement, the web `moveModel`) is centre-only. Design interactions
+around the reticle: the user aims the centre of the screen, then taps.
+
+## My reticle setting keeps turning back on
+
+`showReticle: false` is currently overridden back to `true` on session
+start, on placement and on removal. There is no persistent way to hide
+the reticle in v1.0.0 beyond calling `setReticleVisible(false)` after
+each of those moments. Known issue; the forced resets are slated for
+removal.
+
+## Every tap throws `TypeError: options.modelUrl is not a function`
+
+`enableCustomization({ modelUrl })` expects a **function** it calls on
+each tap. Pass `modelUrl: () => currentUrl`, not the string itself. See
+[Gestures](/docs/guides/gestures).
+
+## Memory grows while users browse products
+
+Removed models and plane-dot visualisations are detached from the scene
+but their geometries/materials/textures are not disposed in v1.0.0, and
+the model cache never evicts. Mitigations that help today:
+
+- Switch with `switchModel()` instead of repeated `placeModel()` calls.
+- Preload a bounded catalogue rather than every URL a user might touch.
+- Treat very long AR sessions with heavy model churn as out of scope
+  until the disposal work lands (it's high on the
+  [roadmap](/docs/known-issues#roadmap)).
+
+## `takeScreenshot` returns `CAMERA_CAPTURE_UNAVAILABLE`
+
+The browser didn't grant WebXR camera access for this session.
+Screenshots are best-effort: branch on `result.success` and hide the
+feature when it fails. Sessions started with `lightEstimation: true`
+(the default) request camera access; without it, this code is expected
+on many browsers. See [Screenshots](/docs/guides/screenshots).
+
+## An awaited `hitTest` never resolves after the user exits AR
+
+The fallback hit-test path resolves from an animation-frame callback; if
+the session ends first, the promise can hang. Guard it in your code with
+a timeout race until the engine resolves it on session end.
+
+## `npx cap sync` didn't register the Android plugin
+
+The package lacks the `capacitor` metadata key that drives automatic
+discovery. Add the plugin to your Android project's `settings.gradle`
+by hand, as the example does — full details in
+[Capacitor setup](/docs/getting-started#capacitor-setup).
+
+## Importing the package in a non-React app fails
+
+The entry point re-exports the React hook, which imports React at module
+top level, and React is only a peer dependency. Until the hook moves to a
+subpath export, install `react` (and `react-dom` if your bundler asks)
+even for plain-JS consumers.
+
+## A second native `startSession` shows a session but no rendering
+
+On the native path the render loop's paused flag is only cleared by an
+activity-resume path that is never invoked, so after a stop the loop may
+not restart within the same app run. Restarting the app clears it. This
+is a known native lifecycle issue — see
+[Known issues](/docs/known-issues).

@@ -1,0 +1,93 @@
+---
+title: Colors & textures
+description: Recolor the placed model, register and apply your own textures, and tune material properties — plus the multi-material caveats.
+---
+
+## Recoloring the active model
+
+```js
+await ar.placeModel('/models/sofa.glb');
+await ar.setColor('#68705b'); // hex string, applied to the active model
+```
+
+`ARView.setColor(color)` applies to the active model only. It is the
+building block for the color swatches in the [live demo](/demo) and the
+example app:
+
+```jsx title="Swatches.jsx"
+const SWATCHES = [
+  ['Beige', '#c8b49b'],
+  ['Grey', '#858585'],
+  ['Olive', '#68705b'],
+  ['Navy', '#222b3c'],
+  ['Terracotta', '#a55f3b'],
+];
+
+{SWATCHES.map(([name, hex]) => (
+  <button key={hex} data-ui onClick={() => ar.setColor(hex)}>
+    {name}
+  </button>
+))}
+```
+
+## Textures
+
+Register named texture URLs once, then apply them by name (or pass a URL
+directly). `addTextures` returns the view, so calls chain:
+
+```js
+ar.addTextures({
+  oak: '/textures/oak.jpg',
+  walnut: '/textures/walnut.jpg',
+});
+
+await ar.applyTexture('oak');                       // by registered name
+await ar.applyTexture('/textures/marble.jpg');      // or by URL
+await ar.applyTexture('oak', { materialName: 'Top' }); // one named material only
+```
+
+- `applyTexture` **throws if no model is placed** — call it after a
+  successful `placeModel`/`switchModel`.
+- `materialName` targets a single material inside the GLB; without it the
+  texture applies across the model's materials.
+- Texture URLs follow the same rules as model URLs: app-controlled,
+  CORS-enabled if cross-origin.
+
+<Note>
+Two engine-level behaviours to design around in v1.0.0:
+
+- Applying a texture replaces the previous one on the material but does
+  not dispose the old GPU texture — a customisation UI that lets users
+  flip through dozens of textures in one session leaks one texture per
+  application. It is fine for a handful of swatches; it is on the
+  [known issues](/docs/known-issues) list.
+- When `switchModel` carries material state over (`preserveMaterial`, the
+  default), the **first** material of the old model is copied onto
+  **every** material of the new one. Multi-material products come back
+  uniformly styled — see
+  [Model preloading & switching](/docs/guides/model-preloading-and-switching#material-carry-over-caveat).
+</Note>
+
+## Material properties (engine / hook level)
+
+The facade exposes color and texture. Finer material control lives one
+layer down, on the engine, and through the hook:
+
+```js
+// Via useARCore():
+ar.setModelMaterial(anchorId, { metalness: 0.1, roughness: 0.8, opacity: 1 });
+```
+
+`setModelMaterial({ anchorId, metalness?, roughness?, opacity? })` sets
+the given PBR properties on the anchored model's materials. All three
+properties are optional; omitted ones are left unchanged. There is no
+facade (`ARView`) wrapper for this in v1.0.0 — if you hold an `ARView`,
+its engine is `ar.engine` and accepts the same call with an options
+object.
+
+## Native facade equivalent
+
+The native `ARCore` facade has `setMaterial({ modelId, color })` for the
+Android path. Note the identifier difference: the native facade calls it
+`modelId`, the WebXR engine calls the same thing `anchorId` — see the
+[API reference](/docs/api#arcore-native-facade).

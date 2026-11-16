@@ -1,0 +1,71 @@
+---
+title: Compatibility
+description: What the code requires, what is known to work, and — stated plainly — what has never been recorded as tested.
+---
+
+<Todo>
+No tested-device or tested-browser data exists anywhere in this
+repository: no test matrix, no recorded device sessions, no minimum
+browser versions. The tables below separate **code-level requirements**
+(verified by reading the source) from **tested support** (which is
+TODO until someone runs real devices and records the results). Do not
+read a requirement as a support promise.
+</Todo>
+
+## WebXR runtime (browser)
+
+| Requirement | Source | Tested versions |
+| --- | --- | --- |
+| Secure context (HTTPS or `localhost`) | WebXR platform rule; the library does not special-case it | — |
+| `immersive-ar` session support | `navigator.xr.requestSession('immersive-ar', …)` | TODO |
+| `hit-test` feature | Required feature at session creation | TODO |
+| `local-floor` feature | Required feature at session creation — devices without it fail rather than degrade | TODO |
+| `plane-detection` | Optional feature; dots/meshes appear when granted | TODO |
+| `light-estimation` (+ `camera-access`) | Optional; requested when light estimation is on | TODO |
+| `dom-overlay` | Optional; requested when an overlay element is provided | TODO |
+
+The documented test path is **Chrome on an ARCore-capable Android phone**
+(see [Phone testing](/docs/getting-started#https-and-phone-testing)).
+Specific Chrome versions: **TODO**.
+
+iOS Safari does not expose the immersive-ar WebXR flow — the browser
+runtime is not an iOS path.
+
+## Native Android runtime (Capacitor)
+
+| Item | Value | Notes |
+| --- | --- | --- |
+| Minimum Android SDK | 24 | `minSdk` default in `android/build.gradle` (overridable by the host project) |
+| Compile / target SDK | 36 / 36 | Defaults, overridable |
+| ARCore library | `com.google.ar:core` 1.40.0 | Device must be ARCore-capable with Google Play Services for AR |
+| Filament | 1.52.0 | Camera-background rendering |
+| Java | 21 | Source/target compatibility |
+
+Tested Android versions and devices: **TODO** — none are recorded.
+
+<Note>
+The library's Android manifest declares the AR feature as
+`required="true"`, which merges into your app: as shipped, a host app
+becomes uninstallable on non-AR devices and AR-mandatory in store
+listings. If your app must install on non-AR devices, this is a known
+issue to weigh (see [Known issues](/docs/known-issues)).
+</Note>
+
+## Frameworks and tooling
+
+| Item | Requirement | Notes |
+| --- | --- | --- |
+| React | `>=16.8.0` (peer) | Only the hook needs it conceptually — but v1.0.0's entry imports it unconditionally |
+| `@capacitor/core` | `^8.5.2` (dependency) | Ships with the package |
+| `three` | `^0.180.0` (dependency) | Ships with the package; declaring your own copy can duplicate it |
+| Module format | ESM source, no `exports` map, no `type: module` | Bundlers cope; strict Node ESM resolution may not |
+| TypeScript | No declarations shipped | JSDoc only |
+
+## Devices
+
+<Todo>
+Device matrix is empty by honesty, not by oversight: no device has been
+recorded as tested with v1.0.0. If you run the demo on your phone,
+reporting the device model, Android version and Chrome version (in a
+GitHub issue) directly fills this table.
+</Todo>

@@ -1,0 +1,92 @@
+---
+title: Lifecycle
+description: How sessions are created, ended and torn down on both runtimes — and what is (and is not) cleaned up in v1.0.0.
+---
+
+## WebXR path
+
+### Create
+
+`ARView.create()` calls `engine.startSession()`. Three.js objects are
+created **once** — the first start builds the renderer, scene, camera,
+lights, loader, plane groups and reticle — and are reused across
+sessions. The renderer canvas is inserted before your overlay element
+(or appended to `document.body` when there is no overlay).
+
+### Session end (user or system)
+
+When the XR session ends on its own (user exits, system interrupts):
+
+- the engine fires `sessionEnded` to frame listeners,
+- the animation loop stops,
+- session / hit-test-source / reference-space fields are nulled,
+
+…but placed models and the canvas are **not** removed. That only happens
+in `stopSession()`. Listen for `sessionEnded` and call
+`ar.destroy()` (or start again, like the demo's Resume flow) to return
+to a clean state.
+
+### Teardown
+
+`ARView.destroy()` destroys the gesture controller and awaits
+`engine.stopSession()`, which:
+
+- stops rendering,
+- removes models, shadow planes and base rings from the scene and clears
+  the anchor/model maps,
+- disposes plane **meshes**,
+- hides the reticle,
+- ends the XR session and removes the canvas from the DOM.
+
+What teardown does **not** do in v1.0.0: the renderer, scene and camera
+are never disposed, removed models' GPU resources are not freed (see
+[Known issues](/docs/known-issues)), and plane-dot groups are removed
+without disposal. Budget for that in long sessions.
+
+### React
+
+- `ARPlayground`-style components: construct one `ARView` per mount,
+  `destroy()` in the effect cleanup.
+- `useARCore`: checks support on mount; on unmount it stops the session
+  if it started one and runs its listener cleanups. Because the engine
+  is a module-level singleton, that stop affects **all** hook consumers
+  — mount the hook once.
+
+## Native path
+
+### Create
+
+The plugin's `load()` constructs all managers once (the Filament engine
+is created in the renderer's constructor, at plugin load).
+`startSession` then: camera permission → ARCore availability / install →
+`Session` creation and configuration → native view inserted behind the
+WebView, which is made transparent.
+
+### Pause and resume — the gap
+
+`ARSessionManager.pauseSession()/resumeSession()` and the renderer's
+`onActivityPaused()/onActivityResumed()` exist, but **nothing calls
+them**: the plugin overrides no Capacitor lifecycle hooks
+(`handleOnPause`, `handleOnResume`, `handleOnDestroy`). Consequences in
+v1.0.0:
+
+- The camera and render loop are not paused when the activity is
+  backgrounded, which ARCore's contract requires.
+- The render loop's paused flag is only cleared on the (never-invoked)
+  resume path, so a session restarted after `stopSession` in the same
+  app run may render nothing.
+
+### Teardown
+
+`stopSession` (on the UI thread): clears models/anchors → renderer
+session-closed → view removed and WebView state restored → session
+closed. The Filament engine, renderer, scene and camera-background
+resources are never destroyed — they leak for the process lifetime and
+are recreated per plugin load.
+
+<Note>
+These lifecycle gaps are known, specific, and near the top of the
+[roadmap](/docs/known-issues#roadmap): wiring the three Capacitor
+lifecycle hooks fixes the pause/resume cluster and enables a real
+destroy path.
+</Note>
