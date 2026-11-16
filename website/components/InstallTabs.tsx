@@ -17,7 +17,7 @@ function command(manager: Manager, pkg: string): string {
 }
 
 /** Install-command tabs for npm / pnpm / yarn, with a copy button. */
-export function InstallTabs({ pkg = 'capacitor-arcore' }: { pkg?: string }) {
+export function InstallTabs({ pkg = 'reticlexr' }: { pkg?: string }) {
   const [active, setActive] = useState<Manager>('npm');
   const [copied, setCopied] = useState(false);
   const cmd = command(active, pkg);

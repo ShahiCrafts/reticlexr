@@ -17,7 +17,7 @@ the engine you want mirrored into React state:
 
 ```jsx title="ProductAR.jsx"
 import { useEffect, useRef, useState } from 'react';
-import { createARView } from 'capacitor-arcore';
+import { createARView } from 'reticlexr';
 
 const MODELS = {
   Sofa: '/models/sofa.glb',
@@ -84,7 +84,7 @@ Three details matter:
 ## The `useARCore` hook
 
 ```jsx title="HookExample.jsx"
-import { useARCore } from 'capacitor-arcore';
+import { useARCore } from 'reticlexr';
 
 export default function HookExample({ overlayRef }) {
   const ar = useARCore();

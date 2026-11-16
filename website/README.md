@@ -1,8 +1,8 @@
-# arcore-react documentation site
+# reticlexr documentation site
 
 The documentation site and live demo for
-[arcore-react](https://github.com/ShahiCrafts/arcore-react)
-(npm: `capacitor-arcore`). Built with Next.js (App Router), Tailwind CSS
+[reticlexr](https://github.com/ShahiCrafts/reticlexr)
+(npm: `reticlexr`). Built with Next.js (App Router), Tailwind CSS
 and MDX. Every API statement on the site was verified against the library
 source; anything unverifiable is marked TODO in the page.
 
@@ -54,7 +54,7 @@ npx vercel --prod   # production deployment
 
 **Dashboard / Git integration:**
 
-1. Import the `ShahiCrafts/arcore-react` repository in Vercel.
+1. Import the `ShahiCrafts/reticlexr` repository in Vercel.
 2. Set **Root Directory** to `website`.
 3. Framework preset: **Next.js** (auto-detected); build command
    `npm run build`, install command `npm install` (both also pinned in

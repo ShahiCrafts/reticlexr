@@ -7,7 +7,7 @@ import { getSearchIndex } from '@/lib/content';
 export const metadata: Metadata = {
   title: 'Live demo',
   description:
-    'Try capacitor-arcore live in your browser: place, switch, recolor and photograph a model with WebXR.',
+    'Try reticlexr live in your browser: place, switch, recolor and photograph a model with WebXR.',
 };
 
 export default function DemoPage() {

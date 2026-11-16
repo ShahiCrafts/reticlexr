@@ -25,12 +25,12 @@ export function TopBar({ searchIndex, currentSlug }: { searchIndex: SearchEntry[
           </svg>
         </button>
 
-        <Link href="/" className="flex items-center gap-2.5 focus-visible:outline-2 focus-visible:outline-blue-500" aria-label="arcore-react documentation home">
+        <Link href="/" className="flex items-center gap-2.5 focus-visible:outline-2 focus-visible:outline-blue-500" aria-label="reticlexr documentation home">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white" aria-hidden="true">
             AR
           </span>
           <span className="text-base font-semibold tracking-tight text-slate-900 dark:text-white">
-            arcore-react
+            reticlexr
           </span>
           <span className="rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-300">
             v1.0.0
@@ -70,7 +70,7 @@ export function TopBar({ searchIndex, currentSlug }: { searchIndex: SearchEntry[
           <Search index={searchIndex} />
           <nav aria-label="External links" className="flex items-center gap-1">
             <a
-              href="https://github.com/ShahiCrafts/arcore-react"
+              href="https://github.com/ShahiCrafts/reticlexr"
               target="_blank"
               rel="noreferrer"
               aria-label="GitHub repository"
@@ -121,8 +121,8 @@ export function SiteFooter() {
     <footer className="border-t border-slate-200 py-8 dark:border-slate-800">
       <div className="mx-auto flex max-w-[90rem] flex-col gap-2 px-4 text-sm text-slate-500 sm:px-6 lg:px-8 dark:text-slate-400">
         <p>
-          <span className="font-semibold text-slate-700 dark:text-slate-200">arcore-react</span> — npm package{' '}
-          <code className="font-mono text-[0.85em]">capacitor-arcore</code> · MIT © Saugat Shahi
+          <span className="font-semibold text-slate-700 dark:text-slate-200">reticlexr</span> — npm package{' '}
+          <code className="font-mono text-[0.85em]">reticlexr</code> · MIT © Saugat Shahi
         </p>
         <p>
           Docs for v1.0.0. Every API on this site was checked against the source; anything unverified is

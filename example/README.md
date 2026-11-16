@@ -14,7 +14,7 @@ Install `certs/dev-ca.crt` as a trusted CA on the Android phone, keep the phone 
 The demo deliberately keeps manipulation out of sliders. `createARGestureController()` is framework-agnostic and can be attached to any React DOM overlay:
 
 ```jsx
-import { createARGestureController, useARCore } from 'capacitor-arcore';
+import { createARGestureController, useARCore } from 'reticlexr';
 
 const ar = useARCore();
 const overlay = useRef(null);

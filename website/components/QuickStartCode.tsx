@@ -3,9 +3,9 @@
 import { useState } from 'react';
 
 /** The verified quick-start snippet, shown verbatim in the code window. */
-export const QUICK_START_SNIPPET = `npm install capacitor-arcore
+export const QUICK_START_SNIPPET = `npm install reticlexr
 
-import { createARView } from 'capacitor-arcore';
+import { createARView } from 'reticlexr';
 
 const ar = createARView({
   overlay: document.querySelector('#ar-overlay'),
@@ -52,13 +52,13 @@ export function QuickStartCode() {
         <code>
           <span className="block">
             <span className={KW}>npm</span> <span className={BASE}>install</span>{' '}
-            <span className={STR}>capacitor-arcore</span>
+            <span className={STR}>reticlexr</span>
           </span>
           <span className="block">&nbsp;</span>
           <span className="block">
             <span className={KW}>import</span> <span className={PUNCT}>{'{'}</span>{' '}
             <span className={BASE}>createARView</span> <span className={PUNCT}>{'}'}</span>{' '}
-            <span className={KW}>from</span> <span className={STR}>&apos;capacitor-arcore&apos;</span>
+            <span className={KW}>from</span> <span className={STR}>&apos;reticlexr&apos;</span>
             <span className={PUNCT}>;</span>
           </span>
           <span className="block">&nbsp;</span>

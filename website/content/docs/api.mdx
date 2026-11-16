@@ -1,6 +1,6 @@
 ---
 title: API reference
-description: Every public function, option, type and event in capacitor-arcore v1.0.0, hand-written from the verified source signatures.
+description: Every public function, option, type and event in reticlexr v1.0.0, hand-written from the verified source signatures.
 ---
 
 This reference is hand-written from the source. The library is untyped
@@ -23,7 +23,7 @@ import ARCore, {
   addTextures,
   switchModel,
   placeModel,
-} from 'capacitor-arcore';
+} from 'reticlexr';
 ```
 
 | Export | Kind | Layer |
@@ -52,7 +52,7 @@ wrapped as `Error('Failed to …: ' + e.message)`, except `checkSupport`,
 which resolves a failure object instead.
 
 ```js title="native-facade.js"
-import ARCore from 'capacitor-arcore';
+import ARCore from 'reticlexr';
 
 const support = await ARCore.checkSupport();
 if (support.supported) {
@@ -110,7 +110,7 @@ The framework-agnostic facade over one WebXR engine instance. This is
 the API the guides and the example use.
 
 ```js
-import { createARView } from 'capacitor-arcore';
+import { createARView } from 'reticlexr';
 
 const ar = createARView({ overlay: document.querySelector('#ar-overlay') });
 ```
@@ -180,7 +180,7 @@ function. Full details in [Gestures](/docs/guides/gestures).
 The same operations, view-first, for function-style codebases:
 
 ```js
-import { placeModel, switchModel, addTextures, enableCustomization, takeScreenshot } from 'capacitor-arcore';
+import { placeModel, switchModel, addTextures, enableCustomization, takeScreenshot } from 'reticlexr';
 
 await placeModel(ar, '/models/sofa.glb');
 await switchModel(ar, '/models/chair.glb', { preserveMaterial: false });
@@ -329,7 +329,7 @@ Hook contract traps, verified against the engine:
 ## Gesture controller
 
 ```js
-import { createARGestureController } from 'capacitor-arcore';
+import { createARGestureController } from 'reticlexr';
 
 const gestures = createARGestureController({
   element,                  // required — throws if missing

@@ -6,7 +6,7 @@ import { PhoneVisual } from '@/components/PhoneVisual';
 import { QuickStartCode } from '@/components/QuickStartCode';
 import { getSearchIndex } from '@/lib/content';
 
-const GITHUB_URL = 'https://github.com/ShahiCrafts/arcore-react';
+const GITHUB_URL = 'https://github.com/ShahiCrafts/reticlexr';
 
 function CheckItem({ label }: { label: string }) {
   return (
@@ -144,7 +144,7 @@ export default function LandingPage() {
                 your customers&rsquo; rooms.
               </h1>
               <p className="mt-6 max-w-xl text-lg leading-relaxed text-slate-600 dark:text-slate-300">
-                arcore-react absorbs WebXR sessions, Three.js scenes, GLTF loading, hit testing,
+                reticlexr absorbs WebXR sessions, Three.js scenes, GLTF loading, hit testing,
                 plane visualisation and multi-touch gesture math behind a small API — so your app
                 can focus on products and UI.
               </p>

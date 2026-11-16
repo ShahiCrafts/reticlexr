@@ -185,7 +185,7 @@ export function HomeSidebar() {
           Get help, share ideas, and stay updated.
         </p>
         <a
-          href="https://github.com/ShahiCrafts/arcore-react"
+          href="https://github.com/ShahiCrafts/reticlexr"
           target="_blank"
           rel="noreferrer"
           className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-white px-4 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-100 focus-visible:outline-2 focus-visible:outline-blue-500 dark:border-blue-500/30 dark:bg-transparent dark:text-blue-300 dark:hover:bg-blue-500/10"

@@ -100,5 +100,5 @@ export function getSearchIndex(): SearchEntry[] {
 }
 
 export function editUrl(filePath: string): string {
-  return `https://github.com/ShahiCrafts/arcore-react/edit/docs/vercel-site/${filePath}`;
+  return `https://github.com/ShahiCrafts/reticlexr/edit/docs/vercel-site/${filePath}`;
 }

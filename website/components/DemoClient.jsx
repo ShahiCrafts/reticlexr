@@ -196,7 +196,7 @@ export default function DemoClient() {
           </h2>
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-slate-300">
             Scan a surface, tap to place, pinch to resize and twist to rotate. This demo runs the
-            actual <code className="font-mono text-[0.85em]">capacitor-arcore</code> library in your
+            actual <code className="font-mono text-[0.85em]">reticlexr</code> library in your
             browser.
           </p>
 

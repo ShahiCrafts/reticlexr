@@ -1,7 +1,7 @@
 {
-  "name": "arcore-react-example",
+  "name": "reticlexr-example",
   "version": "1.0.0",
-  "description": "React/Vite example application for the ARCore React SDK",
+  "description": "React/Vite example application for the reticlexr SDK",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,7 +17,7 @@
     "@capacitor/android": "8.5.2",
     "@capacitor/app": "8.1.1",
     "@capacitor/core": "8.5.2",
-    "capacitor-arcore": "file:..",
+    "reticlexr": "file:..",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "three": "^0.180.0"
