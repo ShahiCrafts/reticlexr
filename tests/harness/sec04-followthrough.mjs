@@ -1,16 +1,14 @@
-// Verification harness (Phases 1-2). Stub-based, runs under plain
-// Node: `node tests/harness/sec04-followthrough.mjs`. Phase 6 (TEST-01) formalises
-// these into the Vitest suite — see tests/README.md.
+// Verification harness (Phases 1-2). Stub-based, Vitest suite (TEST-01): run with `npm test`. See tests/README.md.
 // SEC-04 follow-through harness: one-time console.warn + hint in the
 // CAMERA_CAPTURE_UNAVAILABLE error, on both producer paths.
+
+import { test, expect } from 'vitest';
+
+test('sec04-followthrough', async () => {
 globalThis.window = globalThis;
 const { ARCoreWeb } = await import('../../src/web.js');
 
-let pass = 0, fail = 0;
-function check(name, cond) {
-  if (cond) { pass++; console.log('  ok  ', name); }
-  else { fail++; console.log('  FAIL', name); }
-}
+const check = (name, cond) => expect(cond, name).toBe(true);
 
 let warnCount = 0;
 const origWarn = console.warn;
@@ -52,5 +50,4 @@ await e2.takeScreenshot();
 check('fresh instance warns again', warnCount === 2);
 
 console.warn = origWarn;
-console.log(`\nSEC-04 harness: ${pass} passed, ${fail} failed`);
-process.exit(fail ? 1 : 0);
+});

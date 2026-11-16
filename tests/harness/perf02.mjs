@@ -2,13 +2,13 @@
 // (steady state at most 10 Hz) but hasSurface TRANSITIONS fire
 // immediately. Stub render loop, runs under plain Node:
 // `node tests/harness/perf02.mjs`.
+
+import { test, expect } from 'vitest';
+
+test('perf02', async () => {
 const { ARCoreWeb } = await import('../../src/web.js');
 
-let failures = 0;
-const check = (name, cond) => {
-  console.log(cond ? 'PASS' : 'FAIL', name);
-  if (!cond) failures++;
-};
+const check = (name, cond) => expect(cond, name).toBe(true);
 
 const engine = new ARCoreWeb();
 let loopCb = null;
@@ -73,6 +73,4 @@ check('surfaceDetected fires immediately on regain (transition beats throttle)',
 // surfaceState is one stable object, mutated in place
 check('getSurfaceDetectionState returns a stable object', engine.getSurfaceDetectionState() === engine.surfaceState);
 check('surfaceState reflects the current hit', engine.surfaceState.hasSurface === true && engine.surfaceState.planeType === 'horizontal');
-
-console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURES`);
-process.exit(failures === 0 ? 0 : 1);
+});

@@ -1,7 +1,6 @@
 // PERF-05 evidence harness: is a canvas drawImage composite
 // byte-identical to the per-pixel loop in
-// ARCoreWeb._composeScreenshot? Runs under plain Node:
-// `node tests/harness/perf05.mjs`.
+// ARCoreWeb._composeScreenshot? Vitest suite (TEST-01): run with `npm test`.
 //
 // The drawImage path cannot run headlessly (no DOM canvas in Node),
 // so this harness SIMULATES it with the exact arithmetic the HTML
@@ -24,6 +23,10 @@
 //     32 <= x < 48:  a = 128, colour (200, 100, 50)  (flat half alpha)
 //     x >= 48:       a = (7x + 13y) mod 256, non-uniform colour,
 //                    includes a = 1 and a = 254 pixels
+
+import { test, expect } from 'vitest';
+
+test('perf05', async () => {
 const W = 64;
 const H = 48;
 
@@ -115,11 +118,7 @@ function canvasCompose(cameraPixels, virtualPixels, width, height) {
 // ---- Compare ---------------------------------------------------------
 const { camera, virtual } = buildFrame();
 
-let failures = 0;
-const check = (name, cond) => {
-  console.log(cond ? 'PASS' : 'FAIL', name);
-  if (!cond) failures++;
-};
+const check = (name, cond) => expect(cond, name).toBe(true);
 
 // Sanity: the premultiply round-trip ALONE (putImageData then
 // getImageData, no compositing) already loses virtual-layer colour
@@ -175,6 +174,4 @@ console.log(
     : 'VERDICT: drawImage path is NOT byte-identical — PERF-05 stays wontfix, the loop stays'
 );
 check('comparison ran over the full frame', loopOut.length === W * H * 4 && canvasOut.length === W * H * 4);
-
-console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURES`);
-process.exit(failures === 0 ? 0 : 1);
+});

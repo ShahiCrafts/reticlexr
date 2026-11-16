@@ -1,13 +1,12 @@
 // PERF-06 verification: engine logging is silent unless
-// config.debug is enabled. Runs under plain Node:
-// `node tests/harness/perf06.mjs`.
+// config.debug is enabled. Vitest suite (TEST-01): run with `npm test`.
+
+import { test, expect } from 'vitest';
+
+test('perf06', async () => {
 const { ARCoreWeb } = await import('../../src/web.js');
 
-let failures = 0;
-const check = (name, cond) => {
-  console.log(cond ? 'PASS' : 'FAIL', name);
-  if (!cond) failures++;
-};
+const check = (name, cond) => expect(cond, name).toBe(true);
 
 const engine = new ARCoreWeb();
 check('debug defaults to off', engine.config.debug === false);
@@ -30,6 +29,4 @@ try {
 }
 check('no console output while debug is off', silentWhenOff);
 check('console output flows while debug is on', audibleWhenOn);
-
-console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURES`);
-process.exit(failures === 0 ? 0 : 1);
+});

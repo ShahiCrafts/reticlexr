@@ -1,12 +1,13 @@
-// Verification harness (Phases 1-2). Stub-based, runs under plain
-// Node: `node tests/harness/compat01.mjs`. Phase 6 (TEST-01) formalises
-// these into the Vitest suite — see tests/README.md.
+// Verification harness (Phases 1-2). Stub-based, Vitest suite (TEST-01): run with `npm test`. See tests/README.md.
 // Throwaway COMPAT-01 verification: startSession reference-space fallback
 // with a stubbed renderer and fake XRSession. No DOM/WebXR hardware.
+
+import { test, expect } from 'vitest';
+
+test('compat01', async () => {
 const { ARCoreWeb } = await import('../../src/web.js');
 
-let failures = 0;
-const check = (name, cond) => { console.log(cond ? 'PASS' : 'FAIL', name); if (!cond) failures++; };
+const check = (name, cond) => expect(cond, name).toBe(true);
 
 globalThis.document = { body: { appendChild() {} } };
 
@@ -71,6 +72,4 @@ function makeEngine({ granted }) {
   check('no space: live session was ended', state.ended === true);
   check('no space: session field cleared', engine.session === null);
 }
-
-console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURES`);
-process.exit(failures === 0 ? 0 : 1);
+});
