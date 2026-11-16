@@ -2198,7 +2198,16 @@ export class ARCoreWeb extends WebPlugin {
     });
   }
 
-  /** Swap geometry at an existing anchor while preserving placement and transforms. */
+  /**
+   * Swap geometry at an existing anchor while preserving placement
+   * and transforms.
+   *
+   * With `preserveMaterial` (default), each material of the new
+   * model inherits colour — and its map, when it has one — from the
+   * matching material of the old model: matched by material name
+   * first, then by traversal order (BUG-09). Materials without a
+   * counterpart keep the new model's own materials.
+   */
   async switchModel({ anchorId, modelUrl, preserveMaterial = true }) {
     const anchor = this.anchors.get(anchorId);
     const oldModel = this.loadedModels.get(anchorId);
@@ -2209,23 +2218,51 @@ export class ARCoreWeb extends WebPlugin {
     next.position.copy(oldModel.position);
     next.quaternion.copy(oldModel.quaternion);
     next.scale.copy(oldModel.scale);
-    // Texture adopted by the new model from the old one: it must
+    // Textures adopted by the new model from the old one: they must
     // survive the old model's disposal below
-    let preservedMap = null;
+    const preservedMaps = new Set();
     if (preserveMaterial) {
-      let sourceMaterial = null;
-      oldModel.traverse(c => { if (!sourceMaterial && c.isMesh && c.material) sourceMaterial = Array.isArray(c.material) ? c.material[0] : c.material; });
-      if (sourceMaterial) next.traverse(c => { if (c.isMesh && c.material) {
-        const mats = this._ownMeshMaterials(c);
-        mats.forEach(m => { if (m.color && sourceMaterial.color) m.color.copy(sourceMaterial.color); if (sourceMaterial.map) { m.map = sourceMaterial.map; preservedMap = sourceMaterial.map; } m.needsUpdate = true; });
-      }});
+      // Material preservation (BUG-09): each material of the new
+      // model inherits colour (and map, when the source has one)
+      // from its counterpart on the old model — matched first by
+      // material NAME, then by traversal order (the nth material
+      // slot of the new model pairs with the nth of the old). The
+      // pre-fix behaviour copied the FIRST old material onto every
+      // new material, flattening multi-material models. New materials
+      // with no counterpart keep their own look. Targets are cloned
+      // on write before mutation (LEAK-01).
+      const oldMaterials = [];
+      const seenOld = new Set();
+      oldModel.traverse(c => {
+        if (!c.isMesh || !c.material) return;
+        const mats = Array.isArray(c.material) ? c.material : [c.material];
+        mats.forEach(m => { if (!seenOld.has(m)) { seenOld.add(m); oldMaterials.push(m); } });
+      });
+      const oldByName = new Map();
+      oldMaterials.forEach(m => { if (m.name && !oldByName.has(m.name)) oldByName.set(m.name, m); });
+      let slot = 0;
+      next.traverse(c => {
+        if (!c.isMesh || !c.material) return;
+        const slots = Array.isArray(c.material) ? c.material : [c.material];
+        slots.forEach((mat, index) => {
+          const source = (mat.name && oldByName.get(mat.name)) || oldMaterials[slot];
+          slot++;
+          if (!source) return;
+          const owned = this._ownMaterial(mat);
+          if (Array.isArray(c.material)) c.material[index] = owned;
+          else c.material = owned;
+          if (owned.color && source.color) owned.color.copy(source.color);
+          if (source.map) { owned.map = source.map; preservedMaps.add(source.map); }
+          owned.needsUpdate = true;
+        });
+      });
     }
     this.scene.add(next);
     this.scene.remove(oldModel);
     // Dispose the old model's per-instance resources (LEAK-01) and
     // its shadow (LEAK-07); cache-owned resources are skipped
     const skip = new Set(this._sharedResources);
-    if (preservedMap) skip.add(preservedMap);
+    preservedMaps.forEach((t) => skip.add(t));
     disposeObject(oldModel, skip);
     this.loadedModels.set(anchorId, next);
     anchor.modelUrl = modelUrl;

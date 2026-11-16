@@ -300,6 +300,13 @@ export declare class ARCoreWeb extends WebPlugin {
   switchModel(options: {
     anchorId: string;
     modelUrl: string;
+    /**
+     * Carry the old model's materials onto the new one (BUG-09):
+     * each new material inherits colour — and map, when present —
+     * from its counterpart on the old model, matched by material
+     * name first, then by traversal order. Materials without a
+     * counterpart keep their own look. Default true.
+     */
     preserveMaterial?: boolean;
   }): Promise<{ anchorId: string; modelUrl: string }>;
 
