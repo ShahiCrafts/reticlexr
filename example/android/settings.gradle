@@ -2,8 +2,8 @@ include ':app'
 include ':capacitor-cordova-android-plugins'
 project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins/')
 
-// Include local capacitor-arcore plugin
-include ':capacitor-arcore'
-project(':capacitor-arcore').projectDir = new File(rootDir, '../../android')
+// Include local reticlexr plugin
+include ':reticlexr'
+project(':reticlexr').projectDir = new File(rootDir, '../../android')
 
 apply from: 'capacitor.settings.gradle'

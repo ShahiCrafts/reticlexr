@@ -1,5 +1,5 @@
 {
-  "name": "capacitor-arcore",
+  "name": "reticlexr",
   "version": "1.0.0",
   "description": "High-level AR abstraction for Capacitor and React with WebXR, ARCore, Three.js, gestures, model customization, and DOM overlays.",
   "main": "src/index.js",
@@ -12,7 +12,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ShahiCrafts/arcore-react.git"
+    "url": "git+https://github.com/ShahiCrafts/reticlexr.git"
   },
   "keywords": [
     "capacitor",
@@ -34,7 +34,7 @@
     "three": "^0.180.0"
   },
   "bugs": {
-    "url": "https://github.com/ShahiCrafts/arcore-react/issues"
+    "url": "https://github.com/ShahiCrafts/reticlexr/issues"
   },
-  "homepage": "https://github.com/ShahiCrafts/arcore-react#readme"
+  "homepage": "https://reticlexr.vercel.app"
 }

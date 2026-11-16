@@ -10,5 +10,5 @@
       "startOnLoad": false
     }
   },
-  "includedPlugins": ["@capacitor/app", "capacitor-arcore"]
+  "includedPlugins": ["@capacitor/app", "reticlexr"]
 }

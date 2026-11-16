@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for contributing to arcore-react.
+Thanks for contributing to reticlexr.
 
 ## Development
 

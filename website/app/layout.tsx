@@ -5,11 +5,11 @@ import { THEME_SCRIPT } from '@/components/ThemeToggle';
 
 export const metadata: Metadata = {
   title: {
-    default: 'arcore-react docs — capacitor-arcore',
-    template: '%s · arcore-react docs',
+    default: 'reticlexr docs — reticlexr',
+    template: '%s · reticlexr docs',
   },
   description:
-    'Documentation for arcore-react (npm: capacitor-arcore), a high-level AR SDK for React + Capacitor with WebXR and native ARCore.',
+    'Documentation for reticlexr (npm: reticlexr), a high-level AR SDK for React + Capacitor with WebXR and native ARCore.',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

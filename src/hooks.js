@@ -10,7 +10,7 @@
  *
  * @example
  * // Basic usage in a React component
- * import { useARCore } from 'capacitor-arcore';
+ * import { useARCore } from 'reticlexr';
  *
  * function ARComponent() {
  *   const {

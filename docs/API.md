@@ -3,7 +3,7 @@
 Application code should use `createARView()` instead of coordinating WebXR, Three.js, hit tests and gestures itself.
 
 ```js
-import { createARView } from 'capacitor-arcore';
+import { createARView } from 'reticlexr';
 
 const ar = createARView({ overlay: document.querySelector('#ar-overlay') });
 await ar.create({ showReticle: true, showPlaneDots: true });

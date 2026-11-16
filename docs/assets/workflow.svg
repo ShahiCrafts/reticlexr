@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 677 630" width="677" height="630" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" role="img">
 <rect x="0" y="0" width="677" height="100%" fill="#0d1117"/>
-<text x="36" y="46" fill="#e6e9f2" font-size="20" font-weight="700">capacitor-arcore — placing a model</text>
+<text x="36" y="46" fill="#e6e9f2" font-size="20" font-weight="700">reticlexr — placing a model</text>
 <text x="36" y="70" fill="#9aa3b8" font-size="13">The request lifecycle of one AR placement, using the high-level API</text>
 <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#5c8dff"/></marker></defs>
 <circle cx="52" cy="133.0" r="15" fill="#7c5cf0"/>

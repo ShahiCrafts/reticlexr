@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { createARView } from 'capacitor-arcore';
+import { createARView } from 'reticlexr';
 import './ARPlayground.css';
 
 const MODELS = [

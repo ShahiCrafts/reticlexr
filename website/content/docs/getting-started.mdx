@@ -1,6 +1,6 @@
 ---
 title: Getting started
-description: Install capacitor-arcore, wire it into a Capacitor app, and place your first model — then test on a real phone over HTTPS.
+description: Install reticlexr, wire it into a Capacitor app, and place your first model — then test on a real phone over HTTPS.
 ---
 
 ## Installation
@@ -22,7 +22,7 @@ transpilation. Two runtime dependencies come with it:
 In v1.0.0 the package entry re-exports the React hook, and the hook module
 imports React at the top level — so in practice React must be installed even
 if you only use the framework-agnostic API. This is a known packaging issue
-(see [Known issues](/docs/known-issues)); a `capacitor-arcore/react` subpath
+(see [Known issues](/docs/known-issues)); a `reticlexr/react` subpath
 export is on the roadmap.
 </Note>
 
@@ -35,7 +35,7 @@ until declarations ship.
 For a Capacitor app, install the package and sync:
 
 ```bash title="Terminal"
-npm install capacitor-arcore
+npm install reticlexr
 npx cap sync
 ```
 
@@ -48,18 +48,18 @@ The repository's own example works because its
 `example/android/settings.gradle` includes the plugin by hand:
 
 ```groovy title="example/android/settings.gradle"
-include ':capacitor-arcore'
-project(':capacitor-arcore').projectDir = new File(rootDir, '../../android')
+include ':reticlexr'
+project(':reticlexr').projectDir = new File(rootDir, '../../android')
 ```
 
 If `cap sync` does not pick the plugin up in your app, add the equivalent
 include for your project layout, pointing at
-`node_modules/capacitor-arcore/android`.
+`node_modules/reticlexr/android`.
 </Warning>
 
 <Todo>
 Verify the clean consumer flow — fresh Capacitor app, `npm install
-capacitor-arcore`, `npx cap sync`, build, run — and update this page with
+reticlexr`, `npx cap sync`, build, run — and update this page with
 the confirmed result. Until then, treat the settings.gradle include above
 as the known-good path.
 </Todo>
@@ -77,7 +77,7 @@ The high-level API is `createARView()`. It needs a DOM element to use as
 the immersive session's overlay — your buttons and product UI live there.
 
 ```js title="first-ar.js"
-import { createARView } from 'capacitor-arcore';
+import { createARView } from 'reticlexr';
 
 const ar = createARView({
   overlay: document.querySelector('#ar-overlay'),

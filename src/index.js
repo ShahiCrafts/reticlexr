@@ -20,7 +20,7 @@
  * - Model Movement: moveModel
  * - Events: on, addListener
  *
- * @module capacitor-arcore
+ * @module reticlexr
  */
 
 import { registerPlugin } from '@capacitor/core';

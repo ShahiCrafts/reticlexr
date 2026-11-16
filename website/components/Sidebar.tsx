@@ -18,9 +18,9 @@ export function SidebarNav({ currentSlug, onNavigate }: { currentSlug?: string; 
                     href={`/docs/${page.slug}`}
                     onClick={onNavigate}
                     aria-current={active ? 'page' : undefined}
-                    className={`block rounded-md px-3 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-violet-500 ${
+                    className={`block rounded-md px-3 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-blue-500 ${
                       active
-                        ? 'bg-violet-50 font-semibold text-violet-800 dark:bg-violet-500/15 dark:text-violet-200'
+                        ? 'bg-blue-50 font-semibold text-blue-800 dark:bg-blue-500/15 dark:text-blue-200'
                         : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
                     }`}
                   >
@@ -41,7 +41,7 @@ export function SidebarNav({ currentSlug, onNavigate }: { currentSlug?: string; 
             <Link
               href="/demo"
               onClick={onNavigate}
-              className="block rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-violet-500 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+              className="block rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-blue-500 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
             >
               Live demo
             </Link>

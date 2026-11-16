@@ -47,7 +47,7 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
 
         {/* Content */}
         <main className="min-w-0 flex-1">
-          <article className="prose prose-slate mx-auto max-w-3xl dark:prose-invert prose-headings:scroll-mt-24 prose-a:text-violet-700 prose-a:font-medium hover:prose-a:text-violet-900 dark:prose-a:text-violet-300 dark:hover:prose-a:text-violet-200 prose-code:text-[0.85em] prose-pre:p-0 prose-table:text-sm">
+          <article className="prose prose-slate mx-auto max-w-3xl dark:prose-invert prose-headings:scroll-mt-24 prose-a:text-blue-700 prose-a:font-medium hover:prose-a:text-blue-900 dark:prose-a:text-blue-300 dark:hover:prose-a:text-blue-200 prose-code:text-[0.85em] prose-pre:p-0 prose-table:text-sm">
             <h1>{page.title}</h1>
             {page.description && <p className="lead">{page.description}</p>}
             <MDXRemote
@@ -77,7 +77,7 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
               href={editUrl(page.filePath)}
               target="_blank"
               rel="noreferrer"
-              className="text-sm font-medium text-slate-500 hover:text-violet-700 focus-visible:outline-2 focus-visible:outline-violet-500 dark:text-slate-400 dark:hover:text-violet-300"
+              className="text-sm font-medium text-slate-500 hover:text-blue-700 focus-visible:outline-2 focus-visible:outline-blue-500 dark:text-slate-400 dark:hover:text-blue-300"
             >
               Edit this page on GitHub →
             </a>
@@ -88,7 +88,7 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
             {prev ? (
               <Link
                 href={`/docs/${prev.slug}`}
-                className="rounded-lg border border-slate-200 p-4 hover:border-violet-400 focus-visible:outline-2 focus-visible:outline-violet-500 dark:border-slate-800 dark:hover:border-violet-500"
+                className="rounded-lg border border-slate-200 p-4 hover:border-blue-400 focus-visible:outline-2 focus-visible:outline-blue-500 dark:border-slate-800 dark:hover:border-blue-500"
               >
                 <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Previous</span>
                 <span className="mt-1 block font-medium text-slate-900 dark:text-slate-100">← {prev.title}</span>
@@ -99,7 +99,7 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
             {next && (
               <Link
                 href={`/docs/${next.slug}`}
-                className="rounded-lg border border-slate-200 p-4 text-right hover:border-violet-400 focus-visible:outline-2 focus-visible:outline-violet-500 dark:border-slate-800 dark:hover:border-violet-500"
+                className="rounded-lg border border-slate-200 p-4 text-right hover:border-blue-400 focus-visible:outline-2 focus-visible:outline-blue-500 dark:border-slate-800 dark:hover:border-blue-500"
               >
                 <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Next</span>
                 <span className="mt-1 block font-medium text-slate-900 dark:text-slate-100">{next.title} →</span>

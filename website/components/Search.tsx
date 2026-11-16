@@ -89,7 +89,7 @@ export function Search({ index }: { index: SearchEntry[] }) {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Search documentation (Control K)"
-        className="flex w-44 items-center gap-2 rounded-md border border-slate-300 bg-slate-50 px-3 py-1.5 text-sm text-slate-500 hover:border-slate-400 focus-visible:outline-2 focus-visible:outline-violet-500 sm:w-56 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400 dark:hover:border-slate-600"
+        className="flex w-44 items-center gap-2 rounded-md border border-slate-300 bg-slate-50 px-3 py-1.5 text-sm text-slate-500 hover:border-slate-400 focus-visible:outline-2 focus-visible:outline-blue-500 sm:w-56 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400 dark:hover:border-slate-600"
       >
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
           <circle cx="11" cy="11" r="7" />
@@ -110,7 +110,7 @@ export function Search({ index }: { index: SearchEntry[] }) {
           onClick={() => setOpen(false)}
         >
           <div
-            className="w-full max-w-xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+            className="w-full max-w-xl overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"
             onClick={(e) => e.stopPropagation()}
           >
             <input
@@ -149,9 +149,9 @@ export function Search({ index }: { index: SearchEntry[] }) {
                     aria-selected={i === highlight}
                     onMouseEnter={() => setHighlight(i)}
                     onClick={() => go(r.slug)}
-                    className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-sm focus-visible:outline-2 focus-visible:outline-violet-500 ${
+                    className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-sm focus-visible:outline-2 focus-visible:outline-blue-500 ${
                       i === highlight
-                        ? 'bg-violet-50 text-violet-900 dark:bg-violet-500/15 dark:text-violet-100'
+                        ? 'bg-blue-50 text-blue-900 dark:bg-blue-500/15 dark:text-blue-100'
                         : 'text-slate-700 dark:text-slate-200'
                     }`}
                   >
