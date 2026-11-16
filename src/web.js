@@ -1725,6 +1725,38 @@ export class ARCoreWeb extends WebPlugin {
     if (shadow) shadow.visible = visible;
   }
 
+  // ============================================================
+  // Engine events (API-07) — per runtime
+  // ============================================================
+  // The WebXR engine emits the events below through its OWN listener
+  // channels. They are NOT the native facade's event set: the facade
+  // (`ARCore.on` in index.js) bridges the ANDROID plugin's events
+  // (sessionStarted, trackingChanged, surfaceUpdated, sessionStopped,
+  // modelMaterialChanged, modelMoved, …), which the web runtime never
+  // emits through `ARCore.on`. Until the surfaces are unified, web
+  // consumers subscribe here (directly, via ARView.onFrame/onPlanes,
+  // or via the useARCore hook's state).
+  //
+  // Frame listeners (addFrameListener) — payloads always carry `type`:
+  //   surfaceDetected  {hasSurface: true, position, rotation, planeType, confidence}
+  //                    — every frame the centre ray has a hit
+  //   surfaceLost      {hasSurface: false} — every frame without a hit
+  //   modelPlaced      {anchorId, modelUrl, position, rotation, scale}
+  //   modelRemoved     {anchorId}
+  //   modelTransformed {anchorId, modelUrl, position, rotation, scale}
+  //   modelColorChanged {anchorId, color}
+  //   modelSwitched    {anchorId, modelUrl}
+  //   sessionEnded     {} — the XR session ended
+  //
+  // Plane listeners (addPlaneListener) — payloads always carry `type`:
+  //   planeAdded       {orientation, polygon}
+  //   planesUpdated    {total, horizontal, vertical} — counts as NUMBERS
+
+  /**
+   * Subscribe to plane events (see the event list above).
+   * @param {Function} callback - Receives the event payload
+   * @returns {Function} Unsubscribe function
+   */
   addPlaneListener(callback) {
     this.planeListeners.push(callback);
     return () => {
@@ -1732,6 +1764,11 @@ export class ARCoreWeb extends WebPlugin {
     };
   }
 
+  /**
+   * Subscribe to frame/model events (see the event list above).
+   * @param {Function} callback - Receives the event payload
+   * @returns {Function} Unsubscribe function
+   */
   addFrameListener(callback) {
     this.frameListeners.push(callback);
     return () => {

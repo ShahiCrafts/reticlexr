@@ -45,7 +45,9 @@ export class ARView {
     await this.engine.stopSession();
   }
 
+  /** Subscribe to engine frame events (surfaceDetected, modelPlaced, modelSwitched, sessionEnded, … — see the per-runtime event list in web.js, API-07). Returns an unsubscribe function. */
   onFrame(callback) { return this.engine.addFrameListener(callback); }
+  /** Subscribe to engine plane events (planeAdded, planesUpdated — counts as numbers). Returns an unsubscribe function. */
   onPlanes(callback) { return this.engine.addPlaneListener(callback); }
   getSurface() { return this.engine.getSurfaceDetectionState(); }
   getPlanes() { return this.engine.getDetectedPlanes(); }

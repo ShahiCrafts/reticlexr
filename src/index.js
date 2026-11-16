@@ -180,6 +180,18 @@ export const ARCore = {
    *              'modelPlaced', 'modelRemoved', 'modelTransformed',
    *              'modelMaterialChanged', 'modelMoved', 'error'
    *
+   * Events are PER RUNTIME (API-07): this list is the native Android
+   * plugin's event set, bridged at import time. The WebXR engine emits
+   * a different set through its own channels and never through
+   * `ARCore.on` — on web, subscribe via `ARView.onFrame`/`onPlanes`
+   * (engine frame events: surfaceDetected, surfaceLost, modelPlaced,
+   * modelRemoved, modelTransformed, modelColorChanged, modelSwitched,
+   * sessionEnded; plane events: planeAdded, planesUpdated) or use the
+   * `useARCore` hook's state. 'surfaceUpdated', 'trackingChanged',
+   * 'sessionStarted', 'sessionStopped', 'modelMaterialChanged' and
+   * 'modelMoved' are native-only; 'modelColorChanged',
+   * 'modelSwitched' and 'sessionEnded' are web-engine-only.
+   *
    * @param {string} eventType - Type of event to listen for
    * @param {Function} callback - Callback function receiving event data
    * @returns {Function} Unsubscribe function

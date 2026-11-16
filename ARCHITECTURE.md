@@ -105,6 +105,14 @@ Event types wired by the import-time bridge (index.js:228–258):
 `surfaceUpdated`, `sessionStopped`, `modelPlaced`, `modelRemoved`,
 `modelTransformed`, `modelMaterialChanged`, `modelMoved`, `error`.
 
+> Events are **per runtime** (API-07): the list above is the native
+> plugin's set. The WebXR engine never emits through `ARCore.on`; it
+> emits its own set via frame/plane listeners (§2.4) — including
+> web-only `modelColorChanged`, `modelSwitched`, `sessionEnded`,
+> `planeAdded`, `planesUpdated` — while `surfaceUpdated`,
+> `trackingChanged`, `sessionStarted`, `sessionStopped`,
+> `modelMaterialChanged`, `modelMoved` are native-only.
+
 > Note the identifier split: the native facade identifies models by
 > **`modelId`**, the WebXR engine by **`anchorId`**. `ARCoreWeb` contains a
 > compatibility shim (`setTransform`/`setMaterial`/`moveModel` in web.js)
