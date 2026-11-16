@@ -263,6 +263,10 @@ export class ARCoreWeb extends WebPlugin {
       shadowSize: 1.2,
       dotSize: 0.02,
       dotSpacing: 0.1,
+      // Diagnostic logging is opt-in (PERF-06): the render loop and
+      // plane processing run per frame and must stay silent in
+      // production.
+      debug: false,
     };
 
     // Render loop state
@@ -282,6 +286,17 @@ export class ARCoreWeb extends WebPlugin {
 
   getConfig() {
     return { ...this.config };
+  }
+
+  /**
+   * Engine diagnostic log (PERF-06). Every engine `console.log` goes
+   * through here and is silent unless `config.debug` is enabled —
+   * several call sites are on per-frame hot paths.
+   *
+   * @param {...*} args
+   */
+  debugLog(...args) {
+    if (this.config.debug) console.log(...args);
   }
 
   async checkSupport() {
@@ -590,7 +605,7 @@ export class ARCoreWeb extends WebPlugin {
           this.planeDotsGroup.remove(planeData.dots);
         }
         this.detectedPlanes.delete(xrPlane);
-        console.log(`[ARCore] Plane removed: ${planeData.orientation}`);
+        this.debugLog(`[ARCore] Plane removed: ${planeData.orientation}`);
       }
     }
 
@@ -603,7 +618,7 @@ export class ARCoreWeb extends WebPlugin {
 
       if (!this.detectedPlanes.has(plane)) {
         // New plane detected
-        console.log(`[ARCore] New plane detected: ${orientation}, polygon points: ${plane.polygon?.length || 0}`);
+        this.debugLog(`[ARCore] New plane detected: ${orientation}, polygon points: ${plane.polygon?.length || 0}`);
 
         const mesh = this.config.showPlanes ? this.createPlaneMesh(plane, pose, orientation) : null;
         const dots = this.config.showPlaneDots ? this.createPlaneDots(plane, pose, orientation) : null;
@@ -628,7 +643,7 @@ export class ARCoreWeb extends WebPlugin {
         const planeData = this.detectedPlanes.get(plane);
 
         if (plane.lastChangedTime !== planeData.lastChangedTime) {
-          console.log(`[ARCore] Plane updated: ${orientation}`);
+          this.debugLog(`[ARCore] Plane updated: ${orientation}`);
 
           // Remove old visualization
           if (planeData.mesh) {
@@ -853,7 +868,7 @@ export class ARCoreWeb extends WebPlugin {
     // Create reticle
     this.reticle = this.createReticle();
     this.scene.add(this.reticle);
-    console.log("[ARCore] Three.js initialized, reticle created");
+    this.debugLog("[ARCore] Three.js initialized, reticle created");
 
     return this.renderer;
   }
@@ -952,7 +967,7 @@ export class ARCoreWeb extends WebPlugin {
 
       // Check if plane detection is supported
       this.planeDetectionSupported = typeof XRFrame !== 'undefined' && 'detectedPlanes' in XRFrame.prototype;
-      console.log(`[ARCore] Plane detection API supported: ${this.planeDetectionSupported}`);
+      this.debugLog(`[ARCore] Plane detection API supported: ${this.planeDetectionSupported}`);
 
       this.session.addEventListener("end", () => {
         this.frameListeners.forEach((cb) => cb({ type: "sessionEnded" }));
@@ -968,7 +983,7 @@ export class ARCoreWeb extends WebPlugin {
       this.modelPlaced = false;
       this.reticleVisible = false;
 
-      console.log("[ARCore] Session started - showReticle:", this.config.showReticle, "planeDetection:", this.planeDetectionSupported);
+      this.debugLog("[ARCore] Session started - showReticle:", this.config.showReticle, "planeDetection:", this.planeDetectionSupported);
 
       this.startRendering();
 
@@ -1008,7 +1023,7 @@ export class ARCoreWeb extends WebPlugin {
           this.processDetectedPlanes(frame);
         } catch (e) {
           if (frameCount === 1) {
-            console.log("[ARCore] Plane detection not available in this frame:", e.message);
+            this.debugLog("[ARCore] Plane detection not available in this frame:", e.message);
           }
         }
       }
@@ -1109,7 +1124,7 @@ export class ARCoreWeb extends WebPlugin {
 
             // Debug logging
             if (planeType !== lastLoggedPlaneType || (frameCount % 180 === 0 && frameCount < 900)) {
-              console.log(`[ARCore] Surface: ${planeType}, planes: ${this.detectedPlanes.size}, reticle: ${shouldShowReticle ? 'visible' : 'hidden'}`);
+              this.debugLog(`[ARCore] Surface: ${planeType}, planes: ${this.detectedPlanes.size}, reticle: ${shouldShowReticle ? 'visible' : 'hidden'}`);
               lastLoggedPlaneType = planeType;
             }
           }
@@ -1529,7 +1544,7 @@ export class ARCoreWeb extends WebPlugin {
   }
 
   setReticleVisible(visible) {
-    console.log(`[ARCore] setReticleVisible(${visible})`);
+    this.debugLog(`[ARCore] setReticleVisible(${visible})`);
     this.config.showReticle = visible;
     if (!visible && this.reticle) {
       this.reticle.visible = false;
@@ -1551,7 +1566,7 @@ export class ARCoreWeb extends WebPlugin {
         },
         (progress) => {
           const percent = ((progress.loaded / progress.total) * 100).toFixed(0);
-          console.log(`Loading model: ${percent}%`);
+          this.debugLog(`Loading model: ${percent}%`);
         },
         (error) => {
           console.error("Error loading model:", error);

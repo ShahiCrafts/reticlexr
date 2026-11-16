@@ -88,6 +88,8 @@ export interface ARConfig {
   shadowSize: number;
   dotSize: number;
   dotSpacing: number;
+  /** Engine diagnostic logging (PERF-06). Default false. */
+  debug: boolean;
 }
 
 export interface ARSupportResult {
