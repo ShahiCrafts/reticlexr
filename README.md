@@ -73,7 +73,7 @@ ARCore-capable Android phone with Chrome. Full walkthrough:
 | 🚀 Getting started | [getting-started](https://reticlexr.vercel.app/docs/getting-started) |
 | 🧩 API reference | [docs/api](https://reticlexr.vercel.app/docs/api) |
 | ▶️ Live demo | [reticlexr.vercel.app/demo](https://reticlexr.vercel.app/demo) — open it on your phone |
-| 🐞 Known issues | [docs/known-issues](https://reticlexr.vercel.app/docs/known-issues) · audit in [AUDIT.md](https://github.com/ShahiCrafts/reticlexr/blob/main/AUDIT.md) |
+| 🐞 Known issues | [docs/known-issues](https://reticlexr.vercel.app/docs/known-issues) |
 | 🗺️ Architecture | [docs/concepts/architecture](https://reticlexr.vercel.app/docs/concepts/architecture) · [ARCHITECTURE.md](https://github.com/ShahiCrafts/reticlexr/blob/main/ARCHITECTURE.md) |
 | 📋 Changelog | [docs/changelog](https://reticlexr.vercel.app/docs/changelog) · [CHANGELOG.md](https://github.com/ShahiCrafts/reticlexr/blob/main/CHANGELOG.md) |
 

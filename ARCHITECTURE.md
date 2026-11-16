@@ -1,7 +1,7 @@
 # Architecture — reticlexr
 
-> Generated from a full read of the repository at branch `docs/vercel-site`
-> (head `c6241b3`). Every signature, default and version below was verified
+> Generated from a full read of the repository. Every signature,
+> default and version below was verified
 > against source; file:line references point at the evidence. Anything that
 > could not be verified is marked **TODO**.
 >

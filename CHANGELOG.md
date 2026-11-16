@@ -159,7 +159,8 @@ The project follows [Semantic Versioning](https://semver.org/).
   a scratch `Matrix4`; engine logging is gated behind
   `config.debug`. (PERF-05 was investigated and deliberately kept:
   the per-pixel screenshot loop is not byte-identical to a
-  `drawImage` composite — evidence in AUDIT-STATUS.md.)
+  `drawImage` composite — 622 px / 783 channels differ on the
+  reference frame.)
   `engine.dispose()` performs a full teardown and `ARView.destroy()`
   calls it.
 - **Native Android correctness (NAT-03/04/06/07/09/11/13, LEAK-06).**

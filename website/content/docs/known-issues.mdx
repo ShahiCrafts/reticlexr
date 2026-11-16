@@ -4,7 +4,7 @@ description: What the v1.0.0 audit found, what 1.1.0 fixed, and what is still op
 ---
 
 This page summarises a full code audit of v1.0.0 (68 rated findings
-with file and line references, in `AUDIT.md` in the repository) and
+with file and line references) and
 the 1.1.0 remediation that followed it. Most findings are fixed;
 what remains is listed plainly below, including the items that are
 open **by decision** rather than by oversight.
@@ -101,8 +101,8 @@ open **by decision** rather than by oversight.
 - **`npm audit` has never been run.** The audit environment's
   registry proxy refuses the audit endpoint (403), so no
   vulnerability counts exist. CI carries the audit as a
-  non-blocking step; the commands are recorded in `AUDIT-STATUS.md`
-  for the owner to run where the registry permits.
+  non-blocking step; run `npm audit` at the repository root and in
+  `example/` wherever the registry permits.
 - **SSR:** all entry points pass DOM-less import checks (no
   `window`/`document` access at import; the hook renders to string),
   but a full framework prerender (e.g. Next.js) has not been

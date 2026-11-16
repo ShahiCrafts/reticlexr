@@ -5,8 +5,8 @@
 The stub harnesses written during the audit remediation (Phases
 1–6) are the package's automated tests. Each file stubs the XR
 session / DOM / native bridge just enough to exercise the real
-`src/` code and asserts the fixed behaviour; they are the evidence
-behind the "tested" marks in `AUDIT-STATUS.md`.
+`src/` code and asserts the fixed behaviour; they are the regression
+evidence for the fixes they cover.
 
 Since Phase 6 they run under Vitest: each file is a single test
 whose body is the original harness, with its local
