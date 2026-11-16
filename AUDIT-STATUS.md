@@ -3,7 +3,8 @@
 Tracking table for every finding in [AUDIT.md](AUDIT.md) (68 rated
 findings plus the 3 TODO items SEC-01, COMPAT-03, COMPAT-06).
 
-- **Status:** open / fixed / wontfix / TODO
+- **Status:** fixed / wontfix / TODO — every row is in one of these
+  three states; no row is left open (Phase 8 finishing pass)
 - **Verification:** tested (exercised by a run) / code-verified (read
   and syntax-checked only) / device TODO (needs hardware or an
   environment this repo work cannot reach)
@@ -31,7 +32,7 @@ findings plus the 3 TODO items SEC-01, COMPAT-03, COMPAT-06).
 | LEAK-07 | low | fixed | 40a4126a941775c5d8218d54156c27074f710880 | tested |
 | PERF-01 | high | fixed | 430922d9d290e2925e74623209781f5d28241f20 | tested |
 | PERF-02 | medium | fixed | c32e836d9e8228fd806da4a438d3f0b031134984 | tested |
-| PERF-03 | medium | fixed | 9abc454 | Example: SDK lazy-loaded (navigator.xr probe at mount, import('reticlexr') on Start) + three split via manualChunks. Entry chunk 784.25 kB min / 213.66 kB gzip (single chunk, before) → 160.51/52.54 entry + 60.30/18.55 lazy SDK + 571.97/145.56 three (Vite report). |
+| PERF-03 | medium | fixed | 9abc454bbdcf16e48c9dddcbd3b48313dca6960a | tested — example build (Vite report): SDK lazy-loaded (navigator.xr probe at mount, import('reticlexr') on Start) + three split via manualChunks. Entry chunk 784.25 kB min / 213.66 kB gzip (single chunk, before) → 160.51/52.54 entry + 60.30/18.55 lazy SDK + 571.97/145.56 three. |
 | PERF-04 | low | fixed | 3a11a8912f67e32a4bc5047a8e1f55254371d096 | code-verified |
 | PERF-05 | low | wontfix | 65a8dd673738ec01903e07c2712de5e877b61dc7 | tested |
 | PERF-06 | low | fixed | 24cbb078e083b19ca1d0c56ccf982cae7fd283af | tested |
@@ -58,29 +59,29 @@ findings plus the 3 TODO items SEC-01, COMPAT-03, COMPAT-06).
 | API-08 | low | fixed | 21cd817a2aa68f09db669cebad0baee19c0583d1 | tested |
 | COMPAT-01 | medium | fixed | 15d15b47be380299f97f1724bccbf855cd691293 | tested |
 | COMPAT-02 | medium | fixed | 1d072ba413e3d547613d3e5bcd855682e1931fab | tested |
-| COMPAT-03 | TODO | fixed | 83fe0fc05acdc7fd14d3fb3e8d4ef26ec6599caf | tested (scratch; framework prerender TODO) |
-| COMPAT-04 | low | open | — | — |
-| COMPAT-05 | low | fixed | 9abc454 | BrowserUnsupported wired into ARPlayground, rendered when supported === false; its copy was corrected to the WebXR runtime first (the old text claimed native ARCore/Filament features the audit disproved — wiring it verbatim would have shipped false claims). Example build passes; fallback copy verified present in the entry chunk. |
-| COMPAT-06 | TODO | TODO | — | — |
-| SEC-01 | TODO | TODO | — | — | Owner to run where the registry permits it: `npm audit` (repo root) and `cd example && npm audit`. Attempted again in Phase 6 from this environment: both fail with HTTP 403 `policy_denied` on POST /-/npm/v1/security/audits/quick (managed registry proxy) — no counts exist and none are claimed. CI carries a non-blocking audit step (TEST-02 workflow) so the first real run happens there or on the owner's machine. |
+| COMPAT-03 | TODO | TODO | 83fe0fc05acdc7fd14d3fb3e8d4ef26ec6599caf | tested (scratch DOM-less checks pass — all five entries import with no window/document, hook server-renders, 13/13); the full framework prerender (e.g. Next.js) was never run and remains TODO (owner) |
+| COMPAT-04 | low | fixed | 40a4126a941775c5d8218d54156c27074f710880 | code-verified — resolved per the audit's prescription: the StrictMode double-mount pattern is documented as dev-only noise in the react-integration guide (throwaway engine, harmless in production), and the harm it named — the throwaway engine never being GPU-disposed — was removed by LEAK-03's engine.dispose() / ARView.destroy() (same commit; disposal itself harness-tested via dispose-cycle) |
+| COMPAT-05 | low | fixed | 9abc454bbdcf16e48c9dddcbd3b48313dca6960a | tested — BrowserUnsupported wired into ARPlayground, rendered when supported === false; its copy was corrected to the WebXR runtime first (the old text claimed native ARCore/Filament features the audit disproved — wiring it verbatim would have shipped false claims). Example build passes; fallback copy verified present in the entry chunk. |
+| COMPAT-06 | TODO | TODO | — | TODO — real device / OS / browser version values are the owner's to supply (no devices in this environment); every compatibility surface is labelled unverified meanwhile (DOC-07) |
+| SEC-01 | TODO | TODO | — | TODO — owner to run where the registry permits it: `npm audit` (repo root) and `cd example && npm audit`. Attempted again in Phase 6 from this environment: both fail with HTTP 403 `policy_denied` on POST /-/npm/v1/security/audits/quick (managed registry proxy) — no counts exist and none are claimed. CI carries a non-blocking audit step (TEST-02 workflow) so the first real run happens there or on the owner's machine. |
 | SEC-02 | medium | fixed | e4bc492e9bbc575fdf9ac47772d115fcc43160f2 | tested |
-| SEC-03 | low | open | — | — |
+| SEC-03 | low | fixed | 174e390d1c6731790eb61e6cb9a45e9dbc2ff618 (website: docs/vercel-site f9278fe) | code-verified: "Model URLs: trust and CORS" section in docs/API.md + the website API page — URLs are app-supplied config with the same trust as bundled assets; cross-origin models/textures require CORS on the host. Grep confirms no validateModelUrl (or any URL-validation helper) exists in src/ — none is documented or claimed |
 | SEC-04 | low | fixed | 6d3d0da9af8e897d88382a41905ec08b85e6b845 | tested |
 | PKG-01 | high | fixed | ab2cc94b45b074d1514495c656870dc259a68e36 | tested (scratch cap sync; Gradle assemble SDK-TODO) |
 | PKG-02 | high | fixed | 1865dcd5f2176baaba608e353e8cb8c4ad75f368 | tested |
 | PKG-03 | medium | fixed | bddd4cc2823d3f99e9730883be042f5b9f5bbb90 | tested |
 | PKG-04 | medium | fixed | 093f1bf96742d4a95176573e80834fd2a5d7d58f | tested |
 | PKG-05 | low | fixed | 713639b8d1ceeadcae532799d740cafd2901418f | code-verified |
-| TEST-01 | high | fixed | 8c689bd, 635b599, 86513da | All 24 harness files converted to Vitest (vitest.config.mjs includes tests/harness/*.mjs; `npm test` = vitest run). Assertion preservation counted statically per file (check() call sites, helper definitions excluded): 277 before → 280 after; identical per file except leak-phase3 +3 (the negative control's balloon signature is now 3 explicit assertions — it was an exit-code verdict before; nat-notimplemented's 4 call sites execute 12 assertions across its 3 cases, unchanged). Suite green: 24 files / 25 tests. The leak negative control is an always-on test (disposal disabled via the ownership mechanism must balloon per path). |
-| TEST-02 | medium | prepared | — (working tree only) | Workflow updated in the working tree (backup: ci-gradle-assemble.yml): triggers push [main, fix/**, docs/**] + pull_request; `js` job = npm ci → check-types → Vitest → consumer smoke → non-blocking npm audit (continue-on-error) → example npm ci + build; `gradle-assemble` job kept (cap sync + :reticlexr:assembleDebug) with setup-java cache: gradle. NOT fixed until the owner pushes .github/workflows/ci.yml with workflow scope and a run exists — the connector cannot push workflow files (403). |
-| TEST-03 | low | fixed | 7c781c3 | example/tsconfig.json deleted (strict TS over src/** that nothing ran — the example is plain JSX and no tsc step exists in its build; type-checking lives in root check-types + the consumer smoke test). Deleted via the connector's delete_file (snapshot pushes cannot delete). |
-| DOC-01 | critical | open | — | — |
-| DOC-02 | high | open | — | — |
-| DOC-03 | medium | open | — | — |
-| DOC-04 | medium | open | — | — |
-| DOC-05 | low | open | — | — |
-| DOC-06 | low | open | — | — |
-| DOC-07 | low | open | — | — |
+| TEST-01 | high | fixed | 8c689bdf334aba231a55726deb82ef1ede489feb, 635b599383695444a227e807b1aff16049e8677c, 86513dadf1fdc895973c7f816829eef64279499c | tested — all 24 harness files converted to Vitest (vitest.config.mjs includes tests/harness/*.mjs; `npm test` = vitest run). Assertion preservation counted statically per file (check() call sites, helper definitions excluded): 277 before → 280 after; identical per file except leak-phase3 +3 (the negative control's balloon signature is now 3 explicit assertions — it was an exit-code verdict before; nat-notimplemented's 4 call sites execute 12 assertions across its 3 cases, unchanged). Suite green: 24 files / 25 tests. The leak negative control is an always-on test (disposal disabled via the ownership mechanism must balloon per path). |
+| TEST-02 | medium | TODO | 70750117db4ba0aec390a3f9a53ea500c34fb659 | TODO — the final workflow (js + gradle-assemble jobs, per the owner's spec) was pushed via git but has never executed: its only run (43898545525) failed before any job started — GitHub annotation: "The job was not started because your account is locked due to a billing issue." The owner waived the CI-green gate ("we dont need to run the workflow"). Nothing in this programme is "compiled in CI", and every Phase 5/6 native item remains "code-verified, device TODO". |
+| TEST-03 | low | fixed | 7c781c3969322e2e1a184db091bc985334633903 | example/tsconfig.json deleted (strict TS over src/** that nothing ran — the example is plain JSX and no tsc step exists in its build; type-checking lives in root check-types + the consumer smoke test). Deleted via the connector's delete_file (snapshot pushes cannot delete). |
+| DOC-01 | critical | fixed | b59349bc1b66b0281301d945ea0880e6400258a3, fa71a933de8b6e04e21e304d3b06b33d4bd7e962, 174e390d1c6731790eb61e6cb9a45e9dbc2ff618, ec0e53e0d8d85c8d65d74d5710b734d5eacdd195 (website: docs/vercel-site 803d26f, 12ea52f, 88fda55) | code-verified against the final code at 7075011: native rejects NOT_IMPLEMENTED for exactly placeModel, moveModel, setTransform, setMaterial, removeModel, getPlacedModels, clearModels; README/CHANGELOG/docs + website now all state the Option B split |
+| DOC-02 | high | fixed | b59349bc1b66b0281301d945ea0880e6400258a3 | code-verified: README switching bullet names switchModel; the React example already used ar.switchModel (ARPlayground.jsx, verified unchanged); website model guide already taught switchModel |
+| DOC-03 | medium | fixed | 174e390d1c6731790eb61e6cb9a45e9dbc2ff618 | code-verified: docs/API.md rewritten against the shipped .d.ts surface — all entry points, ARView, useARCore (subpath + deprecated root alias), engine, facade, gestures, per-runtime events, ARError codes, deprecated-alias table |
+| DOC-04 | medium | fixed | ec0e53e0d8d85c8d65d74d5710b734d5eacdd195 | tested: guide followed in a clean scratch Capacitor 8 app (/tmp/doc04) with the SDK installed from the local repo path (stand-in for the unpublished npm package): cap sync registered ARCorePlugin + ':reticlexr' in the generated gradle files with no manual edits; manifest merge re-run with the Phase 6 manifmerger route — base merge = camera + ar features required="false" + com.google.ar.core optional + CAMERA permission; opt-in merge (tools:replace) flips both to required="true" + meta-data "required", exactly as the guide states |
+| DOC-05 | low | fixed | b59349bc1b66b0281301d945ea0880e6400258a3, 174e390d1c6731790eb61e6cb9a45e9dbc2ff618 (website: docs/vercel-site 88fda55) | code-verified: README + docs/API.md carry the enableScreenshots opt-in + CAMERA_CAPTURE_UNAVAILABLE caveat; the website screenshots guide now starts its sample session with enableScreenshots: true and its warning states camera-access is NOT implied by lightEstimation; the example app already started with enableScreenshots: true (verified) |
+| DOC-06 | low | fixed | 4002a2c820c5113dda6eee780ba76b200f8695fb | code-verified: dead plugins.ARCore.startOnLoad block removed from example/capacitor.config.json (the only remaining startOnLoad mention in the repo is AUDIT.md history) |
+| DOC-07 | low | fixed | b59349bc1b66b0281301d945ea0880e6400258a3, 174e390d1c6731790eb61e6cb9a45e9dbc2ff618 (website: docs/vercel-site 77914d7) | code-verified: compatibility labelled **unverified** in README, docs/API.md and the website compatibility page; no versions invented — real device values remain the COMPAT-06 TODO (owner) |
 
 ## Phase 1 notes
 
@@ -600,3 +601,80 @@ Phase 4 harness suite (23/23) is unaffected.
   smoke test green, example build passes with the PERF-03 numbers
   above. Phase 6 stops here — Phase 7 (docs truth) does not start
   without the owner's go-ahead.
+
+## Phase 7 — docs tell the truth (DONE; CI gate waived by the owner)
+
+- **CI (TEST-02):** the final workflow was pushed via git as
+  7075011. Its only run (43898545525) never started a job — the
+  account is locked over a billing issue — and the owner waived
+  the CI-green gate. Nothing is "compiled in CI"; Phase 5/6 native
+  items remain "code-verified, device TODO".
+- **Library (fix/audit-remediation):** 4002a2c DOC-06 (dead
+  startOnLoad removed); b59349b README truth pass (DOC-01/02/05/07);
+  fa71a93 CHANGELOG 1.1.0 completed (DOC-01); 174e390 docs/API.md
+  rewritten to the full verified surface (DOC-03, SEC-03, DOC-05);
+  ec0e53e docs/INSTALLATION.md rewritten as the consumer guide
+  (DOC-04) with the capacitor-arcore migration note (the old name
+  was never published — nothing to migrate).
+- **DOC-04 executed, not just written:** the guide was followed in
+  a clean scratch Capacitor 8 app (/tmp/doc04) with the SDK
+  installed from the local repo path as the stand-in for the
+  unpublished package. `npx cap sync android` registered the
+  plugin (capacitor.plugins.json → com.capacitor.arcore.ARCorePlugin;
+  generated settings include ':reticlexr'; generated app gradle has
+  `implementation project(':reticlexr')`) with no manual edits. The
+  manifest merge was re-run with the Phase 6 manifmerger route:
+  base merge = camera + ar features required="false" +
+  com.google.ar.core "optional" + CAMERA permission; opt-in merge
+  (tools:replace) flips both features to required="true" + the
+  meta-data to "required" — exactly the guide's claims.
+- **Website (docs/vercel-site, separate commits, NOT deployed —
+  the owner triggers deployments):** 12ea52f Known Issues rewritten
+  to the final state; f9278fe API reference rewritten; 77914d7
+  compatibility labelled Unverified + changelog 1.1.0 summary;
+  cc0f64b getting-started to final state; 803d26f WebXR-vs-native
+  to the 1.1.0 split; 88fda55 guides/concepts batch (screenshots,
+  troubleshooting, react-integration, lifecycle, architecture,
+  model-preloading-and-switching).
+- **Rename sweep:** live references use reticlexr everywhere; the
+  old names remain only in AUDIT.md history, the ARCHITECTURE.md
+  rename note, the CHANGELOG rename record and AUDIT-STATUS
+  history — all labelled. The website contains zero old-name
+  references.
+- **Still open after Phase 7 (owner items, unchanged):** COMPAT-06
+  real device compatibility values (TODO), SEC-01 npm audit
+  (registry-blocked here), COMPAT-03 full framework prerender
+  (TODO), on-device testing of all Phase 5/6 native code, npm
+  publish. Phase 8 (final completion pass + PR) does not start
+  without the owner's go-ahead; no PR was opened.
+
+## Phase 8 — final report + PR (DONE)
+
+- **AUDIT-STATUS finished (commit 90f04f4):** all 71 rows now carry
+  a definite status, a commit hash and an honest verification
+  level. **Final tally: 66 fixed / 1 wontfix (PERF-05, with
+  evidence) / 4 TODO** — the TODOs are owner items only: SEC-01
+  (npm audit, registry 403 here; commands recorded in its row),
+  COMPAT-06 (real device values), COMPAT-03 (full framework
+  prerender; the DOM-less checks themselves are tested and pass),
+  TEST-02 (workflow pushed at 7075011 but never executed — run
+  43898545525 blocked by the account billing lock, gate waived by
+  the owner). COMPAT-04, the last open row, is fixed: the audit's
+  prescribed documentation exists in the react-integration guide
+  and the harm it named was removed by LEAK-03's tested disposal.
+  No row claims "compiled in CI" or "tested on device": all
+  Phase 5/6 native work remains **code-verified, device TODO**.
+- **Final numbers, re-verified on the finished tree:** bundle —
+  Phase 0 baseline 773.55/210.74 kB (min/gzip) vs Phase 6 final
+  entry 160.51/52.54 + lazy SDK 60.30/18.55 + three 571.97/145.56
+  (total 792.85/216.64; initial JS −80%). Leak harness —
+  post-warm-up baseline {geo 3, mat 4, tex 2} restored exactly
+  after 50 cycles/path; negative control balloons to {156, 413,
+  53} and is caught. Tests — `npm test` re-run at 90f04f4:
+  **24 files / 25 tests passed** (280 assertions, Vitest).
+- **PR:** https://github.com/ShahiCrafts/reticlexr/pull/3 —
+  `fix/audit-remediation` → `main`, opened for review with the
+  full programme record. (`gh pr create` was refused by the
+  fine-grained token's permissions, so the PR was created through
+  the GitHub connector.) **Not merged** — merging is the owner's
+  call, as are the remaining owner TODOs listed in the PR body.
