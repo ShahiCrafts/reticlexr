@@ -88,6 +88,14 @@ export interface ARConfig {
   shadowSize: number;
   dotSize: number;
   dotSpacing: number;
+  /** Engine diagnostic logging (PERF-06). Default false. */
+  debug: boolean;
+  /**
+   * Model-cache cap (LEAK-04): maximum number of loaded GLTFs kept,
+   * least-recently-used evicted first. Entries with live placements
+   * are never evicted. Default 20; `Infinity` or 0 disables the cap.
+   */
+  modelCacheLimit: number;
 }
 
 export interface ARSupportResult {
@@ -263,6 +271,19 @@ export declare class ARCoreWeb extends WebPlugin {
   checkSupport(): Promise<ARSupportResult>;
   startSession(options?: ARSessionOptions): Promise<ARSessionResult>;
   stopSession(): Promise<void>;
+  /**
+   * Full engine teardown (LEAK-03): ends any session, disposes the
+   * scene's per-instance resources, the model cache and the WebGL
+   * renderer/context, and nulls the renderer/scene/camera fields so
+   * the same engine instance can be started again. Idempotent.
+   */
+  dispose(): Promise<void>;
+  /**
+   * Empty the GLTF model cache, disposing every cached model's GPU
+   * resources (LEAK-04). Placed models keep working — disposal only
+   * releases GPU memory and three.js re-uploads on next render.
+   */
+  clearModelCache(): void;
 
   hitTest(options?: HitTestOptions): Promise<HitTestResult>;
   hitTestAtPoint(x: number, y: number): Promise<HitTestResult>;
@@ -279,6 +300,13 @@ export declare class ARCoreWeb extends WebPlugin {
   switchModel(options: {
     anchorId: string;
     modelUrl: string;
+    /**
+     * Carry the old model's materials onto the new one (BUG-09):
+     * each new material inherits colour — and map, when present —
+     * from its counterpart on the old model, matched by material
+     * name first, then by traversal order. Materials without a
+     * counterpart keep their own look. Default true.
+     */
     preserveMaterial?: boolean;
   }): Promise<{ anchorId: string; modelUrl: string }>;
 
@@ -339,7 +367,7 @@ export declare class ARCoreWeb extends WebPlugin {
   ): () => void;
 
   /** The live XRSession, or null when no session is running. */
-  getSession(): any;
+  getSession(): XRSession | null;
   getAnchors(): Map<string, AnchorData>;
   getRenderer(): THREE.WebGLRenderer | null;
   getScene(): THREE.Scene | null;

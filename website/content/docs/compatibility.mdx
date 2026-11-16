@@ -19,9 +19,10 @@ read a requirement as a support promise.
 | Secure context (HTTPS or `localhost`) | WebXR platform rule; the library does not special-case it | — |
 | `immersive-ar` session support | `navigator.xr.requestSession('immersive-ar', …)` | TODO |
 | `hit-test` feature | Required feature at session creation | TODO |
-| `local-floor` feature | Required feature at session creation — devices without it fail rather than degrade | TODO |
+| `local-floor` feature | Optional feature at session creation — falls back to `local`, then `viewer`, when unavailable | TODO |
 | `plane-detection` | Optional feature; dots/meshes appear when granted | TODO |
-| `light-estimation` (+ `camera-access`) | Optional; requested when light estimation is on | TODO |
+| `light-estimation` | Optional; requested when light estimation is on | TODO |
+| `camera-access` | Optional; requested only when screenshots are enabled (`enableScreenshots: true`) — never implied by light estimation | TODO |
 | `dom-overlay` | Optional; requested when an overlay element is provided | TODO |
 
 The documented test path is **Chrome on an ARCore-capable Android phone**

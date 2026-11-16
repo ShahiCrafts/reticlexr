@@ -131,8 +131,8 @@ function ModelControls({
               <div className="slider-container">
                 <input
                   type="range"
-                  min="0.25"
-                  max="3"
+                  min="0.1"
+                  max="5"
                   step="0.05"
                   value={scale}
                   onChange={handleScaleChange}

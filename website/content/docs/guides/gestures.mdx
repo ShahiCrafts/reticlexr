@@ -85,6 +85,7 @@ ar.setScale(1.4);        // clamped to [0.1, 5], applied uniformly
 ar.rotateBy(Math.PI / 8); // accumulates rotationY, radians
 ```
 
-Scale limits differ per layer in v1.0.0 — the facade clamps to [0.1, 5],
-the engine accepts any scale, the native registry clamps to [0.25, 3] —
-so prefer the facade methods when you want the documented clamp.
+One scale range everywhere since 1.1.0: [0.1, 5], enforced by the
+engine itself (the facade and the native registry use the same
+limits). In v1.0.0 the layers disagreed — facade [0.1, 5], engine
+unclamped, native [0.25, 3].

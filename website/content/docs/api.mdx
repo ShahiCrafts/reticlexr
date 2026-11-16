@@ -266,9 +266,11 @@ await engine.removeModel({ anchorId });
 | `setPlaneVisualization(v)` / `isPlaneVisualizationEnabled()` | Plane mesh visualisation |
 | `setShadowVisible(anchorId, v)` | Per-model shadow toggle |
 | `setShadowConfig({ enabled?, opacity?, size? })` / `getShadowConfig()` | Shadow tuning |
+| `clearModelCache()` | Dispose every cached model's GPU resources and empty the cache (live placements re-upload on the next frame) |
+| `dispose()` | Full engine teardown: session, scene resources, model cache, renderer and GL context. The engine can be started again afterwards |
 
-Frame listeners receive engine events: `surfaceDetected` (every frame
-with a hit), `surfaceLost`, `modelPlaced`, `modelRemoved`,
+Frame listeners receive engine events: `surfaceDetected` (on change,
+then at most 10 Hz while the centre ray has a hit), `surfaceLost`, `modelPlaced`, `modelRemoved`,
 `modelTransformed`, `modelColorChanged`, `modelSwitched`,
 `sessionEnded`. Plane listeners receive `planeAdded` and `planesUpdated`
 with payload `{ type, total, horizontal, vertical }` — counts as

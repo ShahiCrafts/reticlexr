@@ -42,7 +42,10 @@ export class ARView {
   async destroy() {
     this.gestures?.destroy();
     this.gestures = null;
-    await this.engine.stopSession();
+    // Full engine teardown (LEAK-03): ends the session AND releases
+    // the renderer/GL context and model cache. The engine — and this
+    // view, via create() — can be started again afterwards.
+    await this.engine.dispose();
   }
 
   /** Subscribe to engine frame events (surfaceDetected, modelPlaced, modelSwitched, sessionEnded, … — see the per-runtime event list in web.js, API-07). Returns an unsubscribe function. */

@@ -254,7 +254,8 @@ export function useARCore() {
             )
           );
         } else if (data.type === "surfaceDetected") {
-          // Real-time surface detection - updates every frame when surface is visible
+          // Real-time surface detection - the engine throttles these
+          // to state changes and at most 10 Hz (PERF-02)
           console.log("[useARCore] Surface detected event received");
           setSurfaceState({
             hasSurface: true,

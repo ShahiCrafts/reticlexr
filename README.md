@@ -79,11 +79,12 @@ ARCore-capable Android phone with Chrome. Full walkthrough:
 ## Compatibility
 
 - **Browser runtime:** Chrome on an ARCore-capable Android phone, over
-  HTTPS. Requires the WebXR `hit-test` and `local-floor` features.
+  HTTPS. Requires the WebXR `hit-test` feature; `local-floor` is
+  requested when available, with `local`/`viewer` fallbacks.
 - **Native:** Android minSdk 24, ARCore 1.40, Capacitor 8. The library
   manifest marks AR as required, which merges into host apps.
-- **React** ≥ 16.8 (peer). Plain ESM JavaScript with JSDoc — no TypeScript
-  declarations ship yet.
+- **React** ≥ 16.8 (peer). Plain ESM JavaScript with JSDoc; hand-written
+  TypeScript declarations ship with the package.
 - Tested device/browser versions are not recorded yet — the honest matrix
   lives at [docs/compatibility](https://reticlexr.vercel.app/docs/compatibility).
 

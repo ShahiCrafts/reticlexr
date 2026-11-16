@@ -8,35 +8,46 @@ deliberately plain: these are specific, located problems with known
 fixes, not vibes. The complete audit (68 rated findings with file and
 line references) lives in `AUDIT.md` in the repository.
 
+**Remediation status:** several of these are already fixed for the
+upcoming 1.1.0 (on the `fix/audit-remediation` branch) — those bullets
+are marked *(fixed in 1.1.0)*. Everything unmarked is still open.
+
 ## WebXR engine
 
 - **Centre-only hit testing.** `hitTest({x, y})` ignores its coordinates;
   placement is always at the centre reticle. Tap-point placement needs a
-  ray-based hit test or an honest contract change.
+  ray-based hit test or an honest contract change. *(fixed in 1.1.0 —
+  non-centre points run a ray-based hit test)*
 - **Removed models aren't disposed.** Geometries, cloned materials and
   applied textures stay on the GPU after removal; plane-dot groups are
   removed without disposal too. Long product-browsing sessions grow GPU
-  memory.
+  memory. *(fixed in 1.1.0 — disposal helper, ownership rule, capped
+  model cache, `engine.dispose()`)*
 - **Plane dots are one mesh each.** At the default spacing, a room-sized
   floor is ~460 extra draw calls, rebuilt on every plane change. An
   `InstancedMesh` redesign fixes both the cost and the dot disposal.
+  *(fixed in 1.1.0)*
 - **Reticle setting resets.** `showReticle: false` is forced back to
-  `true` on session start, placement and removal.
+  `true` on session start, placement and removal. *(fixed in 1.1.0)*
 - **Session-start failure can leak a live session** if reference-space or
   hit-test-source setup rejects after the session was created, and a
   fallback `hitTest` promise can hang if the session ends first.
+  *(fixed in 1.1.0)*
 - **`local-floor` or nothing.** Session creation hard-requires
   `local-floor` instead of falling back to `local`/`viewer`.
+  *(fixed in 1.1.0)*
 
 ## Facade, hook and API shape
 
 - **Hook transform shapes.** The hook's `placeModel` JSDoc says
   `{x, y, z}` objects; the engine wants arrays. Objects produce `NaN`
-  transforms and invisible models.
+  transforms and invisible models. *(fixed in 1.1.0 — both shapes are
+  normalised at the engine boundary)*
 - **Hook plane counts always read zero** (event shape mismatch — the
-  engine emits numbers, the hook reads array lengths).
+  engine emits numbers, the hook reads array lengths). *(fixed in 1.1.0)*
 - **`switchModel` material carry-over flattens multi-material models** —
   the first material is copied onto every material of the new model.
+  *(fixed in 1.1.0 — materials matched by name, then traversal order)*
 - **One active model, no enumeration.** The facade can't list placed
   models or clear them all; models placed by repeated `placeModel` calls
   become unreachable.
@@ -73,12 +84,18 @@ line references) lives in `AUDIT.md` in the repository.
   unverified; the example includes the plugin in `settings.gradle` by
   hand.
 - **No type declarations** ship, despite a React/Capacitor audience.
+  *(fixed in 1.1.0 — hand-written declarations ship and are type-checked
+  in CI)*
 - **ESM sources in an undeclared-format package** (no `type: module`, no
-  `exports` map, one extensionless dynamic import).
+  `exports` map, one extensionless dynamic import). *(the extensionless
+  import is fixed in 1.1.0; `type: module` and the `exports` map are
+  still outstanding)*
 - **`three` and `@capacitor/core` are hard dependencies**, not peers —
   duplicate-copy risk for apps that also use three.
 - **No lockfile, no tests.** CI syntax-checks the sources and builds the
   example; there is no test suite, no lint, no Android compile job.
+  *(lockfiles fixed in 1.1.0; stub harnesses exist under
+  `tests/harness/`, a real test suite is still outstanding)*
 
 ## Roadmap
 
