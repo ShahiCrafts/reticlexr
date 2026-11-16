@@ -57,12 +57,19 @@ export class ARView {
 
   async preloadModels(urls = []) { await Promise.all(urls.map(url => this.engine.loadModel(url))); }
 
+  /**
+   * Place a model. Without an explicit `position`, hit-tests at the
+   * normalised screen point `options.x`/`options.y` (default: centre).
+   * `position`, `rotation` and `scale` accept the engine's shapes:
+   * arrays, {x, y, z} objects, Euler-radians rotation objects, or a
+   * uniform numeric scale — the engine normalises them (BUG-01).
+   */
   async placeModel(modelUrl, options = {}) {
     const hit = options.position ? { hit: true, position: options.position, rotation: options.rotation } : await this.engine.hitTest({ x: options.x ?? .5, y: options.y ?? .5 });
     if (!hit.hit) return { success: false, reason: 'NO_SURFACE' };
     const scale = options.scale ?? this.transform.scale;
     const rotation = options.rotation || hit.rotation || [0,0,0,1];
-    const result = await this.engine.placeModel({ modelUrl, position: hit.position, rotation, scale: Array.isArray(scale) ? scale : [scale,scale,scale] });
+    const result = await this.engine.placeModel({ modelUrl, position: hit.position, rotation, scale });
     this.activeModelId = result.anchorId;
     this.activeModelUrl = modelUrl;
     return { success: true, modelId: result.anchorId, ...result };

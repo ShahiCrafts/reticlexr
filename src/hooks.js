@@ -354,18 +354,25 @@ export function useARCore() {
    * Perform a hit test at screen coordinates to find real-world surfaces.
    *
    * Hit testing is how you find where the user tapped in 3D space.
-   * The x,y coordinates should be normalized (0-1 range) or pixel values.
+   * The x,y coordinates are normalized to the 0-1 range (0,0 is the
+   * top-left of the AR view) — they are NOT pixel values; divide pixel
+   * coordinates by the view size first.
    *
-   * @param {number} x - X coordinate of the tap/touch
-   * @param {number} y - Y coordinate of the tap/touch
+   * @param {number} x - Normalized X coordinate of the tap/touch [0, 1]
+   * @param {number} y - Normalized Y coordinate of the tap/touch [0, 1]
    * @returns {Promise<Object>} Hit test result with position if successful
    * @returns {boolean} returns.hit - Whether a surface was found
-   * @returns {Object} returns.position - 3D position {x, y, z} if hit
+   * @returns {number[]} returns.position - 3D position [x, y, z] if hit
+   * @returns {number[]} returns.rotation - Hit orientation quaternion
+   *   [x, y, z, w] if hit
    * @returns {string} returns.error - Error message if failed
    *
    * @example
    * const handleTap = async (event) => {
-   *   const result = await hitTest(event.clientX, event.clientY);
+   *   const result = await hitTest(
+   *     event.clientX / window.innerWidth,
+   *     event.clientY / window.innerHeight
+   *   );
    *   if (result.hit) {
    *     await placeModel('/models/chair.glb', result.position);
    *   }
@@ -400,9 +407,12 @@ export function useARCore() {
    * The position is typically obtained from a hit test result.
    *
    * @param {string} modelUrl - URL or path to the GLTF/GLB model
-   * @param {Object} position - Position in 3D space {x, y, z}
-   * @param {Object} [rotation] - Rotation in radians {x, y, z}
-   * @param {Object} [scale] - Scale multiplier {x, y, z}
+   * @param {number[]|Object} position - Position in 3D space: [x, y, z]
+   *   or {x, y, z} (a hit test result's `position` can be passed as-is)
+   * @param {number[]|Object} [rotation] - Quaternion [x, y, z, w] /
+   *   {x, y, z, w}, or Euler rotation in radians {x, y, z}
+   * @param {number|number[]|Object} [scale] - Uniform scale number, or
+   *   per-axis [x, y, z] / {x, y, z}
    * @returns {Promise<Object>} Result with anchorId if successful
    * @returns {string} returns.anchorId - Unique ID for the placed model
    * @returns {string} returns.error - Error message if failed
@@ -469,9 +479,12 @@ export function useARCore() {
    *
    * @param {string} anchorId - The ID of the model to transform
    * @param {Object} transforms - Transform properties to apply
-   * @param {Object} [transforms.position] - New position {x, y, z}
-   * @param {Object} [transforms.rotation] - New rotation {x, y, z}
-   * @param {Object} [transforms.scale] - New scale {x, y, z}
+   * @param {number[]|Object} [transforms.position] - New position:
+   *   [x, y, z] or {x, y, z}
+   * @param {number[]|Object} [transforms.rotation] - New rotation:
+   *   quaternion [x, y, z, w] / {x, y, z, w}, or Euler radians {x, y, z}
+   * @param {number|number[]|Object} [transforms.scale] - New scale:
+   *   uniform number, [x, y, z] or {x, y, z}
    * @returns {Promise<void>}
    *
    * @example

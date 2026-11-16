@@ -13,6 +13,117 @@ import { WebPlugin } from "@capacitor/core";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
+// ============================================================
+// Transform input normalisation (BUG-01)
+// ============================================================
+// The layers above the engine describe transforms as {x, y, z} objects
+// (that is what the React hook's documentation always promised), while
+// the engine's scene code consumes plain arrays. Accept both shapes at
+// the engine boundary so no caller can produce NaN transforms by
+// following the docs. These helpers are pure and exported for testing.
+
+function finiteOr(value, fallback) {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+/**
+ * Normalise a 3D vector to a plain [x, y, z] array.
+ * Accepts [x, y, z] or {x, y, z}; anything else yields `fallback`.
+ *
+ * @param {number[]|{x:number,y:number,z:number}|*} value
+ * @param {number[]|undefined} [fallback]
+ * @returns {number[]|undefined}
+ */
+export function normalizeVector3(value, fallback = undefined) {
+  if (Array.isArray(value)) {
+    if (value.length < 3) return fallback;
+    return [finiteOr(value[0], 0), finiteOr(value[1], 0), finiteOr(value[2], 0)];
+  }
+  if (value && typeof value === "object") {
+    return [finiteOr(value.x, 0), finiteOr(value.y, 0), finiteOr(value.z, 0)];
+  }
+  return fallback;
+}
+
+/**
+ * Normalise a rotation to a quaternion array [x, y, z, w].
+ * Accepts a quaternion array [x, y, z, w], a quaternion object
+ * {x, y, z, w}, or an Euler rotation {x, y, z} / [x, y, z] in RADIANS
+ * (the form the React hook documents). Anything else yields `fallback`.
+ *
+ * @param {number[]|Object|*} value
+ * @param {number[]|undefined} [fallback]
+ * @returns {number[]|undefined}
+ */
+export function normalizeQuaternion(value, fallback = undefined) {
+  if (Array.isArray(value)) {
+    if (value.length === 4) {
+      return [
+        finiteOr(value[0], 0),
+        finiteOr(value[1], 0),
+        finiteOr(value[2], 0),
+        finiteOr(value[3], 1),
+      ];
+    }
+    if (value.length === 3) {
+      return new THREE.Quaternion()
+        .setFromEuler(
+          new THREE.Euler(finiteOr(value[0], 0), finiteOr(value[1], 0), finiteOr(value[2], 0))
+        )
+        .toArray();
+    }
+    return fallback;
+  }
+  if (value && typeof value === "object") {
+    if ("w" in value) {
+      return [
+        finiteOr(value.x, 0),
+        finiteOr(value.y, 0),
+        finiteOr(value.z, 0),
+        finiteOr(value.w, 1),
+      ];
+    }
+    if ("x" in value || "y" in value || "z" in value) {
+      return new THREE.Quaternion()
+        .setFromEuler(
+          new THREE.Euler(finiteOr(value.x, 0), finiteOr(value.y, 0), finiteOr(value.z, 0))
+        )
+        .toArray();
+    }
+  }
+  return fallback;
+}
+
+/**
+ * Normalise a scale to a plain [x, y, z] array.
+ * Accepts a uniform number, [x, y, z], a single-element [s], or
+ * {x, y, z}; anything else yields `fallback`.
+ *
+ * @param {number|number[]|{x:number,y:number,z:number}|*} value
+ * @param {number[]|undefined} [fallback]
+ * @returns {number[]|undefined}
+ */
+export function normalizeScale(value, fallback = undefined) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? [value, value, value] : fallback;
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 1) {
+      const s = finiteOr(value[0], NaN);
+      return Number.isFinite(s) ? [s, s, s] : fallback;
+    }
+    if (value.length >= 3) {
+      return [finiteOr(value[0], 1), finiteOr(value[1], 1), finiteOr(value[2], 1)];
+    }
+    return fallback;
+  }
+  if (value && typeof value === "object") {
+    return [finiteOr(value.x, 1), finiteOr(value.y, 1), finiteOr(value.z, 1)];
+  }
+  return fallback;
+}
+
 export class ARCoreWeb extends WebPlugin {
   constructor() {
     super();
@@ -1230,18 +1341,38 @@ export class ARCoreWeb extends WebPlugin {
     });
   }
 
+  /**
+   * Load a model and place it in the scene.
+   *
+   * Transform inputs are normalised at this boundary (BUG-01):
+   * `position` accepts [x, y, z] or {x, y, z}; `rotation` accepts a
+   * quaternion [x, y, z, w] / {x, y, z, w} or Euler radians {x, y, z};
+   * `scale` accepts a uniform number, [x, y, z] or {x, y, z}.
+   *
+   * @param {Object} options
+   * @param {string} [options.modelUrl] - GLTF/GLB URL (or `modelPath`)
+   * @param {string} [options.modelPath] - Alias for `modelUrl`
+   * @param {number[]|{x:number,y:number,z:number}} [options.position] -
+   *   World position; defaults to the latest surface hit position
+   * @param {number[]|Object} [options.rotation] - Rotation (see above);
+   *   defaults to identity
+   * @param {number|number[]|{x:number,y:number,z:number}} [options.scale] -
+   *   Scale; defaults to [1, 1, 1]
+   * @returns {Promise<{anchorId: string}>}
+   */
   async placeModel({
     modelUrl,
     modelPath,
     position,
-    rotation = [0, 0, 0, 1],
-    scale = [1, 1, 1],
+    rotation,
+    scale,
   }) {
     modelUrl = modelUrl || modelPath;
-    position = position || this.lastHitPosition;
+    position = normalizeVector3(position, this.lastHitPosition);
     // No hit was involved in an explicit placement: a missing/null rotation
     // means identity, never an unrelated earlier hit's rotation (BUG-12)
-    rotation = rotation || [0, 0, 0, 1];
+    rotation = normalizeQuaternion(rotation, [0, 0, 0, 1]);
+    scale = normalizeScale(scale, [1, 1, 1]);
     if (!modelUrl) throw new Error("modelUrl/modelPath is required");
     if (!position) throw new Error("No surface hit available. Scan a surface before placing a model.");
     const anchorId = `anchor_${Date.now()}_${Math.random()
@@ -1329,11 +1460,26 @@ export class ARCoreWeb extends WebPlugin {
     this.frameListeners.forEach((cb) => cb({ type: "modelRemoved", anchorId }));
   }
 
+  /**
+   * Apply a new position/rotation/scale to a placed model.
+   * Transform inputs accept the same shapes as `placeModel` (BUG-01);
+   * omitted or unrecognisable values leave the current transform intact.
+   *
+   * @param {Object} options
+   * @param {string} options.anchorId
+   * @param {number[]|{x:number,y:number,z:number}} [options.position]
+   * @param {number[]|Object} [options.rotation]
+   * @param {number|number[]|{x:number,y:number,z:number}} [options.scale]
+   */
   async transformModel({ anchorId, position, rotation, scale }) {
     const anchor = this.anchors.get(anchorId);
     if (!anchor) {
       throw new Error(`Anchor ${anchorId} not found`);
     }
+
+    position = position === undefined ? undefined : normalizeVector3(position, undefined);
+    rotation = rotation === undefined ? undefined : normalizeQuaternion(rotation, undefined);
+    scale = scale === undefined ? undefined : normalizeScale(scale, undefined);
 
     if (position) anchor.position = position;
     if (rotation) anchor.rotation = rotation;
@@ -1493,7 +1639,11 @@ export class ARCoreWeb extends WebPlugin {
   // On web the model identifier is the anchor id, so normalize both forms here.
   async setTransform(options = {}) {
     const anchorId = options.anchorId || options.modelId;
-    const rotation = options.rotation && !Array.isArray(options.rotation)
+    // Facade convention: a plain {x, y, z} rotation here is Euler DEGREES
+    // (the native API's documented form). Quaternion objects ({…, w}) and
+    // arrays pass through to transformModel's normalisation untouched
+    // (BUG-01).
+    const rotation = options.rotation && typeof options.rotation === "object" && !Array.isArray(options.rotation) && !("w" in options.rotation)
       ? new THREE.Quaternion().setFromEuler(new THREE.Euler(
           THREE.MathUtils.degToRad(options.rotation.x || 0),
           THREE.MathUtils.degToRad(options.rotation.y || 0),

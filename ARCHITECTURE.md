@@ -156,7 +156,10 @@ Default `config` (web.js:80–97): `showReticle: true`, `showPlanes: false`,
 `shadowOpacity: 0.4`, `shadowSize: 1.2`, `dotSize: 0.02`, `dotSpacing: 0.1`.
 
 Models: `loadModel(url)` → cached `gltf.scene.clone()`;
-`placeModel({modelUrl|modelPath, position?, rotation = [0,0,0,1], scale = [1,1,1]})` → `{anchorId}`;
+`placeModel({modelUrl|modelPath, position?, rotation = [0,0,0,1], scale = [1,1,1]})` → `{anchorId}`
+(transform inputs are normalised at the engine boundary — position accepts
+`[x,y,z]` or `{x,y,z}`, rotation a quaternion array/object or Euler-radians
+`{x,y,z}`, scale a number, `[x,y,z]` or `{x,y,z}` — BUG-01);
 `removeModel({anchorId})`; `transformModel({anchorId, position?, rotation?, scale?})`;
 `switchModel({anchorId, modelUrl, preserveMaterial = true})`;
 `setModelColor({anchorId, color})`;
