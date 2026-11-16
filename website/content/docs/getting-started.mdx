@@ -12,27 +12,25 @@ This guide will help you get up and running with reticlexr in just a few minutes
 <InstallTabs />
 
 The package ships as plain ESM source — there is no build step and no
-transpilation. Two runtime dependencies come with it:
+transpilation. Its runtime requirements are **peer dependencies** — your
+app provides the single shared copy:
 
 | Package | Version (from `package.json`) | Why |
 | --- | --- | --- |
 | `@capacitor/core` | `^8.5.2` | The Capacitor bridge the native facade registers with |
 | `three` | `^0.180.0` | The WebXR runtime's renderer, scene and GLTF loader |
-
-`react` (`>=16.8.0`) is declared as a peer dependency for the
-[`useARCore` hook](/docs/api#usearcore).
+| `react` | `>=16.8.0` | Only for the [`useARCore` hook](/docs/api#usearcore) |
 
 <Note>
-In v1.0.0 the package entry re-exports the React hook, and the hook module
-imports React at the top level — so in practice React must be installed even
-if you only use the framework-agnostic API. This is a known packaging issue
-(see [Known issues](/docs/known-issues)); a `reticlexr/react` subpath
-export is on the roadmap.
+Import the hook from the **`reticlexr/react`** subpath. The package root
+still re-exports it for backward compatibility, but that re-export is
+deprecated (it keeps React in the root entry's module graph) and will be
+removed in the next major version.
 </Note>
 
-There are no type declarations in the package yet: it is untyped JavaScript
-with JSDoc. TypeScript projects can still consume it, but get no checking
-until declarations ship.
+Hand-written TypeScript declarations ship with the package, and the
+JSDoc in the sources is type-checked in the repo (`npm run check-types`),
+so TypeScript projects get checking out of the box.
 
 ## Capacitor setup
 
@@ -102,8 +100,9 @@ await ar.preloadModels(['/models/sofa.glb', '/models/chair.glb']);
 // Places at the current centre hit test.
 const result = await ar.placeModel('/models/sofa.glb');
 if (!result.success) {
-  // result.reason === 'NO_SURFACE' when no surface is in view yet
-  console.log('Keep scanning:', result.reason);
+  // result.code === 'NO_SURFACE' when no surface is in view yet
+  // (result.reason is a deprecated alias of result.code)
+  console.log('Keep scanning:', result.code);
 }
 ```
 

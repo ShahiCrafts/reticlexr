@@ -75,10 +75,10 @@ layer down, on the engine, and through the hook:
 
 ```js
 // Via useARCore():
-ar.setModelMaterial(anchorId, { metalness: 0.1, roughness: 0.8, opacity: 1 });
+ar.setModelMaterial(modelId, { metalness: 0.1, roughness: 0.8, opacity: 1 });
 ```
 
-`setModelMaterial({ anchorId, metalness?, roughness?, opacity? })` sets
+`setModelMaterial({ modelId, metalness?, roughness?, opacity? })` sets
 the given PBR properties on the anchored model's materials. All three
 properties are optional; omitted ones are left unchanged. There is no
 facade (`ARView`) wrapper for this in v1.0.0 — if you hold an `ARView`,
@@ -88,6 +88,6 @@ object.
 ## Native facade equivalent
 
 The native `ARCore` facade has `setMaterial({ modelId, color })` for the
-Android path. Note the identifier difference: the native facade calls it
-`modelId`, the WebXR engine calls the same thing `anchorId` — see the
-[API reference](/docs/api#arcore-native-facade).
+Android path. Every layer uses the same identifier name, `modelId`
+(the engine's old name, `anchorId`, still works as a deprecated alias) —
+see the [API reference](/docs/api#arcore-native-facade).
