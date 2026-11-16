@@ -695,8 +695,10 @@ export class ARCoreWeb extends WebPlugin {
     }
 
     const sessionOptions = {
-      requiredFeatures: ["local-floor", "hit-test"],
-      optionalFeatures: [],
+      requiredFeatures: ["hit-test"],
+      // local-floor is optional: devices/browsers without floor-level
+      // tracking degrade to local/viewer reference spaces (COMPAT-01)
+      optionalFeatures: ["local-floor"],
     };
 
     // Add plane-detection as optional feature
@@ -733,9 +735,19 @@ export class ARCoreWeb extends WebPlugin {
         this.xrGlBinding = null;
       }
 
-      this.referenceSpace = await this.session.requestReferenceSpace(
-        "local-floor"
-      );
+      // Reference space fallback chain matching the optional local-floor
+      // feature above: local-floor, then local, then viewer (COMPAT-01)
+      for (const spaceType of ["local-floor", "local", "viewer"]) {
+        try {
+          this.referenceSpace = await this.session.requestReferenceSpace(spaceType);
+          break;
+        } catch (_) {
+          // Space not granted — try the next, less capable one
+        }
+      }
+      if (!this.referenceSpace) {
+        throw new Error("No reference space available (local-floor, local, viewer all rejected)");
+      }
       this.viewerSpace = await this.session.requestReferenceSpace("viewer");
 
       // Request hit test source for instant positioning
