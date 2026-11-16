@@ -22,17 +22,17 @@
   <rect x="1440" y="183" width="218" height="362" rx="26" fill="#0e1c31" stroke="#2a3d5c" stroke-width="2"/>
 
   <!-- eyebrow -->
-  <text x="112" y="162" font-family="Poppins, 'Segoe UI', sans-serif" font-size="27" font-weight="500" letter-spacing="4.5" fill="#b6b6f6" textLength="326" lengthAdjust="spacingAndGlyphs">HIGH-LEVEL AR SDK</text>
+  <text x="112" y="162" font-family="'DM Sans', 'Segoe UI', sans-serif" font-size="27" font-weight="500" letter-spacing="4.5" fill="#b6b6f6" textLength="326" lengthAdjust="spacingAndGlyphs">HIGH-LEVEL AR SDK</text>
 
   <!-- title -->
-  <text x="114" y="298" font-family="Poppins, 'Segoe UI', sans-serif" font-size="138" font-weight="600" letter-spacing="-1" textLength="928" lengthAdjust="spacingAndGlyphs"><tspan fill="#f4f6fb">arcore-</tspan><tspan fill="url(#reactGrad)">react</tspan></text>
+  <text x="114" y="298" font-family="'DM Sans', 'Segoe UI', sans-serif" font-size="138" font-weight="600" letter-spacing="-1" textLength="928" lengthAdjust="spacingAndGlyphs"><tspan fill="#f4f6fb">arcore-</tspan><tspan fill="url(#reactGrad)">react</tspan></text>
 
   <!-- subtitle -->
-  <text x="116" y="368" font-family="Inter, 'Segoe UI', sans-serif" font-size="42" font-weight="400" fill="#d3ddef">Put real products into your customers' rooms.</text>
-  <text x="116" y="423" font-family="Inter, 'Segoe UI', sans-serif" font-size="42" font-weight="400" fill="#d3ddef">Surfaces, models and gestures — handled.</text>
+  <text x="116" y="368" font-family="'DM Sans', 'Segoe UI', sans-serif" font-size="42" font-weight="400" fill="#d3ddef">Put real products into your customers' rooms.</text>
+  <text x="116" y="423" font-family="'DM Sans', 'Segoe UI', sans-serif" font-size="42" font-weight="400" fill="#d3ddef">Surfaces, models and gestures — handled.</text>
 
   <!-- chips -->
-  <g font-family="Inter, 'Segoe UI', sans-serif" font-size="26" font-weight="500" fill="#eef1f6">
+  <g font-family="'DM Sans', 'Segoe UI', sans-serif" font-size="26" font-weight="500" fill="#eef1f6">
     <rect x="110" y="482" width="250" height="76" rx="38" fill="#111f36" stroke="#2c3e5e" stroke-width="2"/>
     <!-- React atom -->
     <g transform="translate(163 520)" stroke="#25e2f2" stroke-width="3" fill="none">
@@ -74,8 +74,8 @@
   </g>
 
   <!-- terminal line -->
-  <text x="116" y="633" font-family="Inter, 'Segoe UI', sans-serif" font-size="31" font-weight="600" fill="#8f7ff5">&gt;_</text>
-  <text x="186" y="633" font-family="Inter, 'Segoe UI', sans-serif" font-size="31" font-weight="400" fill="#aeb9cf">npm install capacitor-arcore</text>
+  <text x="116" y="633" font-family="'DM Sans', 'Segoe UI', sans-serif" font-size="31" font-weight="600" fill="#8f7ff5">&gt;_</text>
+  <text x="186" y="633" font-family="'DM Sans', 'Segoe UI', sans-serif" font-size="31" font-weight="400" fill="#aeb9cf">npm install capacitor-arcore</text>
 
   <!-- phone side buttons -->
   <g fill="#dfe7f2">
@@ -100,7 +100,7 @@
   <!-- AR LIVE pill -->
   <rect x="1681" y="175" width="158" height="50" rx="25" fill="#131f36" stroke="#33456a" stroke-width="2"/>
   <circle cx="1708" cy="200" r="7" fill="#8f8ff9"/>
-  <text x="1726" y="208" font-family="Inter, 'Segoe UI', sans-serif" font-size="25" font-weight="600" letter-spacing="1" fill="#e6ebf5">AR LIVE</text>
+  <text x="1726" y="208" font-family="'DM Sans', 'Segoe UI', sans-serif" font-size="25" font-weight="600" letter-spacing="1" fill="#e6ebf5">AR LIVE</text>
 
   <!-- placement ellipse -->
   <ellipse cx="1766" cy="476" rx="140" ry="21" fill="none" stroke="#54678a" stroke-width="3"/>
