@@ -81,11 +81,13 @@ the model cache never evicts. Mitigations that help today:
 
 ## `takeScreenshot` returns `CAMERA_CAPTURE_UNAVAILABLE`
 
-The browser didn't grant WebXR camera access for this session.
-Screenshots are best-effort: branch on `result.success` and hide the
-feature when it fails. Sessions started with `lightEstimation: true`
-(the default) request camera access; without it, this code is expected
-on many browsers. See [Screenshots](/docs/guides/screenshots).
+The session has no WebXR camera access. Camera access is opt-in:
+start the session with `enableScreenshots: true` (in `ARView.create()`
+or the engine's `startSession()`) — `lightEstimation` no longer
+requests it. Even with the opt-in, a browser may not grant the
+feature, so screenshots stay best-effort: branch on `result.success`
+and hide the feature when it fails. See
+[Screenshots](/docs/guides/screenshots).
 
 ## An awaited `hitTest` never resolves after the user exits AR
 

@@ -51,23 +51,18 @@ const arCore = new ARCoreWeb();
  * - Model placement, transformation, and customization
  * - Automatic cleanup on component unmount
  *
- * @returns {Object} AR state and methods
- * @returns {boolean|null} returns.isSupported - Whether AR is supported (null while checking)
- * @returns {boolean} returns.isSessionActive - Whether an AR session is currently running
- * @returns {Array} returns.placedModels - Array of currently placed model objects
- * @returns {string|null} returns.error - Current error message, if any
- * @returns {Function} returns.startSession - Start an AR session
- * @returns {Function} returns.stopSession - Stop the current AR session
- * @returns {Function} returns.hitTest - Perform a hit test at screen coordinates
- * @returns {Function} returns.placeModel - Place a 3D model in the scene
- * @returns {Function} returns.removeModel - Remove a placed model
- * @returns {Function} returns.transformModel - Move, rotate, or scale a model
- * @returns {Function} returns.setModelColor - Change a model's color
- * @returns {Function} returns.setModelMaterial - Set material properties
- * @returns {Function} returns.clearError - Clear the current error state
- * @returns {Function} returns.getRenderer - Get the Three.js WebGLRenderer
- * @returns {Function} returns.getScene - Get the Three.js Scene
- * @returns {Function} returns.getCamera - Get the Three.js Camera
+ * @returns {Object} AR state and methods. Fields:
+ *   `isSupported` (boolean|null) — whether AR is supported (null while
+ *   checking); `isSessionActive` (boolean); `placedModels` (Array) —
+ *   currently placed model objects; `error` (string|null) — current
+ *   error message, if any; `detectedPlanes` ({horizontal, vertical,
+ *   total} counts); `surfaceState` — real-time surface detection state;
+ *   and the methods `startSession`, `stopSession`, `hitTest`,
+ *   `placeModel`, `removeModel`, `transformModel`, `setModelColor`,
+ *   `setModelMaterial`, `setConfig`, `getConfig`, `setShadowConfig`,
+ *   `getShadowConfig`, `setShadowVisible`, `getDetectedPlanes`,
+ *   `setReticleVisible`, `setPlaneVisualization`, `clearError`,
+ *   `getRenderer`, `getScene`, `getCamera`, `takeScreenshot`
  *
  * @example
  * const {
@@ -354,18 +349,24 @@ export function useARCore() {
    * Perform a hit test at screen coordinates to find real-world surfaces.
    *
    * Hit testing is how you find where the user tapped in 3D space.
-   * The x,y coordinates should be normalized (0-1 range) or pixel values.
+   * The x,y coordinates are normalized to the 0-1 range (0,0 is the
+   * top-left of the AR view) — they are NOT pixel values; divide pixel
+   * coordinates by the view size first.
    *
-   * @param {number} x - X coordinate of the tap/touch
-   * @param {number} y - Y coordinate of the tap/touch
-   * @returns {Promise<Object>} Hit test result with position if successful
-   * @returns {boolean} returns.hit - Whether a surface was found
-   * @returns {Object} returns.position - 3D position {x, y, z} if hit
-   * @returns {string} returns.error - Error message if failed
+   * @param {number} x - Normalized X coordinate of the tap/touch [0, 1]
+   * @param {number} y - Normalized Y coordinate of the tap/touch [0, 1]
+   * @returns {Promise<Object>} Hit test result: `hit` (boolean) —
+   *   whether a surface was found; `position` (number[]) — 3D position
+   *   [x, y, z] if hit; `rotation` (number[]) — hit orientation
+   *   quaternion [x, y, z, w] if hit; `error` (string) — error message
+   *   if failed
    *
    * @example
    * const handleTap = async (event) => {
-   *   const result = await hitTest(event.clientX, event.clientY);
+   *   const result = await hitTest(
+   *     event.clientX / window.innerWidth,
+   *     event.clientY / window.innerHeight
+   *   );
    *   if (result.hit) {
    *     await placeModel('/models/chair.glb', result.position);
    *   }
@@ -400,12 +401,15 @@ export function useARCore() {
    * The position is typically obtained from a hit test result.
    *
    * @param {string} modelUrl - URL or path to the GLTF/GLB model
-   * @param {Object} position - Position in 3D space {x, y, z}
-   * @param {Object} [rotation] - Rotation in radians {x, y, z}
-   * @param {Object} [scale] - Scale multiplier {x, y, z}
-   * @returns {Promise<Object>} Result with anchorId if successful
-   * @returns {string} returns.anchorId - Unique ID for the placed model
-   * @returns {string} returns.error - Error message if failed
+   * @param {number[]|Object} position - Position in 3D space: [x, y, z]
+   *   or {x, y, z} (a hit test result's `position` can be passed as-is)
+   * @param {number[]|Object} [rotation] - Quaternion [x, y, z, w] /
+   *   {x, y, z, w}, or Euler rotation in radians {x, y, z}
+   * @param {number|number[]|Object} [scale] - Uniform scale number, or
+   *   per-axis [x, y, z] / {x, y, z}
+   * @returns {Promise<Object>} Result: `anchorId` (string) — unique ID
+   *   for the placed model; or `error` (string) — error message if
+   *   failed
    *
    * @example
    * const result = await placeModel(
@@ -469,9 +473,12 @@ export function useARCore() {
    *
    * @param {string} anchorId - The ID of the model to transform
    * @param {Object} transforms - Transform properties to apply
-   * @param {Object} [transforms.position] - New position {x, y, z}
-   * @param {Object} [transforms.rotation] - New rotation {x, y, z}
-   * @param {Object} [transforms.scale] - New scale {x, y, z}
+   * @param {number[]|Object} [transforms.position] - New position:
+   *   [x, y, z] or {x, y, z}
+   * @param {number[]|Object} [transforms.rotation] - New rotation:
+   *   quaternion [x, y, z, w] / {x, y, z, w}, or Euler radians {x, y, z}
+   * @param {number|number[]|Object} [transforms.scale] - New scale:
+   *   uniform number, [x, y, z] or {x, y, z}
    * @returns {Promise<void>}
    *
    * @example
@@ -683,13 +690,11 @@ export function useARCore() {
    * @param {Object} [options] - Screenshot options
    * @param {string} [options.format='png'] - Image format ('png' or 'jpeg')
    * @param {number} [options.quality=0.92] - JPEG quality (0-1)
-   * @returns {Promise<Object>} Screenshot result
-   * @returns {boolean} returns.success - Whether screenshot was captured
-   * @returns {string} returns.dataUrl - Base64 data URL of the image
-   * @returns {number} returns.width - Image width in pixels
-   * @returns {number} returns.height - Image height in pixels
-   * @returns {string} returns.timestamp - ISO timestamp of capture
-   * @returns {string} returns.error - Error message if failed
+   * @returns {Promise<Object>} Screenshot result: `success` (boolean);
+   *   on success `dataUrl` (string) — base64 data URL of the image,
+   *   `width`/`height` (number) — image size in pixels, `timestamp`
+   *   (string) — ISO timestamp of capture; on failure `error` (string)
+   *   and, for camera failures, `code` (string)
    *
    * @example
    * const result = await takeScreenshot({ format: 'jpeg', quality: 0.9 });
@@ -709,8 +714,9 @@ export function useARCore() {
 
       const result = await arCore.takeScreenshot(options);
 
-      // Set error state if screenshot failed
-      if (!result.success && result.error) {
+      // Set error state if screenshot failed (the === false form also
+      // narrows the ScreenshotResult union under tsc --checkJs)
+      if (result.success === false && result.error) {
         setError(result.error);
       }
 

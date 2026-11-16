@@ -1,6 +1,22 @@
 /** Framework-agnostic touch gesture controller for AR DOM overlays.
  * One finger tap -> onTap. One finger drag -> onDrag. Two fingers -> pinch + rotate.
  * Call destroy() when the overlay unmounts.
+ *
+ * @param {Object} options
+ * @param {HTMLElement} [options.element] - Element to listen on
+ *   (required — the function throws if it is missing)
+ * @param {(point: {x: number, y: number}) => void} [options.onTap] -
+ *   Fired for a short, stationary pointerup; payload is the pointer
+ *   position in pixels
+ * @param {(drag: {dx: number, dy: number, x: number, y: number}) => void} [options.onDrag]
+ * @param {(pinch: {factor: number, center: {x: number, y: number}}) => void} [options.onPinch]
+ * @param {(rotate: {delta: number, center: {x: number, y: number}}) => void} [options.onRotate]
+ * @param {number} [options.tapMaxDuration=260] - Max tap duration (ms)
+ * @param {number} [options.tapMaxDistance=12] - Max tap movement (px)
+ * @param {boolean} [options.preventDefault=true]
+ * @param {string} [options.ignoreSelector='[data-ui]'] - Events from
+ *   elements matching this selector are ignored
+ * @returns {{destroy: () => void}}
  */
 export function createARGestureController({
   element,

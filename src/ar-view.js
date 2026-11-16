@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ARCoreWeb } from './web.js';
+import { ARCoreWeb, SCALE_MIN, SCALE_MAX } from './web.js';
 import { createARGestureController } from './gestures.js';
 
 /** High-level, framework-agnostic AR facade. React/Vue/plain DOM can all use this. */
@@ -45,7 +45,9 @@ export class ARView {
     await this.engine.stopSession();
   }
 
+  /** Subscribe to engine frame events (surfaceDetected, modelPlaced, modelSwitched, sessionEnded, … — see the per-runtime event list in web.js, API-07). Returns an unsubscribe function. */
   onFrame(callback) { return this.engine.addFrameListener(callback); }
+  /** Subscribe to engine plane events (planeAdded, planesUpdated — counts as numbers). Returns an unsubscribe function. */
   onPlanes(callback) { return this.engine.addPlaneListener(callback); }
   getSurface() { return this.engine.getSurfaceDetectionState(); }
   getPlanes() { return this.engine.getDetectedPlanes(); }
@@ -57,12 +59,19 @@ export class ARView {
 
   async preloadModels(urls = []) { await Promise.all(urls.map(url => this.engine.loadModel(url))); }
 
+  /**
+   * Place a model. Without an explicit `position`, hit-tests at the
+   * normalised screen point `options.x`/`options.y` (default: centre).
+   * `position`, `rotation` and `scale` accept the engine's shapes:
+   * arrays, {x, y, z} objects, Euler-radians rotation objects, or a
+   * uniform numeric scale — the engine normalises them (BUG-01).
+   */
   async placeModel(modelUrl, options = {}) {
     const hit = options.position ? { hit: true, position: options.position, rotation: options.rotation } : await this.engine.hitTest({ x: options.x ?? .5, y: options.y ?? .5 });
     if (!hit.hit) return { success: false, reason: 'NO_SURFACE' };
     const scale = options.scale ?? this.transform.scale;
     const rotation = options.rotation || hit.rotation || [0,0,0,1];
-    const result = await this.engine.placeModel({ modelUrl, position: hit.position, rotation, scale: Array.isArray(scale) ? scale : [scale,scale,scale] });
+    const result = await this.engine.placeModel({ modelUrl, position: hit.position, rotation, scale });
     this.activeModelId = result.anchorId;
     this.activeModelUrl = modelUrl;
     return { success: true, modelId: result.anchorId, ...result };
@@ -83,9 +92,14 @@ export class ARView {
     this.activeModelUrl = null;
   }
 
+  /**
+   * Set the active model's uniform scale. Clamped to [SCALE_MIN,
+   * SCALE_MAX] = [0.1, 5] — the one scale range shared by every layer
+   * and runtime, defined in web.js (API-08).
+   */
   async setScale(scale) {
     if (!this.activeModelId) return;
-    const s = Math.max(.1, Math.min(5, scale));
+    const s = Math.max(SCALE_MIN, Math.min(SCALE_MAX, scale));
     await this.engine.transformModel({ anchorId: this.activeModelId, scale: [s,s,s] });
     // Commit local state only after the engine accepts it, so a failed
     // call cannot leave the facade's transform ahead of the scene (BUG-11)
@@ -121,7 +135,9 @@ export class ARView {
     this.gestures?.destroy();
     this.gestures = createARGestureController({
       element: this.overlay,
-      onTap: async ({ x, y, event }) => {
+      // The gesture payload is {x, y} in pixels (see gestures.js); it
+      // has never carried an `event` field (API-06 drift).
+      onTap: async ({ x, y }) => {
         if (!this.activeModelId && options.modelUrl) {
           try {
             // modelUrl accepts a plain string or a () => string (BUG-05)
@@ -136,7 +152,7 @@ export class ARView {
             return;
           }
         }
-        options.onTap?.({ x, y, event });
+        options.onTap?.({ x, y });
       },
       onPinch: ({ factor }) => {
         if (!this.activeModelId) return;

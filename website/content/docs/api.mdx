@@ -279,7 +279,10 @@ with payload `{ type, total, horizontal, vertical }` — counts as
 `takeScreenshot({ format = 'png', quality = 0.92, width?, height?, includeReticle? })`
 resolves `{ success, dataUrl, width, height, timestamp, includesCamera }`
 or `{ success: false, code?, error }` with `code` one of
-`'CAMERA_CAPTURE_UNAVAILABLE'`, `'CAPTURE_BUSY'`. See
+`'CAMERA_CAPTURE_UNAVAILABLE'`, `'CAPTURE_BUSY'`. Requires the session
+to have been started with `enableScreenshots: true` (camera access is
+opt-in; `lightEstimation` does not enable it) — without it the result
+is `CAMERA_CAPTURE_UNAVAILABLE`. See
 [Screenshots](/docs/guides/screenshots).
 
 ## useARCore

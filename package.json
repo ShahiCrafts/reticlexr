@@ -4,6 +4,10 @@
   "description": "High-level AR abstraction for Capacitor and React with WebXR, ARCore, Three.js, gestures, model customization, and DOM overlays.",
   "main": "src/index.js",
   "module": "src/index.js",
+  "types": "src/index.d.ts",
+  "scripts": {
+    "check-types": "tsc --noEmit --checkJs"
+  },
   "files": [
     "android/",
     "src/"
@@ -36,5 +40,8 @@
   "bugs": {
     "url": "https://github.com/ShahiCrafts/reticlexr/issues"
   },
-  "homepage": "https://reticlexr.vercel.app"
+  "homepage": "https://reticlexr.vercel.app",
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
 }

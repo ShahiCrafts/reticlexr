@@ -76,8 +76,8 @@ export const ARCore = {
    * Perform a hit test at normalized screen coordinates.
    *
    * @param {Object} options - Hit test parameters
-   * @param {number} options.x - Normalized X coordinate [0, 1]
-   * @param {number} options.y - Normalized Y coordinate [0, 1]
+   * @param {number} [options.x] - Normalized X coordinate [0, 1] (required by the plugin)
+   * @param {number} [options.y] - Normalized Y coordinate [0, 1] (required by the plugin)
    * @returns {Promise<Object>} Hit test result
    */
   hitTest: async (options = {}) => {
@@ -93,7 +93,7 @@ export const ARCore = {
    * Place a GLB model at a hit test location.
    *
    * @param {Object} options
-   * @param {string} options.modelPath - Path to GLB model in assets (e.g., "models/chair.glb")
+   * @param {string} [options.modelPath] - Path to GLB model in assets (e.g., "models/chair.glb") (required by the plugin)
    * @param {string} [options.hitId] - Optional hit identifier
    * @returns {Promise<{modelId: string, anchorId: string}>}
    */
@@ -110,7 +110,7 @@ export const ARCore = {
    * Update model transform (position, rotation, scale).
    *
    * @param {Object} options
-   * @param {string} options.modelId - Model identifier
+   * @param {string} [options.modelId] - Model identifier (required by the plugin)
    * @param {Object} [options.rotation] - Euler angles {x, y, z} in degrees
    * @param {number} [options.scale] - Uniform scale factor
    * @returns {Promise<void>}
@@ -127,8 +127,8 @@ export const ARCore = {
    * Set model material/color.
    *
    * @param {Object} options
-   * @param {string} options.modelId - Model identifier
-   * @param {string} options.color - Hex color string (e.g., "#7D8B67")
+   * @param {string} [options.modelId] - Model identifier (required by the plugin)
+   * @param {string} [options.color] - Hex color string (e.g., "#7D8B67") (required by the plugin)
    * @returns {Promise<void>}
    */
   setMaterial: async (options = {}) => {
@@ -143,9 +143,9 @@ export const ARCore = {
    * Move model to new position (hit test at screen coordinates).
    *
    * @param {Object} options
-   * @param {string} options.modelId - Model identifier
-   * @param {number} options.x - Normalized X coordinate [0, 1]
-   * @param {number} options.y - Normalized Y coordinate [0, 1]
+   * @param {string} [options.modelId] - Model identifier (required by the plugin)
+   * @param {number} [options.x] - Normalized X coordinate [0, 1] (required by the plugin)
+   * @param {number} [options.y] - Normalized Y coordinate [0, 1] (required by the plugin)
    * @returns {Promise<Object>} New position information
    */
   moveModel: async (options = {}) => {
@@ -161,7 +161,7 @@ export const ARCore = {
    * Remove a model.
    *
    * @param {Object} options
-   * @param {string} options.modelId - Model identifier
+   * @param {string} [options.modelId] - Model identifier (required by the plugin)
    * @returns {Promise<void>}
    */
   removeModel: async (options = {}) => {
@@ -179,6 +179,18 @@ export const ARCore = {
    *              'surfaceLost', 'surfaceUpdated', 'sessionStopped',
    *              'modelPlaced', 'modelRemoved', 'modelTransformed',
    *              'modelMaterialChanged', 'modelMoved', 'error'
+   *
+   * Events are PER RUNTIME (API-07): this list is the native Android
+   * plugin's event set, bridged at import time. The WebXR engine emits
+   * a different set through its own channels and never through
+   * `ARCore.on` — on web, subscribe via `ARView.onFrame`/`onPlanes`
+   * (engine frame events: surfaceDetected, surfaceLost, modelPlaced,
+   * modelRemoved, modelTransformed, modelColorChanged, modelSwitched,
+   * sessionEnded; plane events: planeAdded, planesUpdated) or use the
+   * `useARCore` hook's state. 'surfaceUpdated', 'trackingChanged',
+   * 'sessionStarted', 'sessionStopped', 'modelMaterialChanged' and
+   * 'modelMoved' are native-only; 'modelColorChanged',
+   * 'modelSwitched' and 'sessionEnded' are web-engine-only.
    *
    * @param {string} eventType - Type of event to listen for
    * @param {Function} callback - Callback function receiving event data

@@ -6,7 +6,7 @@ Application code should use `createARView()` instead of coordinating WebXR, Thre
 import { createARView } from 'reticlexr';
 
 const ar = createARView({ overlay: document.querySelector('#ar-overlay') });
-await ar.create({ showReticle: true, showPlaneDots: true });
+await ar.create({ showReticle: true, showPlaneDots: true, enableScreenshots: true });
 await ar.preloadModels(['/models/sofa.glb', '/models/chair.glb']);
 
 ar.enableCustomization({ modelUrl: () => '/models/sofa.glb' });

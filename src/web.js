@@ -13,6 +13,189 @@ import { WebPlugin } from "@capacitor/core";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
+// ============================================================
+// Transform input normalisation (BUG-01)
+// ============================================================
+// The layers above the engine describe transforms as {x, y, z} objects
+// (that is what the React hook's documentation always promised), while
+// the engine's scene code consumes plain arrays. Accept both shapes at
+// the engine boundary so no caller can produce NaN transforms by
+// following the docs. These helpers are pure and exported for testing.
+
+function finiteOr(value, fallback) {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+/**
+ * Normalise a 3D vector to a plain [x, y, z] array.
+ * Accepts [x, y, z] or {x, y, z}; anything else yields `fallback`.
+ *
+ * @param {number[]|{x:number,y:number,z:number}|*} value
+ * @param {number[]|undefined} [fallback]
+ * @returns {number[]|undefined}
+ */
+export function normalizeVector3(value, fallback = undefined) {
+  if (Array.isArray(value)) {
+    if (value.length < 3) return fallback;
+    return [finiteOr(value[0], 0), finiteOr(value[1], 0), finiteOr(value[2], 0)];
+  }
+  if (value && typeof value === "object") {
+    return [finiteOr(value.x, 0), finiteOr(value.y, 0), finiteOr(value.z, 0)];
+  }
+  return fallback;
+}
+
+/**
+ * Normalise a rotation to a quaternion array [x, y, z, w].
+ * Accepts a quaternion array [x, y, z, w], a quaternion object
+ * {x, y, z, w}, or an Euler rotation {x, y, z} / [x, y, z] in RADIANS
+ * (the form the React hook documents). Anything else yields `fallback`.
+ *
+ * @param {number[]|Object|*} value
+ * @param {number[]|undefined} [fallback]
+ * @returns {number[]|undefined}
+ */
+export function normalizeQuaternion(value, fallback = undefined) {
+  if (Array.isArray(value)) {
+    if (value.length === 4) {
+      return [
+        finiteOr(value[0], 0),
+        finiteOr(value[1], 0),
+        finiteOr(value[2], 0),
+        finiteOr(value[3], 1),
+      ];
+    }
+    if (value.length === 3) {
+      return new THREE.Quaternion()
+        .setFromEuler(
+          new THREE.Euler(finiteOr(value[0], 0), finiteOr(value[1], 0), finiteOr(value[2], 0))
+        )
+        .toArray();
+    }
+    return fallback;
+  }
+  if (value && typeof value === "object") {
+    if ("w" in value) {
+      return [
+        finiteOr(value.x, 0),
+        finiteOr(value.y, 0),
+        finiteOr(value.z, 0),
+        finiteOr(value.w, 1),
+      ];
+    }
+    if ("x" in value || "y" in value || "z" in value) {
+      return new THREE.Quaternion()
+        .setFromEuler(
+          new THREE.Euler(finiteOr(value.x, 0), finiteOr(value.y, 0), finiteOr(value.z, 0))
+        )
+        .toArray();
+    }
+  }
+  return fallback;
+}
+
+/**
+ * Normalise a scale to a plain [x, y, z] array.
+ * Accepts a uniform number, [x, y, z], a single-element [s], or
+ * {x, y, z}; anything else yields `fallback`.
+ *
+ * @param {number|number[]|{x:number,y:number,z:number}|*} value
+ * @param {number[]|undefined} [fallback]
+ * @returns {number[]|undefined}
+ */
+export function normalizeScale(value, fallback = undefined) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? [value, value, value] : fallback;
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 1) {
+      const s = finiteOr(value[0], NaN);
+      return Number.isFinite(s) ? [s, s, s] : fallback;
+    }
+    if (value.length >= 3) {
+      return [finiteOr(value[0], 1), finiteOr(value[1], 1), finiteOr(value[2], 1)];
+    }
+    return fallback;
+  }
+  if (value && typeof value === "object") {
+    return [finiteOr(value.x, 1), finiteOr(value.y, 1), finiteOr(value.z, 1)];
+  }
+  return fallback;
+}
+
+// ============================================================
+// Ray hit-test geometry (BUG-03)
+// ============================================================
+
+/**
+ * Build a hit-test ray for a normalised screen point from the viewer
+ * (camera) pose. Pure math — exported for testing.
+ *
+ * The screen point (x, y) is in [0, 1] with (0, 0) at the TOP-LEFT of
+ * the AR view. It is converted to NDC, unprojected through the view's
+ * inverse projection matrix to a direction in view space (camera looks
+ * down -Z, +Y up), then rotated into the pose's space by the viewer
+ * orientation. For a multi-view (stereo) pose the caller passes the
+ * first view's projection matrix — the standard choice for a tap on
+ * the DOM overlay, which is what screen points refer to here.
+ *
+ * @param {{position:{x:number,y:number,z:number}, orientation:{x:number,y:number,z:number,w:number}}} viewerTransform -
+ *   The viewer pose transform (XRPose.transform of the viewer pose)
+ * @param {Float32Array|number[]} projectionMatrix - Column-major 4x4
+ *   projection matrix of the view (XRView.projectionMatrix)
+ * @param {number} x - Normalised screen X [0, 1]
+ * @param {number} y - Normalised screen Y [0, 1]
+ * @returns {{origin:{x:number,y:number,z:number}, direction:{x:number,y:number,z:number}}}
+ *   Ray in the same space as the viewer pose
+ */
+export function rayFromScreenPoint(viewerTransform, projectionMatrix, x, y) {
+  const ndc = new THREE.Vector3(x * 2 - 1, 1 - y * 2, -1);
+  const inverseProjection = new THREE.Matrix4()
+    .fromArray(projectionMatrix)
+    .invert();
+  // Unproject the near-plane NDC point into view space. The camera sits
+  // at the view-space origin, so the unprojected point IS the direction.
+  const direction = ndc.applyMatrix4(inverseProjection).normalize();
+  const orientation = new THREE.Quaternion(
+    viewerTransform.orientation.x,
+    viewerTransform.orientation.y,
+    viewerTransform.orientation.z,
+    viewerTransform.orientation.w
+  );
+  direction.applyQuaternion(orientation);
+  return {
+    origin: {
+      x: viewerTransform.position.x,
+      y: viewerTransform.position.y,
+      z: viewerTransform.position.z,
+    },
+    direction: { x: direction.x, y: direction.y, z: direction.z },
+  };
+}
+
+// ============================================================
+// Scale limits (API-08)
+// ============================================================
+// One documented scale range across every layer and runtime. The
+// engine is the single enforcement point on the web: placeModel and
+// transformModel clamp every scale they apply. ARView's setScale and
+// the Android runtime (ARModelManager.setTransform) use the same
+// range, so a pinch gesture behaves identically everywhere.
+export const SCALE_MIN = 0.1;
+export const SCALE_MAX = 5;
+
+/**
+ * Clamp a normalised [x, y, z] scale into [SCALE_MIN, SCALE_MAX]
+ * per axis.
+ *
+ * @param {number[]} scale
+ * @returns {number[]}
+ */
+export function clampScale(scale) {
+  return scale.map((v) => Math.min(SCALE_MAX, Math.max(SCALE_MIN, v)));
+}
+
 export class ARCoreWeb extends WebPlugin {
   constructor() {
     super();
@@ -23,6 +206,7 @@ export class ARCoreWeb extends WebPlugin {
     this.hitTestSource = null;
     this.xrGlBinding = null;
     this.pendingScreenshot = null;
+    this._screenshotHintWarned = false;
 
     // Model management
     this.anchors = new Map();
@@ -968,7 +1152,7 @@ export class ARCoreWeb extends WebPlugin {
         this.pendingScreenshot = null;
         this._captureXRFrame(frame, request.options)
           .then(request.resolve)
-          .catch((error) => request.resolve({ success: false, error: error.message || "Screenshot failed" }));
+          .catch((error) => request.resolve({ success: false, code: error.code, error: error.message || "Screenshot failed" }));
       }
     });
   }
@@ -1092,8 +1276,31 @@ export class ARCoreWeb extends WebPlugin {
     }
   }
 
-  async hitTest({ x, y }) {
-    if (!this.session || !this.hitTestSource || !this.referenceSpace) {
+  /**
+   * Hit test at normalised screen coordinates ([0, 1], origin
+   * top-left).
+   *
+   * The centre point (0.5, 0.5 — the default) uses the fast viewer-ray
+   * path: the cached centre hit from the render loop, or one frame
+   * raced against the live viewer hit-test source. Any other point
+   * performs a real ray hit test (see `hitTestAtPoint`, BUG-03), so
+   * taps land where the user actually tapped.
+   *
+   * @param {Object} [options]
+   * @param {number} [options.x=0.5] - Normalised X [0, 1]
+   * @param {number} [options.y=0.5] - Normalised Y [0, 1]
+   * @returns {Promise<{hit: boolean, position?: number[], rotation?: number[], planeType?: string, error?: string}>}
+   */
+  async hitTest({ x = 0.5, y = 0.5 } = {}) {
+    if (!this.session || !this.referenceSpace) {
+      return { hit: false, error: "Session not active" };
+    }
+
+    if (x !== 0.5 || y !== 0.5) {
+      return this.hitTestAtPoint(x, y);
+    }
+
+    if (!this.hitTestSource) {
       return { hit: false, error: "Session not active" };
     }
 
@@ -1171,6 +1378,130 @@ export class ARCoreWeb extends WebPlugin {
     });
   }
 
+  /**
+   * Ray-based hit test for an explicit normalised screen point
+   * (BUG-03).
+   *
+   * On the next frame, the viewer pose supplies the camera's position,
+   * orientation and projection; `rayFromScreenPoint` turns (x, y) into
+   * a ray in reference space; a dedicated hit-test source is registered
+   * with that ray as its `offsetRay`; the following frame's hit results
+   * settle the promise.
+   *
+   * The one-off source is cancelled on EVERY settle path — results
+   * consumed, no hit, error, timeout, or session end (including a
+   * session that ends while the source is still being created) — so
+   * per-tap sources never accumulate in the runtime.
+   *
+   * @param {number} x - Normalised X [0, 1]
+   * @param {number} y - Normalised Y [0, 1]
+   * @returns {Promise<{hit: boolean, position?: number[], rotation?: number[], planeType?: string, error?: string}>}
+   */
+  hitTestAtPoint(x, y) {
+    const session = this.session;
+    const referenceSpace = this.referenceSpace;
+
+    return new Promise((resolve) => {
+      let settled = false;
+      let raySource = null;
+
+      const settle = (result) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        session.removeEventListener("end", onSessionEnd);
+        if (raySource) {
+          try { raySource.cancel(); } catch (_) {}
+          raySource = null;
+        }
+        resolve(result);
+      };
+      const onSessionEnd = () => {
+        // Never leave the caller awaiting a frame that will not come
+        // (BUG-08).
+        settle({ hit: false, error: "SESSION_ENDED" });
+      };
+      // Frames can also stall without the session ending; race a
+      // timeout so the promise always settles (BUG-08).
+      const timer = setTimeout(() => {
+        settle({ hit: false, error: "HIT_TEST_TIMEOUT" });
+      }, 1000);
+
+      const onResultsFrame = (time, frame) => {
+        if (settled || !raySource) return;
+        const results = frame.getHitTestResults(raySource);
+        if (results.length > 0) {
+          const pose = results[0].getPose(referenceSpace);
+          if (pose) {
+            const position = [
+              pose.transform.position.x,
+              pose.transform.position.y,
+              pose.transform.position.z,
+            ];
+            let planeType = this.inferPlaneTypeFromQuaternion(
+              pose.transform.orientation
+            );
+            if (this.planeDetectionSupported && frame.detectedPlanes) {
+              const plane = this.findPlaneAtPosition(position, frame);
+              if (plane && plane.orientation) {
+                planeType = plane.orientation;
+              }
+            }
+            settle({
+              hit: true,
+              position,
+              rotation: [
+                pose.transform.orientation.x,
+                pose.transform.orientation.y,
+                pose.transform.orientation.z,
+                pose.transform.orientation.w,
+              ],
+              planeType,
+            });
+            return;
+          }
+        }
+        settle({ hit: false });
+      };
+
+      const onPoseFrame = async (time, frame) => {
+        if (settled) return;
+        try {
+          const viewerPose = frame.getViewerPose(referenceSpace);
+          const view = viewerPose && viewerPose.views && viewerPose.views[0];
+          if (!viewerPose || !view) {
+            settle({ hit: false, error: "NO_VIEWER_POSE" });
+            return;
+          }
+          const ray = rayFromScreenPoint(
+            viewerPose.transform,
+            view.projectionMatrix,
+            x,
+            y
+          );
+          raySource = await session.requestHitTestSource({
+            space: referenceSpace,
+            offsetRay: new XRRay(ray.origin, ray.direction),
+          });
+        } catch (error) {
+          settle({ hit: false, error: "HIT_TEST_UNAVAILABLE" });
+          return;
+        }
+        if (settled) {
+          // Settled while the source was being created (session end or
+          // timeout): cancel the late source so it cannot leak.
+          try { raySource.cancel(); } catch (_) {}
+          raySource = null;
+          return;
+        }
+        session.requestAnimationFrame(onResultsFrame);
+      };
+
+      session.addEventListener("end", onSessionEnd);
+      session.requestAnimationFrame(onPoseFrame);
+    });
+  }
+
   getSurfaceState() {
     return {
       detected: this.reticleVisible,
@@ -1230,18 +1561,39 @@ export class ARCoreWeb extends WebPlugin {
     });
   }
 
+  /**
+   * Load a model and place it in the scene.
+   *
+   * Transform inputs are normalised at this boundary (BUG-01):
+   * `position` accepts [x, y, z] or {x, y, z}; `rotation` accepts a
+   * quaternion [x, y, z, w] / {x, y, z, w} or Euler radians {x, y, z};
+   * `scale` accepts a uniform number, [x, y, z] or {x, y, z}.
+   *
+   * @param {Object} options
+   * @param {string} [options.modelUrl] - GLTF/GLB URL (or `modelPath`)
+   * @param {string} [options.modelPath] - Alias for `modelUrl`
+   * @param {number[]|{x:number,y:number,z:number}} [options.position] -
+   *   World position; defaults to the latest surface hit position
+   * @param {number[]|Object} [options.rotation] - Rotation (see above);
+   *   defaults to identity
+   * @param {number|number[]|{x:number,y:number,z:number}} [options.scale] -
+   *   Scale; defaults to [1, 1, 1]. Clamped to [0.1, 5] per axis — the
+   *   one scale range shared by every layer and runtime (API-08)
+   * @returns {Promise<{anchorId: string}>}
+   */
   async placeModel({
     modelUrl,
     modelPath,
     position,
-    rotation = [0, 0, 0, 1],
-    scale = [1, 1, 1],
+    rotation,
+    scale,
   }) {
     modelUrl = modelUrl || modelPath;
-    position = position || this.lastHitPosition;
+    position = normalizeVector3(position, this.lastHitPosition);
     // No hit was involved in an explicit placement: a missing/null rotation
     // means identity, never an unrelated earlier hit's rotation (BUG-12)
-    rotation = rotation || [0, 0, 0, 1];
+    rotation = normalizeQuaternion(rotation, [0, 0, 0, 1]);
+    scale = clampScale(normalizeScale(scale, [1, 1, 1]));
     if (!modelUrl) throw new Error("modelUrl/modelPath is required");
     if (!position) throw new Error("No surface hit available. Scan a surface before placing a model.");
     const anchorId = `anchor_${Date.now()}_${Math.random()
@@ -1329,11 +1681,28 @@ export class ARCoreWeb extends WebPlugin {
     this.frameListeners.forEach((cb) => cb({ type: "modelRemoved", anchorId }));
   }
 
+  /**
+   * Apply a new position/rotation/scale to a placed model.
+   * Transform inputs accept the same shapes as `placeModel` (BUG-01);
+   * omitted or unrecognisable values leave the current transform intact.
+   *
+   * @param {Object} options
+   * @param {string} options.anchorId
+   * @param {number[]|{x:number,y:number,z:number}} [options.position]
+   * @param {number[]|Object} [options.rotation]
+   * @param {number|number[]|{x:number,y:number,z:number}} [options.scale] -
+   *   Clamped to [0.1, 5] per axis (API-08)
+   */
   async transformModel({ anchorId, position, rotation, scale }) {
     const anchor = this.anchors.get(anchorId);
     if (!anchor) {
       throw new Error(`Anchor ${anchorId} not found`);
     }
+
+    position = position === undefined ? undefined : normalizeVector3(position, undefined);
+    rotation = rotation === undefined ? undefined : normalizeQuaternion(rotation, undefined);
+    scale = scale === undefined ? undefined : normalizeScale(scale, undefined);
+    if (scale) scale = clampScale(scale);
 
     if (position) anchor.position = position;
     if (rotation) anchor.rotation = rotation;
@@ -1357,6 +1726,38 @@ export class ARCoreWeb extends WebPlugin {
     if (shadow) shadow.visible = visible;
   }
 
+  // ============================================================
+  // Engine events (API-07) — per runtime
+  // ============================================================
+  // The WebXR engine emits the events below through its OWN listener
+  // channels. They are NOT the native facade's event set: the facade
+  // (`ARCore.on` in index.js) bridges the ANDROID plugin's events
+  // (sessionStarted, trackingChanged, surfaceUpdated, sessionStopped,
+  // modelMaterialChanged, modelMoved, …), which the web runtime never
+  // emits through `ARCore.on`. Until the surfaces are unified, web
+  // consumers subscribe here (directly, via ARView.onFrame/onPlanes,
+  // or via the useARCore hook's state).
+  //
+  // Frame listeners (addFrameListener) — payloads always carry `type`:
+  //   surfaceDetected  {hasSurface: true, position, rotation, planeType, confidence}
+  //                    — every frame the centre ray has a hit
+  //   surfaceLost      {hasSurface: false} — every frame without a hit
+  //   modelPlaced      {anchorId, modelUrl, position, rotation, scale}
+  //   modelRemoved     {anchorId}
+  //   modelTransformed {anchorId, modelUrl, position, rotation, scale}
+  //   modelColorChanged {anchorId, color}
+  //   modelSwitched    {anchorId, modelUrl}
+  //   sessionEnded     {} — the XR session ended
+  //
+  // Plane listeners (addPlaneListener) — payloads always carry `type`:
+  //   planeAdded       {orientation, polygon}
+  //   planesUpdated    {total, horizontal, vertical} — counts as NUMBERS
+
+  /**
+   * Subscribe to plane events (see the event list above).
+   * @param {Function} callback - Receives the event payload
+   * @returns {Function} Unsubscribe function
+   */
   addPlaneListener(callback) {
     this.planeListeners.push(callback);
     return () => {
@@ -1364,6 +1765,11 @@ export class ARCoreWeb extends WebPlugin {
     };
   }
 
+  /**
+   * Subscribe to frame/model events (see the event list above).
+   * @param {Function} callback - Receives the event payload
+   * @returns {Function} Unsubscribe function
+   */
   addFrameListener(callback) {
     this.frameListeners.push(callback);
     return () => {
@@ -1493,7 +1899,11 @@ export class ARCoreWeb extends WebPlugin {
   // On web the model identifier is the anchor id, so normalize both forms here.
   async setTransform(options = {}) {
     const anchorId = options.anchorId || options.modelId;
-    const rotation = options.rotation && !Array.isArray(options.rotation)
+    // Facade convention: a plain {x, y, z} rotation here is Euler DEGREES
+    // (the native API's documented form). Quaternion objects ({…, w}) and
+    // arrays pass through to transformModel's normalisation untouched
+    // (BUG-01).
+    const rotation = options.rotation && typeof options.rotation === "object" && !Array.isArray(options.rotation) && !("w" in options.rotation)
       ? new THREE.Quaternion().setFromEuler(new THREE.Euler(
           THREE.MathUtils.degToRad(options.rotation.x || 0),
           THREE.MathUtils.degToRad(options.rotation.y || 0),
@@ -1567,10 +1977,15 @@ export class ARCoreWeb extends WebPlugin {
       return { success: false, error: 'AR session not active' };
     }
     if (!this.xrGlBinding || typeof this.xrGlBinding.getCameraImage !== 'function') {
+      // The overwhelmingly common cause is that the session was started
+      // without the opt-in camera access (SEC-04). Say so once per
+      // engine instance in the console, and in every error message, so
+      // the fix is discoverable instead of a dead end.
+      this._warnScreenshotHintOnce();
       return {
         success: false,
         code: 'CAMERA_CAPTURE_UNAVAILABLE',
-        error: 'This browser does not expose WebXR camera frames. AR remains active.',
+        error: 'This browser does not expose WebXR camera frames. AR remains active. — pass enableScreenshots: true to startSession to enable screenshots',
       };
     }
     if (this.pendingScreenshot) {
@@ -1579,10 +1994,35 @@ export class ARCoreWeb extends WebPlugin {
     return new Promise((resolve) => { this.pendingScreenshot = { resolve, options }; });
   }
 
+  /**
+   * Explain the SEC-04 opt-in once per engine instance: screenshots
+   * fail with CAMERA_CAPTURE_UNAVAILABLE when the session was started
+   * without `enableScreenshots: true`, and nothing else in the error
+   * path tells the developer that. Repeated failures stay quiet.
+   */
+  _warnScreenshotHintOnce() {
+    if (this._screenshotHintWarned) return;
+    this._screenshotHintWarned = true;
+    console.warn(
+      '[ARCore] takeScreenshot: no WebXR camera access in this session. ' +
+      'Screenshots need enableScreenshots: true at startSession (camera-access ' +
+      'is opt-in and is NOT implied by lightEstimation).'
+    );
+  }
+
   async _captureXRFrame(frame, options = {}) {
     const pose = frame.getViewerPose(this.referenceSpace);
     const view = pose?.views?.find(v => v.camera) || pose?.views?.[0];
-    if (!view?.camera) throw new Error('WebXR camera access was not granted');
+    if (!view?.camera) {
+      // Same root cause as the coded path in takeScreenshot: the
+      // session never granted camera-access (SEC-04 opt-in missing).
+      this._warnScreenshotHintOnce();
+      const err = /** @type {Error & { code?: string }} */ (
+        new Error('WebXR camera access was not granted — pass enableScreenshots: true to startSession to enable screenshots')
+      );
+      err.code = 'CAMERA_CAPTURE_UNAVAILABLE';
+      throw err;
+    }
 
     const gl = this.renderer.getContext();
     const texture = this.xrGlBinding.getCameraImage(view.camera);

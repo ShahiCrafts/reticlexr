@@ -105,6 +105,14 @@ Event types wired by the import-time bridge (index.js:228–258):
 `surfaceUpdated`, `sessionStopped`, `modelPlaced`, `modelRemoved`,
 `modelTransformed`, `modelMaterialChanged`, `modelMoved`, `error`.
 
+> Events are **per runtime** (API-07): the list above is the native
+> plugin's set. The WebXR engine never emits through `ARCore.on`; it
+> emits its own set via frame/plane listeners (§2.4) — including
+> web-only `modelColorChanged`, `modelSwitched`, `sessionEnded`,
+> `planeAdded`, `planesUpdated` — while `surfaceUpdated`,
+> `trackingChanged`, `sessionStarted`, `sessionStopped`,
+> `modelMaterialChanged`, `modelMoved` are native-only.
+
 > Note the identifier split: the native facade identifies models by
 > **`modelId`**, the WebXR engine by **`anchorId`**. `ARCoreWeb` contains a
 > compatibility shim (`setTransform`/`setMaterial`/`moveModel` in web.js)
@@ -129,7 +137,7 @@ overlay?: HTMLElement }`.
 | `placeModel(modelUrl, options?)` | `options: { position?, rotation?, x = 0.5, y = 0.5, scale? }`. Hit-tests centre (or `x,y`) unless `position` given. Returns `{success:true, modelId, anchorId, …}` or `{success:false, reason:'NO_SURFACE'}`. Sets `activeModelId`/`activeModelUrl`. |
 | `switchModel(modelUrl, options?)` | `options: { preserveMaterial = true }`. Falls back to `placeModel` when nothing is placed. Preserves placement/transform. |
 | `removeModel()` | Removes the active model; clears active id/url. No-op if none. |
-| `setScale(scale)` | Clamped to **[0.1, 5]** in `ARView.transform.scale`, applied as uniform `[s,s,s]` |
+| `setScale(scale)` | Clamped to **[0.1, 5]** — the one scale range shared by every layer/runtime (`SCALE_MIN`/`SCALE_MAX` in web.js, enforced by the engine in `placeModel`/`transformModel`; Android `ARModelManager` uses the same range) (API-08), applied as uniform `[s,s,s]` |
 | `rotateBy(radians)` | Accumulates `transform.rotationY`, applies Y-quaternion |
 | `setColor(color)` | Engine `setModelColor` on the active model |
 | `addTextures({name: url})` | Registers named texture URLs; returns `this` (chainable) |
@@ -156,7 +164,10 @@ Default `config` (web.js:80–97): `showReticle: true`, `showPlanes: false`,
 `shadowOpacity: 0.4`, `shadowSize: 1.2`, `dotSize: 0.02`, `dotSpacing: 0.1`.
 
 Models: `loadModel(url)` → cached `gltf.scene.clone()`;
-`placeModel({modelUrl|modelPath, position?, rotation = [0,0,0,1], scale = [1,1,1]})` → `{anchorId}`;
+`placeModel({modelUrl|modelPath, position?, rotation = [0,0,0,1], scale = [1,1,1]})` → `{anchorId}`
+(transform inputs are normalised at the engine boundary — position accepts
+`[x,y,z]` or `{x,y,z}`, rotation a quaternion array/object or Euler-radians
+`{x,y,z}`, scale a number, `[x,y,z]` or `{x,y,z}` — BUG-01);
 `removeModel({anchorId})`; `transformModel({anchorId, position?, rotation?, scale?})`;
 `switchModel({anchorId, modelUrl, preserveMaterial = true})`;
 `setModelColor({anchorId, color})`;
@@ -165,7 +176,10 @@ Models: `loadModel(url)` → cached `gltf.scene.clone()`;
 facade shims `setTransform(options)`, `setMaterial(options)`, `moveModel(options)`.
 
 Queries/events: `hitTest({x, y})` → `{hit, position?, rotation?, planeType?}`
-(see AUDIT BUG-03: coordinates are ignored); `getSurfaceState()`,
+(the centre point uses the cached viewer-ray hit; any other point runs a
+ray hit test — an `offsetRay` built from the camera pose + NDC point via
+`requestHitTestSource`, the one-off source cancelled on every settle path —
+BUG-03); `getSurfaceState()`,
 `getSurfaceDetectionState()`, `getDetectedPlanes()`,
 `addFrameListener(cb)` / `addPlaneListener(cb)` (both return unsubscribe),
 `setReticleVisible(v)`, `setPlaneVisualization(v)` / `isPlaneVisualizationEnabled()`,
