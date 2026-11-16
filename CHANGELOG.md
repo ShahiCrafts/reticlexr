@@ -32,6 +32,13 @@ the remediation programme and will be completed before release._
   placement are provided by the WebXR runtime. Native `hitTest` now
   creates a real ARCore anchor for a successful hit and returns its
   `anchorId`.
+- **Native lifecycle is wired (NAT-02/NAT-08, LEAK-05, NAT-10).**
+  Activity pause/resume now pause/resume the ARCore session and the
+  render loop (previously the camera kept running while the app was
+  backgrounded); the render loop restarts reliably for a second
+  session; plugin destroy stops and joins the render thread and
+  destroys all Filament resources in dependency order; the Filament
+  engine is created lazily on first use instead of at plugin load.
 - **Screenshots now require an explicit opt-in (SEC-04).**
   `lightEstimation: true` no longer also requests the WebXR
   `camera-access` feature. To use `takeScreenshot()`, start the

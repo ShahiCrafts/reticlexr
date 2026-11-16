@@ -65,6 +65,14 @@ public class ARRenderer implements ARNativeView.ARViewRenderer {
   private volatile boolean isSessionReady = false;
   private volatile boolean isSurfaceValid = false;
   private volatile boolean isPaused = false;
+  // NAT-08: loop-stop signal, kept separate from isPaused. The old
+  // stopRenderLoop() latched isPaused = true and only onActivityResumed
+  // cleared it, so a stopped loop could never restart for a second
+  // session. stopRequested is reset by startRenderLoopIfReady().
+  private volatile boolean stopRequested = false;
+
+  // NAT-10: retained for lazy Filament initialization.
+  private Context context;
 
   // Render thread
   private Thread renderThread;
@@ -103,11 +111,34 @@ public class ARRenderer implements ARNativeView.ARViewRenderer {
   private TrackingState lastTrackingState = null;
 
   public ARRenderer(Context context) {
+    // NAT-10: the Filament engine is NOT created here. Creating it at
+    // plugin load charged AR startup cost to apps that never open AR,
+    // and a constructor failure left a poisoned renderer whose null
+    // engine crashed later in setup. The engine is created lazily by
+    // ensureFilamentInitialized() on first use.
+    this.context = context.getApplicationContext();
+    Log.d(TAG, "ARRenderer created (Filament initializes lazily)");
+  }
+
+  /**
+   * Create the Filament engine and rendering resources on first use
+   * (NAT-10).
+   *
+   * @return true when the engine is ready; false when initialization
+   *         failed — callers must fail their call cleanly instead of
+   *         dereferencing a null engine
+   */
+  public synchronized boolean ensureFilamentInitialized() {
+    if (filamentEngine != null) {
+      return true;
+    }
     try {
       initializeFilament(context);
-      Log.d(TAG, "ARRenderer initialized");
+      Log.d(TAG, "Filament initialized lazily");
+      return filamentEngine != null;
     } catch (Exception e) {
-      Log.e(TAG, "Failed to initialize Filament", e);
+      Log.e(TAG, "Lazy Filament initialization failed", e);
+      return false;
     }
   }
 
@@ -323,8 +354,10 @@ public class ARRenderer implements ARNativeView.ARViewRenderer {
     isSurfaceValid = true;
 
     try {
-      if (filamentEngine == null) {
-        throw new RuntimeException("Filament engine not initialized");
+      // NAT-10: first surface is the latest point the engine is needed.
+      if (!ensureFilamentInitialized()) {
+        emitError("FILAMENT_UNAVAILABLE", "Filament engine could not be initialized");
+        return;
       }
 
       // Create Filament SwapChain on the native surface
@@ -353,16 +386,7 @@ public class ARRenderer implements ARNativeView.ARViewRenderer {
   public void onSurfaceDestroyed() {
     Log.d(TAG, "onSurfaceDestroyed");
     isSurfaceValid = false;
-    stopRenderLoop();
-
-    // Wait for render loop to finish
-    if (renderThread != null) {
-      try {
-        renderThread.join(2000);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-      }
-    }
+    stopRenderLoopAndJoin();
 
     // Destroy SwapChain using Filament 1.52.0 API
     if (filamentSwapChain != null && filamentEngine != null) {
@@ -380,11 +404,17 @@ public class ARRenderer implements ARNativeView.ARViewRenderer {
    */
   private synchronized void startRenderLoopIfReady() {
     if (isSessionReady && isSurfaceValid && !isPaused && renderThread == null) {
+      // NAT-08: a fresh loop clears any previous stop request.
+      stopRequested = false;
       renderThread = new Thread(() -> {
         try {
           renderLoop();
         } finally {
-          renderThread = null;
+          synchronized (ARRenderer.this) {
+            if (renderThread == Thread.currentThread()) {
+              renderThread = null;
+            }
+          }
         }
       });
       renderThread.setName("ARRenderThread");
@@ -395,9 +425,88 @@ public class ARRenderer implements ARNativeView.ARViewRenderer {
 
   /**
    * Signal render loop to stop.
+   *
+   * NAT-08: this sets only the stop request — never isPaused, which is
+   * reserved for the Activity pause state, so the loop can always be
+   * restarted by startRenderLoopIfReady().
    */
   private void stopRenderLoop() {
-    isPaused = true;
+    stopRequested = true;
+  }
+
+  /**
+   * Stop the render loop and join its thread (LEAK-05).
+   *
+   * Filament resources must never be destroyed while the loop is still
+   * rendering with them. Never blocks when called from the render
+   * thread itself.
+   */
+  private void stopRenderLoopAndJoin() {
+    stopRenderLoop();
+    Thread thread = renderThread;
+    if (thread != null && thread != Thread.currentThread()) {
+      try {
+        thread.join(2000);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
+    }
+  }
+
+  /**
+   * Destroy all Filament resources (LEAK-05).
+   *
+   * Called from the plugin's handleOnDestroy. Stops the render loop
+   * and joins its thread first, then destroys in dependency order:
+   * camera background, swap chain, view, scene, renderer, entities,
+   * and the engine last. Safe when Filament was never initialized
+   * (NAT-10 lazy init) and safe to call more than once.
+   */
+  public void destroy() {
+    isSessionReady = false;
+    stopRenderLoopAndJoin();
+
+    if (filamentEngine == null) {
+      return;
+    }
+
+    try {
+      if (cameraBackground != null) {
+        cameraBackground.destroy();
+        cameraBackground = null;
+      }
+      if (filamentSwapChain != null) {
+        filamentEngine.destroySwapChain(filamentSwapChain);
+        filamentSwapChain = null;
+      }
+      if (filamentView != null) {
+        filamentEngine.destroyView(filamentView);
+        filamentView = null;
+      }
+      if (filamentScene != null) {
+        filamentEngine.destroyScene(filamentScene);
+        filamentScene = null;
+      }
+      if (filamentRenderer != null) {
+        filamentEngine.destroyRenderer(filamentRenderer);
+        filamentRenderer = null;
+      }
+      // Entities last before the engine: destroying the camera entity
+      // releases its Camera component with the engine teardown below.
+      // (Entity 0 is Filament's null entity — only destroy a real one,
+      // e.g. when initialization failed before the camera was created.)
+      if (cameraEntity != 0) {
+        filamentEngine.getEntityManager().destroy(cameraEntity);
+      }
+      filamentCamera = null;
+
+      filamentEngine.destroy();
+      filamentEngine = null;
+
+      Log.d(TAG, "ARRenderer destroyed (Filament resources released)");
+    } catch (Exception e) {
+      Log.e(TAG, "Error destroying Filament resources", e);
+    }
   }
 
   /**
@@ -410,7 +519,7 @@ public class ARRenderer implements ARNativeView.ARViewRenderer {
     synchronized (hitTestLock) {
       isLoopRunning = true;
     }
-    while (isSessionReady && isSurfaceValid && !isPaused) {
+    while (isSessionReady && isSurfaceValid && !isPaused && !stopRequested) {
       try {
         // ========== STEP 1: FRAME ACQUISITION ==========
         // Get one coherent ARCore frame (calls Session.update() once)

@@ -110,6 +110,63 @@ public class ARCorePlugin extends Plugin {
   }
 
   /**
+   * NAT-02: forward Activity pause to the AR session and the renderer.
+   *
+   * ARCore requires Session.pause() while the app is backgrounded;
+   * without this hook the camera and the render loop kept running and
+   * resume behaviour was undefined. The managers guard their own null
+   * state, so forwarding is unconditional.
+   */
+  @Override
+  protected void handleOnPause() {
+    sessionManager.pauseSession();
+    renderer.onActivityPaused();
+  }
+
+  /**
+   * NAT-02: forward Activity resume to the AR session and the renderer.
+   */
+  @Override
+  protected void handleOnResume() {
+    sessionManager.resumeSession();
+    renderer.onActivityResumed();
+  }
+
+  /**
+   * LEAK-05: full teardown when the plugin is destroyed.
+   *
+   * Removes the AR view, clears models/anchors, then destroys the
+   * renderer — which stops and joins the render loop and destroys all
+   * Filament resources in dependency order — and closes the session.
+   * Previously nothing was destroyed and the Filament engine leaked
+   * for the process lifetime.
+   */
+  @Override
+  protected void handleOnDestroy() {
+    try {
+      if (viewManager != null) {
+        viewManager.removeARView();
+      }
+    } catch (Exception e) {
+      Log.e(TAG, "Error removing AR view during destroy", e);
+    }
+    if (modelManager != null) {
+      modelManager.clearAllModels();
+    }
+    if (anchorManager != null) {
+      anchorManager.clearAllAnchors();
+    }
+    if (renderer != null) {
+      renderer.destroy();
+    }
+    if (sessionManager != null) {
+      sessionManager.closeSession();
+    }
+    isSessionActive = false;
+    super.handleOnDestroy();
+  }
+
+  /**
    * Setup event forwarding from native to Capacitor.
    */
   private void setupEventBridge() {
@@ -251,6 +308,16 @@ public class ARCorePlugin extends Plugin {
     }
     activity.runOnUiThread(() -> {
       try {
+        // NAT-10: Filament initializes lazily — fail this call cleanly
+        // when the engine is unavailable instead of passing a null
+        // engine into ARModelManager and crashing later.
+        if (!renderer.ensureFilamentInitialized()
+            || renderer.getFilamentEngine() == null
+            || renderer.getFilamentScene() == null) {
+          call.reject("Filament engine unavailable", "FILAMENT_UNAVAILABLE");
+          return;
+        }
+
         // Initialize model manager (needs Filament engine from renderer)
         if (modelManager == null) {
           modelManager = new ARModelManager(
