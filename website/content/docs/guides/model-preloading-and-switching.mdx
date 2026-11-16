@@ -50,11 +50,13 @@ await ar.switchModel('/models/chair.glb');
 
 <Warning>
 **Do not use `placeModel()` to switch.** `placeModel` always performs a
-fresh centre hit test, creates a *new* anchor and model, and leaves the
-previous model in the scene — unreachable through the facade and never
-removed. An earlier version of the README's API table (and its React
-example) claimed `placeModel` switching "keeps placement, scale and
-rotation"; that was wrong, and the docs now teach `switchModel`.
+fresh hit test and creates a *new* model alongside the previous one —
+the placement, scale and rotation you had do not carry over. (Both
+models stay tracked: `getPlacedModels()` lists them and
+`clearModels()` removes them.) An earlier version of the README's API
+table (and its React example) claimed `placeModel` switching "keeps
+placement, scale and rotation"; that was wrong, and the docs now teach
+`switchModel`.
 </Warning>
 
 ## Removing the model
@@ -63,21 +65,21 @@ rotation"; that was wrong, and the docs now teach `switchModel`.
 await ar.removeModel(); // removes the active model; no-op if none is placed
 ```
 
-`ARView` tracks a single **active model**. `removeModel()` removes that
-one and clears the active id/URL. There is currently no facade API to
-enumerate placed models or clear all of them — another reason to switch
-with `switchModel()` instead of stacking `placeModel()` calls.
+`ARView` tracks every model placed through it, with a single **active
+model**. `removeModel()` removes the active one and clears the active
+id/URL. `getPlacedModels()` enumerates everything placed through the
+view and `clearModels()` removes all of it — but switching with
+`switchModel()` is still the right tool for product changes: it reuses
+the placement instead of stacking models.
 
-## Material carry-over caveat
+## Material carry-over
 
-With `preserveMaterial`, each material of the new model inherits colour
-(and map, when the old material has one) from its counterpart on the old
-model — matched by material **name** first, then by traversal order.
-Multi-material products (fabric body + wooden legs) keep their
-per-material styling across a switch. (This is the 1.1.0 behaviour;
-v1.0.0 copied the **first** material onto **every** material, flattening
-multi-material products.) Materials without a counterpart keep the new
-model's own look. For a clean start instead, pass
-`{ preserveMaterial: false }` and re-apply styling explicitly with
+With `preserveMaterial`, each material of the new model inherits the
+colour — and the map, when present — from its counterpart on the old
+model, matched **by material name first, then by traversal order**
+(BUG-09, fixed in 1.1.0; before that, the first material was copied
+onto every material). Materials without a counterpart keep their own
+look. If you prefer explicit styling, pass
+`{ preserveMaterial: false }` and re-apply with
 [`setColor`](/docs/guides/colors-and-textures) /
 `applyTexture` after the switch.

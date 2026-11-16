@@ -6,6 +6,61 @@ description: Release history for reticlexr, from the repository CHANGELOG — wi
 All notable changes to this project are documented here. The project
 follows [Semantic Versioning](https://semver.org/).
 
+## 1.1.0 — Unreleased
+
+The audit-remediation release. Summary — the full entry is in the
+repository `CHANGELOG.md`.
+
+### Package rename
+
+- The package was renamed from `capacitor-arcore` to **reticlexr**
+  before its first publish. `capacitor-arcore` was never published
+  to npm; there is nothing to migrate from the registry.
+
+### Behavior changes
+
+- **Native Android is scoped to session + hit-testing (Option B).**
+  `placeModel`, `moveModel`, `setTransform`, `setMaterial`,
+  `removeModel`, `getPlacedModels` and `clearModels` reject with
+  `NOT_IMPLEMENTED` on native; models render via WebXR. Native
+  lifecycle (pause/resume/destroy) is wired, `checkSupport` returns
+  real ARCore availability, and hit tests create real anchors.
+- **The library manifest no longer forces AR-required:**
+  `android.hardware.camera.ar` and `android.hardware.camera` are
+  `required="false"`; AR-required is a documented opt-in.
+- **Screenshots are opt-in:** `enableScreenshots: true` at session
+  start; `lightEstimation` no longer implies `camera-access`.
+- **One model identifier** (`modelId`) and **one coded-error
+  convention** (`ARError`) across all layers.
+- The native event bridge installs lazily; the package declares
+  ESM + an exports map; `three` and `@capacitor/core` are peer
+  dependencies.
+
+### Added
+
+- `reticlexr/react` subpath for `useARCore`, plus a per-instance
+  `useARCore({ engine })` option.
+- `getPlacedModels()` / `clearModels()` on the engine, `ARView`,
+  the facade and the hook.
+- Hand-written TypeScript declarations; a Vitest suite; committed
+  lockfiles; a CI workflow (type-check, tests, example build,
+  Gradle assemble).
+
+### Fixed
+
+- The audit's BUG / LEAK / PERF / NAT / COMPAT findings: transform
+  normalisation (no more `NaN` placements), hook plane counts,
+  ray-based hit testing, disposal under an ownership rule with an
+  LRU model cache, `InstancedMesh` plane dots, the reference-space
+  fallback chain, a bounded native availability retry, and more —
+  per-finding detail in `AUDIT-STATUS.md`.
+
+### Deprecated
+
+- `anchorId` → `modelId`; engine `modelPath` → `modelUrl`; ARView
+  result `reason` → `code`; `useARCore` from the package root →
+  `reticlexr/react`. All keep working throughout 1.x.
+
 ## 1.0.0 — 2026-09-25
 
 ### Added

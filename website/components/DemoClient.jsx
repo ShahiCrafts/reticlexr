@@ -188,7 +188,7 @@ export default function DemoClient() {
           <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-lg font-bold" aria-hidden="true">
             AR
           </div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-blue-300">Furniture preview</p>
+          <p className="font-mono text-xs font-medium uppercase tracking-widest text-blue-300">Furniture preview</p>
           <h2 className="mt-3 text-3xl font-bold leading-tight">
             See it in
             <br />

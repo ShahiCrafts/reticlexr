@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { LuLightbulb, LuSparkles, LuTriangleAlert } from 'react-icons/lu';
+import { FaCircleInfo } from 'react-icons/fa6';
 
 type Kind = 'info' | 'note' | 'warning' | 'tip';
 
@@ -6,75 +8,19 @@ const BODY =
   'text-[15px] leading-relaxed text-slate-700 dark:text-slate-300 [&>p]:my-1 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0';
 
 function InfoIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" className="mt-0.5 shrink-0">
-      <circle cx="12" cy="12" r="10" fill="#2563eb" />
-      <path d="M12 11v5.2" stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" />
-      <circle cx="12" cy="7.6" r="1.35" fill="#ffffff" />
-    </svg>
-  );
+  return <FaCircleInfo size={20} color="#2563eb" aria-hidden className="mt-0.5 shrink-0" />;
 }
 
 function BulbIcon() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className="shrink-0"
-    >
-      <path d="M15 14c.2-1 .7-1.7 1.5-2.5A5.5 5.5 0 1 0 7.5 11.5c.8.8 1.3 1.5 1.5 2.5" />
-      <path d="M9 18h6" />
-      <path d="M10 22h4" />
-    </svg>
-  );
+  return <LuLightbulb size={20} strokeWidth={1.8} aria-hidden className="shrink-0" />;
 }
 
 function AlertIcon() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className="shrink-0"
-    >
-      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
-      <path d="M12 9v4" />
-      <path d="M12 17h.01" strokeWidth="2.4" />
-    </svg>
-  );
+  return <LuTriangleAlert size={20} strokeWidth={1.8} aria-hidden className="shrink-0" />;
 }
 
 function SparklesIcon() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className="shrink-0"
-    >
-      <path d="M9.94 15.5a2 2 0 0 0-1.44-1.44L2.37 12.5a.52.52 0 0 1 0-.98l6.13-1.56A2 2 0 0 0 9.94 8.5l1.56-6.13a.52.52 0 0 1 .98 0l1.56 6.13a2 2 0 0 0 1.44 1.44l6.13 1.56a.52.52 0 0 1 0 .98l-6.13 1.56a2 2 0 0 0-1.44 1.44l-1.56 6.13a.52.52 0 0 1-.98 0z" />
-      <path d="M20 3v4M22 5h-4" />
-    </svg>
-  );
+  return <LuSparkles size={20} strokeWidth={1.8} aria-hidden className="shrink-0" />;
 }
 
 const STYLES: Record<

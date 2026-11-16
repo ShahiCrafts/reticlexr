@@ -1,132 +1,131 @@
 ---
 title: Troubleshooting
-description: Symptom-by-symptom fixes for the problems developers actually hit with v1.0.0 — most trace back to a short list of known behaviours.
+description: Symptom-by-symptom fixes — several entries describe v1.0.0 behaviours that 1.1.0 fixed; each says which.
 ---
 
 ## AR won't start on my phone, but works on desktop localhost
 
 Almost certainly the **secure context**. WebXR immersive AR requires
-HTTPS (or `localhost`). A LAN address over plain HTTP loads the page but
-session creation fails. Since 1.1.0, `checkSupport()` reports this
-distinctly with the code `INSECURE_CONTEXT` (in v1.0.0 its `reason` did
-not distinguish an insecure origin from an unsupported browser). Serve the page
-over HTTPS — see
+HTTPS (or `localhost`). A LAN address over plain HTTP loads the page
+but session creation fails; `checkSupport()` reports
+`{ supported: false, code: 'INSECURE_CONTEXT' }` so you can tell this
+case apart from a genuinely unsupported device. Serve the page over
+HTTPS — see
 [HTTPS and phone testing](/docs/getting-started#https-and-phone-testing) —
 or open this site's [live demo](/demo), which is already HTTPS.
 
 ## The session fails immediately on some Android devices
 
-That was v1.0.0: session creation required `local-floor`, and devices
-with immersive AR + hit-test but no `local-floor` failed outright.
-Since 1.1.0, `local-floor` is optional — the engine falls back through
-`local-floor` → `local` → `viewer`, so this failure mode is gone. If a
-session still fails at creation, the device lacks `hit-test` or
-immersive-AR support itself.
+**Fixed in 1.1.0 (COMPAT-01).** Session creation used to hard-require
+the WebXR `local-floor` feature; devices with immersive AR + hit-test
+but no `local-floor` failed outright. The engine now requests
+`local-floor` first and falls back to `local`, then `viewer`. If a
+session still fails immediately, check the secure context (above)
+and that the `hit-test` feature is available — that one is still
+required.
 
 ## `checkSupport()` says yes, but the native session fails later
 
-On the native Android facade, `checkSupport` currently resolves
-`{supported: true}` unconditionally — it never asks ARCore for real
-availability. Gate your UI on it if you like, but handle `startSession`
-failure as the real support test on Android. (The WebXR
-`checkSupport()` used by `ARView`/the hook does perform a real check.)
+**Fixed in 1.1.0 (NAT-06).** The native facade's `checkSupport` used
+to resolve `{supported: true}` unconditionally. It now returns the
+real `ArCoreApk.checkAvailability()` result, so an unsupported or
+ARCore-less device reports `supported: false` up front. Still handle
+`startSession` failure — availability can change between the check
+and the session (installs, updates, permissions).
 
 ## My model never appears (hook `placeModel`)
 
-If you're calling the hook's `placeModel(modelUrl, position, rotation,
-scale)`: both shapes work since 1.1.0 — arrays (position `[x, y, z]`,
-rotation as a quaternion `[x, y, z, w]`, scale `[sx, sy, sz]`) or
-`{x, y, z}` objects (rotation objects are Euler angles in radians),
-normalised at the engine boundary. In v1.0.0 the engine wanted arrays
-while the JSDoc described objects, and objects produced `NaN`
-components and invisible models. If a model still never appears, check
-for `NaN` in the values themselves. The facade's
-`ARView.placeModel(url)` doesn't take transform arguments at all —
-prefer it unless you need the engine-level control.
+**Fixed in 1.1.0 (BUG-01).** The hook's `placeModel(modelUrl,
+position, rotation, scale)` used to require array shapes while its
+JSDoc described `{x, y, z}` objects — objects produced `NaN`
+transforms and invisible models. Transform inputs are now normalised
+at the engine boundary: positions accept `[x, y, z]` **or**
+`{x, y, z}`, rotations a quaternion array/object or Euler radians,
+scales a number, array or object (clamped to [0.1, 5]). If a model
+still never appears, check the `placeModel` result for an `error` /
+`code` (e.g. `NO_SURFACE` — no surface was hit yet).
 
 ## `detectedPlanes` in the hook is always zero
 
-Fixed in 1.1.0: the engine emits plane counts as numbers and the hook
-now reads them as numbers (in v1.0.0 it read `.length` of the numeric
-counts, so they always showed zero). The plane-listener payload is
-`{type, total, horizontal, vertical}` — counts as numbers.
+**Fixed in 1.1.0 (BUG-02).** The hook read array fields while the
+engine emits plane counts as numbers; it now reads the numbers.
+Plane listeners (`ARView.onPlanes()`, the engine's plane listener)
+receive `{type, total, horizontal, vertical}` as before.
 
 ## `placeModel(url, {x, y})` ignores where I tapped
 
-Fixed in 1.1.0: non-centre points run a real ray-based hit test (an
-offset ray from the camera pose through the tapped point), so
-tap-to-place lands where the user tapped, and everything built on it
-(facade placement, the web `moveModel`) honours the point too. The
-centre point keeps the fast viewer-ray path. In v1.0.0,
-`hitTest({x, y})` ignored its coordinates and always returned the
-centre-screen hit.
+**Fixed in 1.1.0 (BUG-03).** The WebXR `hitTest({x, y})` used to
+ignore its coordinates and always return the centre-screen hit.
+Non-centre coordinates now perform a ray-based hit test
+(`hitTestAtPoint`), so tap-point placement works; the centre
+coordinates still use the reticle path.
 
 ## My reticle setting keeps turning back on
 
-Fixed in 1.1.0: the forced resets are gone — `showReticle: false` is a
-user preference that survives session start, placement and removal
-(v1.0.0 overrode it back to `true` at each of those moments).
-`setReticleVisible(false)` still hides it immediately.
+**Fixed in 1.1.0 (BUG-04).** `showReticle: false` used to be forced
+back to `true` on session start, placement and removal. The setting
+is now honoured; `setReticleVisible(false)` also persists.
 
 ## Every tap throws `TypeError: options.modelUrl is not a function`
 
-That was v1.0.0: `enableCustomization({ modelUrl })` expected a
-**function**. Since 1.1.0 it accepts a plain string or a
-`() => string` (use the function form when the URL changes between
-taps), and placement failures are routed to `options.onError` instead
-of being thrown through the tap handler. See
-[Gestures](/docs/guides/gestures).
+Older versions required `enableCustomization({ modelUrl })` to be a
+**function**. In 1.1.0 it accepts a URL string **or** a
+`() => string` function (use the function when the current product
+can change between taps). If you still see this error, you're on a
+pre-1.1.0 build. See [Gestures](/docs/guides/gestures).
 
 ## Memory grows while users browse products
 
-Largely fixed in 1.1.0. Removed models and plane visualisations are
-now disposed — per-instance resources immediately; shared geometry and
-cached textures when their cache entry is evicted or the engine is
-disposed. Plane dots are a single `InstancedMesh` per plane instead of
-one mesh per dot. The model cache is capped (20 models by default,
-LRU — see the `modelCacheLimit` config) with a `clearModelCache()`
-escape hatch, and `ARView.destroy()` performs a full engine teardown
-including the renderer and GL context. In v1.0.0 none of this was
-disposed and the cache never evicted. The remaining good practice is
-unchanged: switch with `switchModel()` instead of repeated
-`placeModel()` calls.
+**Fixed in 1.1.0 (LEAK-01…04).** Removed/switched models are now
+disposed under a documented ownership rule, plane dots are disposed
+with their planes, and the model cache is LRU-capped
+(`config.modelCacheLimit`, default 20 — entries with live
+placements are never evicted). For very long sessions you can also
+call `clearModelCache()` explicitly, and `engine.dispose()` (via
+`ARView.destroy()`) releases everything on teardown. Prefer
+`switchModel()` over repeated `placeModel()` calls for product
+switching — it reuses the placement instead of adding a new model.
 
 ## `takeScreenshot` returns `CAMERA_CAPTURE_UNAVAILABLE`
 
-The session has no WebXR camera access. Camera access is opt-in:
-start the session with `enableScreenshots: true` (in `ARView.create()`
-or the engine's `startSession()`) — `lightEstimation` no longer
-requests it. Even with the opt-in, a browser may not grant the
-feature, so screenshots stay best-effort: branch on `result.success`
+The session has no WebXR camera access. Since 1.1.0 (SEC-04),
+camera access is an explicit opt-in: start the session with
+`enableScreenshots: true` (`ARView.create()` or `startSession()`) —
+`lightEstimation: true` no longer requests it. On browsers that
+don't expose camera frames at all, the code is expected even with
+the opt-in. Screenshots are best-effort: branch on `result.success`
 and hide the feature when it fails. See
 [Screenshots](/docs/guides/screenshots).
 
 ## An awaited `hitTest` never resolves after the user exits AR
 
-Fixed in 1.1.0: the fallback hit-test promise settles when the session
-ends (resolving `{hit: false, error: 'SESSION_ENDED'}`) and races a
-one-second timeout as a backstop, so it cannot hang. In v1.0.0 it
-resolved only from an animation-frame callback and hung if the session
-ended first — the timeout-race workaround is no longer needed.
+**Fixed in 1.1.0 (BUG-08).** The fallback hit-test path used to hang
+if the session ended first; it now settles on every path, including
+session end.
 
 ## `npx cap sync` didn't register the Android plugin
 
-The package lacks the `capacitor` metadata key that drives automatic
-discovery. Add the plugin to your Android project's `settings.gradle`
-by hand, as the example does — full details in
+**Fixed in 1.1.0 (PKG-01).** The package now ships the `capacitor`
+metadata key, and `cap sync` auto-discovers the plugin — verified
+in a clean scratch Capacitor app (plugin in
+`capacitor.plugins.json`, `:reticlexr` in the generated settings,
+no manual `settings.gradle` edit). If discovery still fails, check
+you're on 1.1.0+ and that `node_modules/reticlexr/package.json`
+contains the `capacitor` key. See
 [Capacitor setup](/docs/getting-started#capacitor-setup).
 
-## Importing the package in a non-React app fails
+## Importing the package in a non-React app pulls in React
 
-The entry point re-exports the React hook, which imports React at module
-top level, and React is only a peer dependency. Until the hook moves to a
-subpath export, install `react` (and `react-dom` if your bundler asks)
-even for plain-JS consumers.
+Partly by design in 1.x: the package **root** still re-exports
+`useARCore` as a deprecated alias, and that entry imports React.
+Framework-agnostic code should import the subpaths instead —
+`reticlexr/ar-view`, `reticlexr/web`, `reticlexr/gestures` never
+touch React, and the hook lives at `reticlexr/react`. The root
+re-export is removed in the next major version.
 
 ## A second native `startSession` shows a session but no rendering
 
-On the native path the render loop's paused flag is only cleared by an
-activity-resume path that is never invoked, so after a stop the loop may
-not restart within the same app run. Restarting the app clears it. This
-is a known native lifecycle issue — see
-[Known issues](/docs/known-issues).
+**Fixed in 1.1.0 (NAT-02/NAT-08).** The native render loop now has
+a dedicated stop flag and the plugin forwards Capacitor's
+pause/resume/destroy hooks, so a session restarted after
+`stopSession` in the same app run renders normally.

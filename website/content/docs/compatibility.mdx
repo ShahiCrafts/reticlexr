@@ -4,12 +4,13 @@ description: What the code requires, what is known to work, and — stated plain
 ---
 
 <Todo>
-No tested-device or tested-browser data exists anywhere in this
-repository: no test matrix, no recorded device sessions, no minimum
-browser versions. The tables below separate **code-level requirements**
-(verified by reading the source) from **tested support** (which is
-TODO until someone runs real devices and records the results). Do not
-read a requirement as a support promise.
+**Unverified:** no tested-device or tested-browser data exists
+anywhere in this repository: no test matrix, no recorded device
+sessions, no minimum browser versions. The tables below separate
+**code-level requirements** (verified by reading the source) from
+**tested support** (which is TODO until someone runs real devices
+and records the results). Do not read a requirement as a support
+promise.
 </Todo>
 
 ## WebXR runtime (browser)
@@ -19,10 +20,10 @@ read a requirement as a support promise.
 | Secure context (HTTPS or `localhost`) | WebXR platform rule; the library does not special-case it | — |
 | `immersive-ar` session support | `navigator.xr.requestSession('immersive-ar', …)` | TODO |
 | `hit-test` feature | Required feature at session creation | TODO |
-| `local-floor` feature | Optional feature at session creation — falls back to `local`, then `viewer`, when unavailable | TODO |
+| `local-floor` feature | Requested first at session creation; falls back to `local`, then `viewer` when unavailable | TODO |
 | `plane-detection` | Optional feature; dots/meshes appear when granted | TODO |
 | `light-estimation` | Optional; requested when light estimation is on | TODO |
-| `camera-access` | Optional; requested only when screenshots are enabled (`enableScreenshots: true`) — never implied by light estimation | TODO |
+| `camera-access` | Optional; requested **only** when the session starts with `enableScreenshots: true` (for screenshots — not implied by light estimation) | TODO |
 | `dom-overlay` | Optional; requested when an overlay element is provided | TODO |
 
 The documented test path is **Chrome on an ARCore-capable Android phone**
@@ -45,22 +46,22 @@ runtime is not an iOS path.
 Tested Android versions and devices: **TODO** — none are recorded.
 
 <Note>
-The library's Android manifest declares the AR feature as
-`required="true"`, which merges into your app: as shipped, a host app
-becomes uninstallable on non-AR devices and AR-mandatory in store
-listings. If your app must install on non-AR devices, this is a known
-issue to weigh (see [Known issues](/docs/known-issues)).
+The library's Android manifest declares the AR feature (and the
+plain camera feature) as `required="false"`, which merges into
+your app: host apps stay installable on non-AR devices. Making
+AR required is an opt-in from your own manifest — see the
+[installation guide](https://github.com/ShahiCrafts/reticlexr/blob/main/docs/INSTALLATION.md).
 </Note>
 
 ## Frameworks and tooling
 
 | Item | Requirement | Notes |
 | --- | --- | --- |
-| React | `>=16.8.0` (peer) | Only the hook needs it conceptually — but v1.0.0's entry imports it unconditionally |
-| `@capacitor/core` | `^8.5.2` (dependency) | Ships with the package |
-| `three` | `^0.180.0` (dependency) | Ships with the package; declaring your own copy can duplicate it |
-| Module format | ESM source, no `exports` map, no `type: module` | Bundlers cope; strict Node ESM resolution may not |
-| TypeScript | No declarations shipped | JSDoc only |
+| React | `>=16.8.0` (peer) | Only the hook needs it — import it from `reticlexr/react`. The root entry still re-exports it as a deprecated alias, so root imports still pull React in 1.x |
+| `@capacitor/core` | `^8.5.2` (peer) | Provided by the host Capacitor app |
+| `three` | `^0.180.0` (peer) | Provided by the host app — one shared copy; duplicates break GLTF class identity |
+| Module format | ESM (`type: module`) with an `exports` map | Subpaths: `.`, `./react`, `./web`, `./ar-view`, `./gestures`, `./package.json` |
+| TypeScript | Hand-written declarations ship (`src/*.d.ts`) | JSDoc in the implementation is type-checked in CI (`tsc --checkJs`) |
 
 ## Devices
 

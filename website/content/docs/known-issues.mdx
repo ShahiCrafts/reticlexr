@@ -1,158 +1,115 @@
 ---
 title: Known issues & roadmap
-description: The v1.0.0 audit findings that affect users, grouped by area in plain language — and the order the project intends to fix them.
+description: What the v1.0.0 audit found, what 1.1.0 fixed, and what is still open — in plain language.
 ---
 
-This page summarises a full code audit of v1.0.0. The tone here is
-deliberately plain: these are specific, located problems with known
-fixes, not vibes. The complete audit (68 rated findings with file and
-line references) lives in `AUDIT.md` in the repository.
+This page summarises a full code audit of v1.0.0 (68 rated findings
+with file and line references, in `AUDIT.md` in the repository) and
+the 1.1.0 remediation that followed it. Most findings are fixed;
+what remains is listed plainly below, including the items that are
+open **by decision** rather than by oversight.
 
-**Remediation status:** several of these are already fixed for the
-upcoming 1.1.0 (on the `fix/audit-remediation` branch) — those bullets
-are marked *(fixed in 1.1.0)*. Everything unmarked is still open.
+## Fixed in 1.1.0
 
-## WebXR engine
+### WebXR engine
 
-- **Centre-only hit testing.** `hitTest({x, y})` ignores its coordinates;
-  placement is always at the centre reticle. Tap-point placement needs a
-  ray-based hit test or an honest contract change. *(fixed in 1.1.0 —
-  non-centre points run a ray-based hit test)*
-- **Removed models aren't disposed.** Geometries, cloned materials and
-  applied textures stay on the GPU after removal; plane-dot groups are
-  removed without disposal too. Long product-browsing sessions grow GPU
-  memory. *(fixed in 1.1.0 — disposal helper, ownership rule, capped
-  model cache, `engine.dispose()`)*
-- **Plane dots are one mesh each.** At the default spacing, a room-sized
-  floor is ~460 extra draw calls, rebuilt on every plane change. An
-  `InstancedMesh` redesign fixes both the cost and the dot disposal.
-  *(fixed in 1.1.0)*
-- **Reticle setting resets.** `showReticle: false` is forced back to
-  `true` on session start, placement and removal. *(fixed in 1.1.0)*
-- **Session-start failure can leak a live session** if reference-space or
-  hit-test-source setup rejects after the session was created, and a
-  fallback `hitTest` promise can hang if the session ends first.
-  *(fixed in 1.1.0)*
-- **`local-floor` or nothing.** Session creation hard-requires
-  `local-floor` instead of falling back to `local`/`viewer`.
-  *(fixed in 1.1.0)*
+- **Hit testing takes coordinates.** `hitTest({x, y})` with
+  non-centre coordinates now performs a real ray-based hit test
+  (centre still uses the reticle path).
+- **Removed models are disposed.** A documented ownership rule
+  governs disposal on remove/switch/stop paths; the model cache is
+  LRU-capped (`config.modelCacheLimit`, default 20), and
+  `engine.dispose()` performs a full teardown (ARView's `destroy()`
+  calls it).
+- **Plane dots are one `InstancedMesh` per plane** instead of one
+  mesh per dot, and surface notifications fire on change at ≤10 Hz
+  instead of per frame.
+- **The reticle setting is honoured** — `showReticle: false` is no
+  longer forced back on at session start, placement or removal.
+- **Session-start failures clean up** (no leaked live session), and
+  the fallback hit test always settles, including on session end.
+- **Reference-space fallback:** `local-floor` → `local` → `viewer`
+  instead of `local-floor` or nothing.
 
-## Facade, hook and API shape
+### Facade, hook and API shape
 
-- **Hook transform shapes.** The hook's `placeModel` JSDoc says
-  `{x, y, z}` objects; the engine wants arrays. Objects produce `NaN`
-  transforms and invisible models. *(fixed in 1.1.0 — both shapes are
-  normalised at the engine boundary)*
-- **Hook plane counts always read zero** (event shape mismatch — the
-  engine emits numbers, the hook reads array lengths). *(fixed in 1.1.0)*
-- **`switchModel` material carry-over flattens multi-material models** —
-  the first material is copied onto every material of the new model.
-  *(fixed in 1.1.0 — materials matched by name, then traversal order)*
-- **One active model, no enumeration.** The facade can't list placed
-  models or clear them all; models placed by repeated `placeModel` calls
-  become unreachable. *(fixed in 1.1.0 — `getPlacedModels()` /
-  `clearModels()` on the engine, `ARView`, the facade and the hook;
-  `ARView` tracks every placement)*
-- **Shared hook engine.** All `useARCore` consumers share one engine;
-  one unmount stops everyone's session. *(fixed in 1.1.0 —
-  `useARCore({ engine })` drives an instance-scoped engine; the shared
-  default remains for existing consumers and is constructed lazily)*
-- **Four error conventions** across layers (thrown errors, `{hit:false}`,
-  `{success:false, reason}`, coded screenshot errors). *(fixed in
-  1.1.0 — one coded-error convention: `ARError` rejections and `code`
-  fields on result-object failures)*
-- **Importing the package requires React** (the entry re-exports the
-  hook) and runs an event-bridge setup as an import side effect.
-  *(partly fixed in 1.1.0 — the hook's supported entry is the
-  `reticlexr/react` subpath and the event bridge installs lazily and
-  idempotently; the root entry still re-exports the hook as a
-  deprecated alias, so the root import still pulls React until the
-  next major version)*
-- **Two model-identifier systems** (`modelId` in the facade,
-  `anchorId` in the engine) and two `placeModel` option shapes.
-  *(fixed in 1.1.0 — `modelId` is canonical everywhere; `anchorId`
-  and `modelPath` are deprecated aliases)*
+- **One model identifier:** `modelId` everywhere (`anchorId` is a
+  deprecated alias), and transform inputs are normalised at the
+  engine boundary — `{x, y, z}` objects no longer produce `NaN`
+  transforms.
+- **Hook plane counts work** (the engine's numeric counts are read
+  as numbers).
+- **`switchModel` material carry-over matches by material name,
+  then order** — multi-material models no longer flatten.
+- **Enumeration exists:** `getPlacedModels()` / `clearModels()` on
+  the engine, `ARView`, the facade and the hook.
+- **Per-instance hook engine:** `useARCore({ engine })` isolates a
+  view; the default shared engine is constructed lazily.
+- **One coded-error convention:** public failures carry a stable
+  `code` (`ARError`); messages are unchanged.
+- **React is only needed by the hook,** which lives at
+  `reticlexr/react`; the native event bridge installs lazily on
+  first subscription instead of at import. (The root entry still
+  re-exports the hook as a deprecated alias, so root imports still
+  pull React in 1.x.)
 
-## Native Android
+### Native Android
 
-- **Models never render natively.** `placeModel` keeps a metadata
-  registry; GLB loading via gltfio is future work in the code's own
-  words. This is the single biggest gap in the package.
-- **Lifecycle hooks are not wired.** Pause/resume/destroy are never
-  forwarded to the session or renderer; the render loop may not restart
-  after a stop, and the Filament engine is never destroyed.
-- **`checkSupport` always says yes** — it never asks ARCore for real
-  availability.
-- **Anchors are fictional.** Placements share the hardcoded id
-  `"anchor_center"`; the `hitId` parameter is ignored; no real `Anchor`
-  is ever created. `moveModel` consequently reports success without
-  moving anything.
-- **`Session.update()` is called from two threads** (render loop and
-  bridge thread hit tests), which can desynchronise frames.
-- **Availability retry is unbounded**, and `requestInstall` receives an
-  application context cast to `Activity`, which fails on the install
-  path.
+- **Lifecycle is wired:** pause/resume/destroy are forwarded; the
+  render loop restarts reliably for a second session; plugin
+  destroy stops and joins the render thread and destroys Filament
+  resources in dependency order; the Filament engine is created
+  lazily.
+- **`checkSupport` asks ARCore** (`ArCoreApk.checkAvailability()`)
+  instead of always saying yes, and session creation receives the
+  foreground Activity.
+- **Anchors are real:** hit tests are served by the render loop
+  (the sole `Session.update()` caller) and a successful hit creates
+  a real ARCore anchor whose id is returned.
+- **The availability retry is bounded** (25 attempts ≈ 5 s, then a
+  coded timeout) and can never create a session after stop.
+- **The library manifest no longer forces AR-required** onto host
+  apps (`required="false"` for the AR and camera features;
+  AR-required is a documented opt-in).
 
-## Packaging and docs
+### Packaging and docs
 
-- **No `capacitor` metadata key**, so `cap sync` auto-discovery is
-  unverified; the example includes the plugin in `settings.gradle` by
-  hand.
-- **No type declarations** ship, despite a React/Capacitor audience.
-  *(fixed in 1.1.0 — hand-written declarations ship and are type-checked
-  in CI)*
-- **ESM sources in an undeclared-format package** (no `type: module`, no
-  `exports` map, one extensionless dynamic import). *(the extensionless
-  import is fixed in 1.1.0; `type: module` and the `exports` map are
-  still outstanding)*
-- **`three` and `@capacitor/core` are hard dependencies**, not peers —
-  duplicate-copy risk for apps that also use three.
-- **No lockfile, no tests.** CI syntax-checks the sources and builds the
-  example; there is no test suite, no lint, no Android compile job.
-  *(lockfiles fixed in 1.1.0; stub harnesses exist under
-  `tests/harness/`, a real test suite is still outstanding)*
+- The **`capacitor` metadata key** ships, and the clean consumer
+  flow (`npm install reticlexr` → `npx cap sync` → plugin
+  registered) is verified in a scratch Capacitor app.
+- **Hand-written TypeScript declarations** ship and are kept
+  honest by `tsc --checkJs`; the package declares ESM + an
+  `exports` map with subpaths; `three` and `@capacitor/core` are
+  peer dependencies; lockfiles are committed and CI installs with
+  `npm ci`.
+- **Tests exist:** the Vitest suite (24 files, 25 tests) runs in
+  CI alongside the type-check, the example build and a Gradle
+  `:reticlexr:assembleDebug` job.
 
-## Roadmap
+## Still open
 
-### Quick wins
-
-Hook plane counts (one line) · remove the forced reticle resets ·
-native `checkSupport` delegates to the real availability check · pass
-the Activity to `requestInstall` · wire pause/resume/destroy and reset
-the render-loop flag · fix the extensionless import · add the
-`capacitor` package key · dispose plane dots on removal · commit
-lockfiles and switch CI to `npm ci` · a distinct insecure-context
-reason from `checkSupport`.
-
-### Medium efforts
-
-Normalise the hook/engine transform contract, then hand-write type
-declarations and type-check the JSDoc in CI · decide and implement the
-hit-test contract · one disposal helper for remove/switch/stop paths, a
-model-cache eviction API, and an `engine.dispose()` · plane dots via
-`InstancedMesh` · serve native hit tests from the render loop's frame
-snapshot · bounded availability retry and lazy Filament init · first
-unit tests (gestures, hook event mapping) plus a Gradle assemble job in
-CI · ~~a `reticlexr/react` subpath export with a lazy event bridge~~
-*(done in 1.1.0)*.
-
-### Larger decisions
-
-**Native model rendering**: implement gltfio loading and real anchors
-natively, *or* formally scope the native plugin to session + hit-test
-and keep the claims corrected. Then: ~~unify model identifiers, option
-shapes and one coded-error convention across runtimes; a per-instance
-hook engine (or provider)~~ *(done in 1.1.0)*; code-split the AR stack
-in the example; and
-a TypeScript migration so this API reference can be generated instead
-of hand-maintained.
+- **Native model rendering — scoped out by decision (Option B).**
+  The native plugin provides session management, hit testing and
+  events; `placeModel`, `moveModel`, `setTransform`, `setMaterial`,
+  `removeModel`, `getPlacedModels` and `clearModels` reject with
+  `NOT_IMPLEMENTED` on native instead of pretending to work.
+  Models render in the WebXR runtime. Implementing native
+  rendering (Option A) remains an owner decision.
+- **Compatibility values are unverified.** No device/browser
+  version has been recorded as tested — see
+  [Compatibility](/docs/compatibility). Device testing is TODO.
+- **`npm audit` has never been run.** The audit environment's
+  registry proxy refuses the audit endpoint (403), so no
+  vulnerability counts exist. CI carries the audit as a
+  non-blocking step; the commands are recorded in `AUDIT-STATUS.md`
+  for the owner to run where the registry permits.
+- **SSR:** all entry points pass DOM-less import checks (no
+  `window`/`document` access at import; the hook renders to string),
+  but a full framework prerender (e.g. Next.js) has not been
+  exercised — still TODO.
 
 <Todo>
-Not yet verifiable anywhere: `npm audit` results (the audit environment
-couldn't reach the audit endpoint) and all compatibility-matrix
-values. Each is marked TODO at its point of use on this site rather
-than asserted. SSR safety is verified at the package level (every
-entry imports DOM-free and a `useARCore` page server-renders against
-the packed tarball); a full framework prerender (e.g. Next.js) has
-not been run yet.
+Not yet verifiable anywhere: `npm audit` results, a full framework
+SSR prerender, and all compatibility-matrix values. Each is marked
+TODO at its point of use on this site rather than asserted.
 </Todo>
