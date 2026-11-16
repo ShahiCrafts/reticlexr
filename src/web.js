@@ -125,6 +125,56 @@ export function normalizeScale(value, fallback = undefined) {
 }
 
 // ============================================================
+// Ray hit-test geometry (BUG-03)
+// ============================================================
+
+/**
+ * Build a hit-test ray for a normalised screen point from the viewer
+ * (camera) pose. Pure math — exported for testing.
+ *
+ * The screen point (x, y) is in [0, 1] with (0, 0) at the TOP-LEFT of
+ * the AR view. It is converted to NDC, unprojected through the view's
+ * inverse projection matrix to a direction in view space (camera looks
+ * down -Z, +Y up), then rotated into the pose's space by the viewer
+ * orientation. For a multi-view (stereo) pose the caller passes the
+ * first view's projection matrix — the standard choice for a tap on
+ * the DOM overlay, which is what screen points refer to here.
+ *
+ * @param {{position:{x:number,y:number,z:number}, orientation:{x:number,y:number,z:number,w:number}}} viewerTransform -
+ *   The viewer pose transform (XRPose.transform of the viewer pose)
+ * @param {Float32Array|number[]} projectionMatrix - Column-major 4x4
+ *   projection matrix of the view (XRView.projectionMatrix)
+ * @param {number} x - Normalised screen X [0, 1]
+ * @param {number} y - Normalised screen Y [0, 1]
+ * @returns {{origin:{x:number,y:number,z:number}, direction:{x:number,y:number,z:number}}}
+ *   Ray in the same space as the viewer pose
+ */
+export function rayFromScreenPoint(viewerTransform, projectionMatrix, x, y) {
+  const ndc = new THREE.Vector3(x * 2 - 1, 1 - y * 2, -1);
+  const inverseProjection = new THREE.Matrix4()
+    .fromArray(projectionMatrix)
+    .invert();
+  // Unproject the near-plane NDC point into view space. The camera sits
+  // at the view-space origin, so the unprojected point IS the direction.
+  const direction = ndc.applyMatrix4(inverseProjection).normalize();
+  const orientation = new THREE.Quaternion(
+    viewerTransform.orientation.x,
+    viewerTransform.orientation.y,
+    viewerTransform.orientation.z,
+    viewerTransform.orientation.w
+  );
+  direction.applyQuaternion(orientation);
+  return {
+    origin: {
+      x: viewerTransform.position.x,
+      y: viewerTransform.position.y,
+      z: viewerTransform.position.z,
+    },
+    direction: { x: direction.x, y: direction.y, z: direction.z },
+  };
+}
+
+// ============================================================
 // Scale limits (API-08)
 // ============================================================
 // One documented scale range across every layer and runtime. The
@@ -1225,8 +1275,31 @@ export class ARCoreWeb extends WebPlugin {
     }
   }
 
-  async hitTest({ x, y }) {
-    if (!this.session || !this.hitTestSource || !this.referenceSpace) {
+  /**
+   * Hit test at normalised screen coordinates ([0, 1], origin
+   * top-left).
+   *
+   * The centre point (0.5, 0.5 — the default) uses the fast viewer-ray
+   * path: the cached centre hit from the render loop, or one frame
+   * raced against the live viewer hit-test source. Any other point
+   * performs a real ray hit test (see `hitTestAtPoint`, BUG-03), so
+   * taps land where the user actually tapped.
+   *
+   * @param {Object} [options]
+   * @param {number} [options.x=0.5] - Normalised X [0, 1]
+   * @param {number} [options.y=0.5] - Normalised Y [0, 1]
+   * @returns {Promise<{hit: boolean, position?: number[], rotation?: number[], planeType?: string, error?: string}>}
+   */
+  async hitTest({ x = 0.5, y = 0.5 } = {}) {
+    if (!this.session || !this.referenceSpace) {
+      return { hit: false, error: "Session not active" };
+    }
+
+    if (x !== 0.5 || y !== 0.5) {
+      return this.hitTestAtPoint(x, y);
+    }
+
+    if (!this.hitTestSource) {
       return { hit: false, error: "Session not active" };
     }
 
@@ -1301,6 +1374,130 @@ export class ARCoreWeb extends WebPlugin {
 
       session.addEventListener("end", onSessionEnd);
       session.requestAnimationFrame(onFrame);
+    });
+  }
+
+  /**
+   * Ray-based hit test for an explicit normalised screen point
+   * (BUG-03).
+   *
+   * On the next frame, the viewer pose supplies the camera's position,
+   * orientation and projection; `rayFromScreenPoint` turns (x, y) into
+   * a ray in reference space; a dedicated hit-test source is registered
+   * with that ray as its `offsetRay`; the following frame's hit results
+   * settle the promise.
+   *
+   * The one-off source is cancelled on EVERY settle path — results
+   * consumed, no hit, error, timeout, or session end (including a
+   * session that ends while the source is still being created) — so
+   * per-tap sources never accumulate in the runtime.
+   *
+   * @param {number} x - Normalised X [0, 1]
+   * @param {number} y - Normalised Y [0, 1]
+   * @returns {Promise<{hit: boolean, position?: number[], rotation?: number[], planeType?: string, error?: string}>}
+   */
+  hitTestAtPoint(x, y) {
+    const session = this.session;
+    const referenceSpace = this.referenceSpace;
+
+    return new Promise((resolve) => {
+      let settled = false;
+      let raySource = null;
+
+      const settle = (result) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        session.removeEventListener("end", onSessionEnd);
+        if (raySource) {
+          try { raySource.cancel(); } catch (_) {}
+          raySource = null;
+        }
+        resolve(result);
+      };
+      const onSessionEnd = () => {
+        // Never leave the caller awaiting a frame that will not come
+        // (BUG-08).
+        settle({ hit: false, error: "SESSION_ENDED" });
+      };
+      // Frames can also stall without the session ending; race a
+      // timeout so the promise always settles (BUG-08).
+      const timer = setTimeout(() => {
+        settle({ hit: false, error: "HIT_TEST_TIMEOUT" });
+      }, 1000);
+
+      const onResultsFrame = (time, frame) => {
+        if (settled || !raySource) return;
+        const results = frame.getHitTestResults(raySource);
+        if (results.length > 0) {
+          const pose = results[0].getPose(referenceSpace);
+          if (pose) {
+            const position = [
+              pose.transform.position.x,
+              pose.transform.position.y,
+              pose.transform.position.z,
+            ];
+            let planeType = this.inferPlaneTypeFromQuaternion(
+              pose.transform.orientation
+            );
+            if (this.planeDetectionSupported && frame.detectedPlanes) {
+              const plane = this.findPlaneAtPosition(position, frame);
+              if (plane && plane.orientation) {
+                planeType = plane.orientation;
+              }
+            }
+            settle({
+              hit: true,
+              position,
+              rotation: [
+                pose.transform.orientation.x,
+                pose.transform.orientation.y,
+                pose.transform.orientation.z,
+                pose.transform.orientation.w,
+              ],
+              planeType,
+            });
+            return;
+          }
+        }
+        settle({ hit: false });
+      };
+
+      const onPoseFrame = async (time, frame) => {
+        if (settled) return;
+        try {
+          const viewerPose = frame.getViewerPose(referenceSpace);
+          const view = viewerPose && viewerPose.views && viewerPose.views[0];
+          if (!viewerPose || !view) {
+            settle({ hit: false, error: "NO_VIEWER_POSE" });
+            return;
+          }
+          const ray = rayFromScreenPoint(
+            viewerPose.transform,
+            view.projectionMatrix,
+            x,
+            y
+          );
+          raySource = await session.requestHitTestSource({
+            space: referenceSpace,
+            offsetRay: new XRRay(ray.origin, ray.direction),
+          });
+        } catch (error) {
+          settle({ hit: false, error: "HIT_TEST_UNAVAILABLE" });
+          return;
+        }
+        if (settled) {
+          // Settled while the source was being created (session end or
+          // timeout): cancel the late source so it cannot leak.
+          try { raySource.cancel(); } catch (_) {}
+          raySource = null;
+          return;
+        }
+        session.requestAnimationFrame(onResultsFrame);
+      };
+
+      session.addEventListener("end", onSessionEnd);
+      session.requestAnimationFrame(onPoseFrame);
     });
   }
 

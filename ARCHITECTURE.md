@@ -168,7 +168,10 @@ Models: `loadModel(url)` → cached `gltf.scene.clone()`;
 facade shims `setTransform(options)`, `setMaterial(options)`, `moveModel(options)`.
 
 Queries/events: `hitTest({x, y})` → `{hit, position?, rotation?, planeType?}`
-(see AUDIT BUG-03: coordinates are ignored); `getSurfaceState()`,
+(the centre point uses the cached viewer-ray hit; any other point runs a
+ray hit test — an `offsetRay` built from the camera pose + NDC point via
+`requestHitTestSource`, the one-off source cancelled on every settle path —
+BUG-03); `getSurfaceState()`,
 `getSurfaceDetectionState()`, `getDetectedPlanes()`,
 `addFrameListener(cb)` / `addPlaneListener(cb)` (both return unsubscribe),
 `setReticleVisible(v)`, `setPlaneVisualization(v)` / `isPlaneVisualizationEnabled()`,
