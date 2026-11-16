@@ -23,6 +23,15 @@ the remediation programme and will be completed before release._
 
 ### Behavior changes
 
+- **Native Android is explicitly scoped to session + hit-testing
+  (NAT-01/NAT-05, Option B).** The native plugin never rendered placed
+  models — `placeModel` registered metadata and resolved success, and
+  `moveModel` resolved `{success: true}` without moving anything. Both
+  now reject with a coded `NOT_IMPLEMENTED` error, as do the native
+  `getPlacedModels` and `clearModels` methods. Model rendering and
+  placement are provided by the WebXR runtime. Native `hitTest` now
+  creates a real ARCore anchor for a successful hit and returns its
+  `anchorId`.
 - **Screenshots now require an explicit opt-in (SEC-04).**
   `lightEstimation: true` no longer also requests the WebXR
   `camera-access` feature. To use `takeScreenshot()`, start the

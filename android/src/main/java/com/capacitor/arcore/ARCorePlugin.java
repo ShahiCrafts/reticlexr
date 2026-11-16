@@ -411,52 +411,22 @@ public class ARCorePlugin extends Plugin {
   /**
    * Place a GLB model at a hit test result.
    *
+   * NAT-01 (Option B): native model rendering is NOT implemented. The
+   * Android runtime is scoped to session + hit-testing; the previous
+   * implementation registered model metadata and resolved success for a
+   * model that was never rendered. This method now rejects honestly
+   * with a coded NOT_IMPLEMENTED. Model rendering is provided by the
+   * WebXR runtime.
+   *
    * @param call contains: modelPath (path to GLB), hitId (from previous hitTest)
    */
   @PluginMethod
   public void placeModel(PluginCall call) {
-    if (!isSessionActive || modelManager == null || anchorManager == null) {
-      call.reject("Session not active or model manager not ready");
-      return;
-    }
-
-    try {
-      String modelPath = call.getString("modelPath");
-      String hitId = call.getString("hitId");
-
-      if (modelPath == null || modelPath.isEmpty()) {
-        call.reject("modelPath is required");
-        return;
-      }
-
-      // Use center anchor ID
-      String anchorId = "anchor_center";
-
-      // Place model
-      String modelId = modelManager.placeModel(modelPath, anchorId, null);
-
-      if (modelId == null) {
-        call.reject("Failed to place model");
-        return;
-      }
-
-      JSObject result = new JSObject();
-      result.put("modelId", modelId);
-      result.put("anchorId", anchorId);
-      call.resolve(result);
-
-      // Emit event
-      JSObject eventData = new JSObject();
-      eventData.put("modelId", modelId);
-      eventData.put("anchorId", anchorId);
-      eventEmitter.emit("modelPlaced", eventData);
-
-      Log.d(TAG, "Model placed: " + modelId + " at anchor " + anchorId);
-
-    } catch (Exception e) {
-      Log.e(TAG, "Error placing model", e);
-      call.reject("Failed to place model: " + e.getMessage());
-    }
+    call.reject(
+        "placeModel is not implemented in the native Android runtime: "
+            + "native is scoped to session + hit-testing (Option B); "
+            + "model rendering is provided by the WebXR runtime",
+        "NOT_IMPLEMENTED");
   }
 
   /**
@@ -569,62 +539,20 @@ public class ARCorePlugin extends Plugin {
   /**
    * Move model to new screen position (hit test and reposition).
    *
+   * NAT-05 (Option B): NOT implemented natively — the previous
+   * implementation hit-tested, resolved {success:true} and emitted
+   * modelMoved without moving anything. Since native places no models
+   * (NAT-01), there is nothing to move; this rejects NOT_IMPLEMENTED
+   * instead of reporting a fictional success.
+   *
    * @param call contains: modelId, x, y (normalized screen coords)
    */
   @PluginMethod
   public void moveModel(PluginCall call) {
-    if (!isSessionActive || modelManager == null || anchorManager == null) {
-      call.reject("Session not active or model manager not ready");
-      return;
-    }
-
-    try {
-      String modelId = call.getString("modelId");
-      float x = call.getFloat("x", 0.5f);
-      float y = call.getFloat("y", 0.5f);
-
-      if (modelId == null) {
-        call.reject("modelId is required");
-        return;
-      }
-
-      // Perform hit test at new position
-      com.google.ar.core.Frame frame = sessionManager.acquireLatestFrame();
-      if (frame == null) {
-        call.reject("No frame available");
-        return;
-      }
-
-      ARCoordinateMapper.HitTestResult hit = coordinateMapper.screenToWorldHitTest(x, y, frame);
-      if (hit == null) {
-        call.reject("No surface at target position");
-        return;
-      }
-
-      // For now, we'll note this - proper implementation would:
-      // 1. Track which anchor is associated with this model
-      // 2. Create new anchor at hit position
-      // 3. Update model's anchor association
-      // 4. Apply new anchor pose to model
-
-      JSObject result = new JSObject();
-      result.put("success", true);
-      result.put("position", floatArrayToJSArray(hit.position));
-      call.resolve(result);
-
-      // Emit event
-      JSObject eventData = new JSObject();
-      eventData.put("modelId", modelId);
-      eventData.put("x", x);
-      eventData.put("y", y);
-      eventEmitter.emit("modelMoved", eventData);
-
-      Log.d(TAG, "Model moved: " + modelId + " to (" + x + ", " + y + ")");
-
-    } catch (Exception e) {
-      Log.e(TAG, "Error moving model", e);
-      call.reject("Failed to move model: " + e.getMessage());
-    }
+    call.reject(
+        "moveModel is not implemented in the native Android runtime: "
+            + "native is scoped to session + hit-testing (Option B) and places no models",
+        "NOT_IMPLEMENTED");
   }
 
   /**
@@ -661,6 +589,36 @@ public class ARCorePlugin extends Plugin {
       Log.e(TAG, "Error removing model", e);
       call.reject("Failed to remove model: " + e.getMessage());
     }
+  }
+
+  /**
+   * Enumerate placed models.
+   *
+   * The facade gained this method in Phase 4 (API-03). NAT-01
+   * (Option B): the native runtime renders and places no models, so
+   * there is nothing to enumerate — this rejects with a coded
+   * NOT_IMPLEMENTED rather than returning a fictional list.
+   */
+  @PluginMethod
+  public void getPlacedModels(PluginCall call) {
+    call.reject(
+        "getPlacedModels is not implemented in the native Android runtime: "
+            + "native is scoped to session + hit-testing (Option B) and places no models",
+        "NOT_IMPLEMENTED");
+  }
+
+  /**
+   * Clear all placed models.
+   *
+   * See getPlacedModels — NAT-01 (Option B): no native models exist to
+   * clear, so this rejects with a coded NOT_IMPLEMENTED.
+   */
+  @PluginMethod
+  public void clearModels(PluginCall call) {
+    call.reject(
+        "clearModels is not implemented in the native Android runtime: "
+            + "native is scoped to session + hit-testing (Option B) and places no models",
+        "NOT_IMPLEMENTED");
   }
 
   /**
