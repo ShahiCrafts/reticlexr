@@ -1073,6 +1073,19 @@ export class ARCoreWeb extends WebPlugin {
     }
 
     return new Promise((resolve) => {
+      const session = this.session;
+      let settled = false;
+      const settle = (result) => {
+        if (settled) return;
+        settled = true;
+        session.removeEventListener("end", onSessionEnd);
+        resolve(result);
+      };
+      const onSessionEnd = () => {
+        // The session ended before the frame callback fired — settle
+        // instead of leaving the caller awaiting forever (BUG-08).
+        settle({ hit: false, error: "SESSION_ENDED" });
+      };
       const onFrame = (time, frame) => {
         const hitTestResults = frame.getHitTestResults(this.hitTestSource);
 
@@ -1096,7 +1109,7 @@ export class ARCoreWeb extends WebPlugin {
               }
             }
 
-            resolve({
+            settle({
               hit: true,
               position: [
                 pose.transform.position.x,
@@ -1115,10 +1128,11 @@ export class ARCoreWeb extends WebPlugin {
           }
         }
 
-        resolve({ hit: false });
+        settle({ hit: false });
       };
 
-      this.session.requestAnimationFrame(onFrame);
+      session.addEventListener("end", onSessionEnd);
+      session.requestAnimationFrame(onFrame);
     });
   }
 
