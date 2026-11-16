@@ -1,19 +1,19 @@
-// Verification harness (Phase 4). Stub-based, runs under plain Node:
-// `node tests/harness/api01.mjs`. Phase 6 (TEST-01) formalises these
-// into the Vitest suite — see tests/README.md.
+// Verification harness (Phase 4). Stub-based Vitest suite (TEST-01): run with `npm test`. See tests/README.md.
 // API-01: ONE canonical model identifier — `modelId` — across the
 // engine, ARView and the facade. `anchorId` remains as a deprecated
 // alias (same string) on inputs, outputs and event payloads, with a
 // one-time console.warn when an alias INPUT is used. The facade
 // accepts `modelUrl` or `modelPath` and forwards both.
+
+import { test, expect } from 'vitest';
 import * as THREE from 'three';
 
+test('api01', async () => {
 const { ARCoreWeb, warnDeprecatedOnce } = await import('../../src/web.js');
 const { ARView } = await import('../../src/ar-view.js');
 const { ARCore } = await import('../../src/index.js');
 
-let failures = 0;
-const check = (name, cond) => { console.log(cond ? 'PASS' : 'FAIL', name); if (!cond) failures++; };
+const check = (name, cond) => expect(cond, name).toBe(true);
 
 // Capture deprecation warnings
 const warns = [];
@@ -126,5 +126,4 @@ check('facade placeModel({ modelUrl }) gets past the field check (fails at load,
   !!facadeError && facadeError.message.includes('Failed to load model'));
 
 console.warn = origWarn;
-console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURES`);
-process.exit(failures === 0 ? 0 : 1);
+});

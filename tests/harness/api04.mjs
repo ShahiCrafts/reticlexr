@@ -1,6 +1,4 @@
-// Verification harness (Phase 4). Runs under plain Node:
-// `node tests/harness/api04.mjs`. Phase 6 (TEST-01) formalises these
-// into the Vitest suite — see tests/README.md.
+// Verification harness (Phase 4). Vitest suite (TEST-01): run with `npm test`. See tests/README.md.
 // API-04: useARCore can target an instance-scoped engine via
 // useARCore({ engine }); the default remains ONE shared engine for
 // all consumers (now constructed lazily). Rendered with
@@ -8,13 +6,15 @@
 // callbacks) without effects — enough to prove which engine each
 // hook instance resolved and that config written through one hook
 // lands on exactly that engine.
+
+import { test, expect } from 'vitest';
 import React from 'react';
 import { renderToString } from 'react-dom/server';
 import { ARCoreWeb } from '../../src/web.js';
 import { useARCore } from '../../src/hooks.js';
 
-let failures = 0;
-const check = (name, cond) => { console.log(cond ? 'PASS' : 'FAIL', name); if (!cond) failures++; };
+test('api04', async () => {
+const check = (name, cond) => expect(cond, name).toBe(true);
 
 function probe(options) {
   let captured = null;
@@ -58,6 +58,4 @@ check('hook returns the documented API',
   typeof hookA.getRenderer === 'function' &&
   Array.isArray(hookA.placedModels) &&
   hookA.isSessionActive === false);
-
-console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURES`);
-process.exit(failures === 0 ? 0 : 1);
+});

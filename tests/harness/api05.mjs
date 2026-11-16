@@ -1,22 +1,22 @@
-// Verification harness (Phase 4). Stub-based, runs under plain Node:
-// `node tests/harness/api05.mjs`. Phase 6 (TEST-01) formalises these
-// into the Vitest suite — see tests/README.md.
+// Verification harness (Phase 4). Stub-based Vitest suite (TEST-01): run with `npm test`. See tests/README.md.
 // API-05: ONE error convention. Async methods reject with an ARError
 // (Error + stable `code`); result-object APIs (hitTest,
 // takeScreenshot, ARView.placeModel) resolve with the same `code`
 // beside the human-readable error/reason. The facade preserves
 // runtime codes and falls back to per-method *_FAILED codes.
+
+import { test, expect } from 'vitest';
 import * as THREE from 'three';
 import React from 'react';
 import { renderToString } from 'react-dom/server';
 
+test('api05', async () => {
 const { ARCoreWeb, ARError, codedError } = await import('../../src/web.js');
 const { ARView } = await import('../../src/ar-view.js');
 const { ARCore } = await import('../../src/index.js');
 const { useARCore } = await import('../../src/hooks.js');
 
-let failures = 0;
-const check = (name, cond) => { console.log(cond ? 'PASS' : 'FAIL', name); if (!cond) failures++; };
+const check = (name, cond) => expect(cond, name).toBe(true);
 const codeOf = async (promise) => {
   try { await promise; return null; } catch (e) { return e; }
 };
@@ -141,6 +141,4 @@ check('hook hitTest without a session returns SESSION_NOT_ACTIVE',
 const hookShot = await hookApi.takeScreenshot();
 check('hook takeScreenshot without a session returns SESSION_NOT_ACTIVE',
   hookShot.success === false && hookShot.code === 'SESSION_NOT_ACTIVE');
-
-console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURES`);
-process.exit(failures === 0 ? 0 : 1);
+});

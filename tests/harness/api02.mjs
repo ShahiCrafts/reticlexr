@@ -1,14 +1,15 @@
-// Verification harness (Phase 4). Stub-based, runs under plain Node:
-// `node tests/harness/api02.mjs`. Phase 6 (TEST-01) formalises these
-// into the Vitest suite — see tests/README.md.
+// Verification harness (Phase 4). Stub-based Vitest suite (TEST-01): run with `npm test`. See tests/README.md.
 // API-02: the native event bridge installs LAZILY and IDEMPOTENTLY
 // (never at import time, never twice on the same plugin), and the
 // React hook is reachable through the reticlexr/react subpath module.
+
+import { test, expect } from 'vitest';
+
+test('api02', async () => {
 const { setupEventBridge, ARCore } = await import('../../src/index.js');
 const reactEntry = await import('../../src/react.js');
 
-let failures = 0;
-const check = (name, cond) => { console.log(cond ? 'PASS' : 'FAIL', name); if (!cond) failures++; };
+const check = (name, cond) => expect(cond, name).toBe(true);
 
 // --- The react subpath module exists and re-exports the hook ---
 check('reticlexr/react module exports useARCore', typeof reactEntry.useARCore === 'function');
@@ -53,6 +54,4 @@ console.error = () => {};
 errPlugin.cb({ message: 'x' });
 console.error = origError;
 check('a throwing listener does not block later listeners', secondRan === true);
-
-console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURES`);
-process.exit(failures === 0 ? 0 : 1);
+});

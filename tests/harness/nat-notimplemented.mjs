@@ -1,6 +1,5 @@
 // Verification harness (Phase 6, Stage A — owner decision 1).
-// Stub-based, runs under plain Node:
-// `node tests/harness/nat-notimplemented.mjs`.
+// Stub-based Vitest suite (TEST-01): run with `npm test`.
 //
 // Native setTransform / setMaterial / removeModel now reject with a
 // coded NOT_IMPLEMENTED (Option B), like placeModel / moveModel /
@@ -23,6 +22,9 @@
 // first imported (it snapshots window.Capacitor at import time), so
 // src/index.js is pulled in with a dynamic import after the stub.
 
+import { test, expect } from 'vitest';
+
+test('nat-notimplemented', async () => {
 const nativeCalls = [];
 globalThis.Capacitor = {
   PluginHeaders: [
@@ -48,8 +50,7 @@ globalThis.Capacitor = {
 
 const { ARCore } = await import('../../src/index.js');
 
-let failures = 0;
-const check = (name, cond) => { console.log(cond ? 'PASS' : 'FAIL', name); if (!cond) failures++; };
+const check = (name, cond) => expect(cond, name).toBe(true);
 const rejectionOf = async (p) => { try { await p; return null; } catch (e) { return e; } };
 
 const cases = [
@@ -72,6 +73,4 @@ for (const [method, invoke, prefix] of cases) {
     !!err && err.message.startsWith(prefix) && err.message.includes('not implemented in the native Android runtime')
   );
 }
-
-console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURES`);
-process.exit(failures === 0 ? 0 : 1);
+});

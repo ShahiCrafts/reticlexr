@@ -1,18 +1,16 @@
-// Verification harness (Phases 1-2). Stub-based, runs under plain
-// Node: `node tests/harness/api08.mjs`. Phase 6 (TEST-01) formalises
-// these into the Vitest suite — see tests/README.md.
+// Verification harness (Phases 1-2). Stub-based, Vitest suite (TEST-01): run with `npm test`. See tests/README.md.
 // API-08 harness: one scale clamp [0.1, 5], enforced by the engine.
-globalThis.window = globalThis;
+
+import { test, expect } from 'vitest';
 import * as THREE from 'three';
+
+test('api08', async () => {
+globalThis.window = globalThis;
 const { ARCoreWeb, clampScale, SCALE_MIN, SCALE_MAX } = await import('../../src/web.js');
 const { ARView } = await import('../../src/ar-view.js');
 
-let pass = 0, fail = 0;
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-function check(name, cond) {
-  if (cond) { pass++; console.log('  ok  ', name); }
-  else { fail++; console.log('  FAIL', name); }
-}
+const check = (name, cond) => expect(cond, name).toBe(true);
 
 check('range constants are [0.1, 5]', SCALE_MIN === 0.1 && SCALE_MAX === 5);
 check('clampScale clamps per axis', eq(clampScale([10, 0.01, 2]), [5, 0.1, 2]));
@@ -52,6 +50,4 @@ await view.setScale(0.001);
 check('ARView.setScale clamps low to 0.1', view.transform.scale === 0.1 && eq(view.engine.anchors.get('v1').scale, [0.1, 0.1, 0.1]));
 await view.setScale(2);
 check('ARView.setScale in-range passes through', view.transform.scale === 2);
-
-console.log(`\nAPI-08 harness: ${pass} passed, ${fail} failed`);
-process.exit(fail ? 1 : 0);
+});

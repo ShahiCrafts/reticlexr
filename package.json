@@ -38,7 +38,8 @@
     "./src/index.js"
   ],
   "scripts": {
-    "check-types": "tsc --noEmit --checkJs"
+    "check-types": "tsc --noEmit --checkJs",
+    "test": "vitest run"
   },
   "files": [
     "android/",
@@ -81,6 +82,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "three": "^0.180.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.0"
   }
 }
