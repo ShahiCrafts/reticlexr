@@ -42,7 +42,7 @@ export function InstallTabs({ pkg = 'capacitor-arcore' }: { pkg?: string }) {
               role="tab"
               aria-selected={active === m}
               onClick={() => setActive(m)}
-              className={`rounded-t-md px-3 py-1.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400 ${
+              className={`rounded-t-md px-3 py-1.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 ${
                 active === m ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -53,7 +53,7 @@ export function InstallTabs({ pkg = 'capacitor-arcore' }: { pkg?: string }) {
         <button
           onClick={copy}
           aria-label="Copy install command"
-          className="mr-1 rounded px-2 py-1 text-xs font-medium text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-violet-400"
+          className="mr-1 rounded px-2 py-1 text-xs font-medium text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-blue-400"
         >
           {copied ? 'Copied' : 'Copy'}
         </button>
@@ -80,13 +80,13 @@ export function CopyCommand({ commandText, label }: { commandText: string; label
   return (
     <div className="inline-flex max-w-full items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 py-2 pl-4 pr-2 text-left">
       <code className="overflow-x-auto whitespace-nowrap font-mono text-sm text-slate-100">
-        <span className="mr-2 select-none text-violet-400">$</span>
+        <span className="mr-2 select-none text-blue-400">$</span>
         {commandText}
       </code>
       <button
         onClick={copy}
         aria-label={label ?? `Copy command: ${commandText}`}
-        className="shrink-0 rounded-md px-2.5 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-violet-400"
+        className="shrink-0 rounded-md px-2.5 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-blue-400"
       >
         {copied ? 'Copied' : 'Copy'}
       </button>

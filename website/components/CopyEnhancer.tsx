@@ -25,7 +25,7 @@ export function CopyEnhancer() {
       btn.textContent = 'Copy';
       btn.setAttribute('aria-label', 'Copy code to clipboard');
       btn.className =
-        'absolute right-2 top-2 z-10 rounded-md border border-white/15 bg-white/10 px-2 py-1 text-xs font-medium text-slate-100 opacity-0 transition-opacity hover:bg-white/20 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-violet-400 group-hover:opacity-100';
+        'absolute right-2 top-2 z-10 rounded-md border border-white/15 bg-white/10 px-2 py-1 text-xs font-medium text-slate-100 opacity-0 transition-opacity hover:bg-white/20 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-blue-400 group-hover:opacity-100';
       figure.classList.add('group');
       const onClick = async () => {
         try {

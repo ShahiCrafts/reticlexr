@@ -38,11 +38,11 @@ export function Toc({ headings }: { headings: Heading[] }) {
             <a
               href={`#${h.id}`}
               aria-current={activeId === h.id ? 'true' : undefined}
-              className={`-ml-px block border-l-2 py-0.5 focus-visible:outline-2 focus-visible:outline-violet-500 ${
+              className={`-ml-px block border-l-2 py-0.5 focus-visible:outline-2 focus-visible:outline-blue-500 ${
                 h.depth === 3 ? 'pl-3' : 'pl-2.5'
               } ${
                 activeId === h.id
-                  ? 'border-violet-500 font-medium text-violet-700 dark:text-violet-300'
+                  ? 'border-blue-500 font-medium text-blue-700 dark:text-blue-300'
                   : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
               }`}
             >

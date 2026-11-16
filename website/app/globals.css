@@ -4,6 +4,28 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
+  /* Site accent: blue (replaced the original violet palette) */
+  --color-accent: #2563eb; /* blue-600 — primary */
+  --color-accent-hover: #1d4ed8; /* blue-700 */
+  --color-accent-tint: #eff6ff; /* blue-50 — light tint */
+  --color-accent-border: #dbeafe; /* blue-100 */
+  --color-accent-ring: #bfdbfe; /* blue-200 */
+  --color-accent-dark: #60a5fa; /* blue-400 — dark-mode accent */
+  --color-accent-dark-strong: #3b82f6; /* blue-500 */
+
+  /* Pin the blue scale to the specified hex values (Tailwind v4's native
+     blue scale is OKLCH-derived and drifts from these, e.g. its blue-600
+     is #155dfc rather than #2563eb). */
+  --color-blue-50: #eff6ff;
+  --color-blue-100: #dbeafe;
+  --color-blue-200: #bfdbfe;
+  --color-blue-300: #93c5fd;
+  --color-blue-400: #60a5fa;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-blue-700: #1d4ed8;
+  --color-blue-800: #1e40af;
+
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
@@ -57,8 +79,8 @@ figure[data-rehype-pretty-code-figure] [data-line] {
 }
 
 figure[data-rehype-pretty-code-figure] [data-highlighted-line] {
-  background: rgb(139 92 246 / 0.14);
-  border-left-color: rgb(139 92 246);
+  background: rgb(37 99 235 / 0.12);
+  border-left-color: rgb(37 99 235);
 }
 
 /* Dual-theme tokens: rehype-pretty-code emits --shiki-light / --shiki-dark */
@@ -96,7 +118,7 @@ code[data-theme*=" "] span {
 
 /* Visible keyboard focus everywhere */
 :focus-visible {
-  outline: 2px solid rgb(139 92 246);
+  outline: 2px solid rgb(37 99 235);
   outline-offset: 2px;
 }
 

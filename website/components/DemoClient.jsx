@@ -185,10 +185,10 @@ export default function DemoClient() {
     >
       {!active ? (
         <main className="flex flex-1 flex-col items-center justify-center px-6 py-14 text-center">
-          <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 text-lg font-bold" aria-hidden="true">
+          <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-lg font-bold" aria-hidden="true">
             AR
           </div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-violet-300">Furniture preview</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-blue-300">Furniture preview</p>
           <h2 className="mt-3 text-3xl font-bold leading-tight">
             See it in
             <br />
@@ -219,7 +219,7 @@ export default function DemoClient() {
 
           <button
             type="button"
-            className="mt-7 rounded-lg bg-violet-600 px-6 py-3 text-sm font-semibold text-white shadow hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-300"
+            className="mt-7 rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300"
             disabled={unsupported || busy || supported === null}
             onClick={start}
           >
@@ -236,7 +236,7 @@ export default function DemoClient() {
       ) : (
         <>
           <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-between p-4" data-ui="true">
-            <button type="button" onClick={close} aria-label="Close AR" className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-xl focus-visible:outline-2 focus-visible:outline-violet-300">
+            <button type="button" onClick={close} aria-label="Close AR" className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-xl focus-visible:outline-2 focus-visible:outline-blue-300">
               ×
             </button>
             <div className="rounded-full bg-black/50 px-3 py-1.5 text-sm font-medium">AR View</div>
@@ -244,7 +244,7 @@ export default function DemoClient() {
               type="button"
               aria-label="Gesture help"
               onClick={() => setToast('Dots = detected surface • tap = place • pinch = scale • twist = rotate')}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 focus-visible:outline-2 focus-visible:outline-violet-300"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 focus-visible:outline-2 focus-visible:outline-blue-300"
             >
               ?
             </button>
@@ -265,9 +265,9 @@ export default function DemoClient() {
 
           {placed && (
             <div className="absolute right-4 top-1/2 z-10 flex -translate-y-1/2 flex-col gap-2" data-ui="true">
-              <button type="button" onClick={screenshot} aria-label="Take screenshot" className="flex h-11 w-11 items-center justify-center rounded-full bg-black/50 focus-visible:outline-2 focus-visible:outline-violet-300">▧</button>
-              <button type="button" onClick={() => setToast(`${scale.toFixed(2)}× scale`)} aria-label="Show scale" className="flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-xs focus-visible:outline-2 focus-visible:outline-violet-300">1:1</button>
-              <button type="button" onClick={reset} aria-label="Remove model" className="flex h-11 w-11 items-center justify-center rounded-full bg-black/50 focus-visible:outline-2 focus-visible:outline-violet-300">↶</button>
+              <button type="button" onClick={screenshot} aria-label="Take screenshot" className="flex h-11 w-11 items-center justify-center rounded-full bg-black/50 focus-visible:outline-2 focus-visible:outline-blue-300">▧</button>
+              <button type="button" onClick={() => setToast(`${scale.toFixed(2)}× scale`)} aria-label="Show scale" className="flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-xs focus-visible:outline-2 focus-visible:outline-blue-300">1:1</button>
+              <button type="button" onClick={reset} aria-label="Remove model" className="flex h-11 w-11 items-center justify-center rounded-full bg-black/50 focus-visible:outline-2 focus-visible:outline-blue-300">↶</button>
             </div>
           )}
 
@@ -279,8 +279,8 @@ export default function DemoClient() {
                   type="button"
                   disabled={busy}
                   onClick={() => chooseModel(i)}
-                  className={`flex flex-col items-center rounded-xl px-4 py-2 text-xs font-medium focus-visible:outline-2 focus-visible:outline-violet-300 ${
-                    i === modelIndex ? 'bg-violet-600 text-white' : 'bg-black/50 text-slate-200'
+                  className={`flex flex-col items-center rounded-xl px-4 py-2 text-xs font-medium focus-visible:outline-2 focus-visible:outline-blue-300 ${
+                    i === modelIndex ? 'bg-blue-600 text-white' : 'bg-black/50 text-slate-200'
                   }`}
                 >
                   <span className="text-lg" aria-hidden="true">{m.emoji}</span>
@@ -298,7 +298,7 @@ export default function DemoClient() {
                     type="button"
                     onClick={() => chooseColor(c)}
                     aria-label={`Set color ${name}`}
-                    className={`h-8 w-8 rounded-full border-2 focus-visible:outline-2 focus-visible:outline-violet-300 ${color === c ? 'border-white' : 'border-white/30'}`}
+                    className={`h-8 w-8 rounded-full border-2 focus-visible:outline-2 focus-visible:outline-blue-300 ${color === c ? 'border-white' : 'border-white/30'}`}
                     style={{ background: c }}
                   />
                 ))}
@@ -314,8 +314,8 @@ export default function DemoClient() {
                   type="button"
                   disabled={!surface || busy}
                   onClick={place}
-                  className={`h-16 w-16 rounded-full border-4 focus-visible:outline-2 focus-visible:outline-violet-300 ${
-                    surface ? 'border-white bg-violet-600' : 'border-white/40 bg-white/20'
+                  className={`h-16 w-16 rounded-full border-4 focus-visible:outline-2 focus-visible:outline-blue-300 ${
+                    surface ? 'border-white bg-blue-600' : 'border-white/40 bg-white/20'
                   }`}
                   aria-label="Place model"
                 />
@@ -330,8 +330,8 @@ export default function DemoClient() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={shot} alt="AR screenshot" className="min-h-0 flex-1 object-contain" />
               <div className="flex justify-center gap-3 p-4">
-                <button type="button" onClick={() => setShot(null)} className="rounded-lg bg-white/10 px-4 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-violet-300">Back to AR</button>
-                <button type="button" onClick={saveShot} className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-violet-300">Save photo</button>
+                <button type="button" onClick={() => setShot(null)} className="rounded-lg bg-white/10 px-4 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-blue-300">Back to AR</button>
+                <button type="button" onClick={saveShot} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-blue-300">Save photo</button>
               </div>
             </div>
           )}
@@ -341,7 +341,7 @@ export default function DemoClient() {
               <div className="max-w-xs rounded-2xl bg-slate-900 p-5 text-center">
                 <b className="text-base">AR paused</b>
                 <p className="mt-2 text-sm text-slate-300">The immersive session ended while another app was open.</p>
-                <button type="button" onClick={resume} className="mt-4 rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-violet-300">Resume AR</button>
+                <button type="button" onClick={resume} className="mt-4 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-blue-300">Resume AR</button>
               </div>
             </div>
           )}

@@ -65,7 +65,7 @@ export default function DemoPage() {
           Want the code? The playground source is{' '}
           <code className="font-mono text-[0.85em]">example/src/components/ARPlayground.jsx</code> in
           the repository, and the walkthrough lives in{' '}
-          <Link href="/docs/guides/react-integration" className="font-medium text-violet-700 hover:underline dark:text-violet-300">
+          <Link href="/docs/guides/react-integration" className="font-medium text-blue-700 hover:underline dark:text-blue-300">
             React integration
           </Link>
           .
