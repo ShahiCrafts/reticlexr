@@ -33,7 +33,7 @@ const eventListeners = {};
  * This creates the JavaScript proxy that bridges to ARCorePlugin.java
  */
 const ARCoreNative = registerPlugin('ARCore', {
-  web: () => import('./web').then(m => new m.ARCoreWeb()),
+  web: () => import('./web.js').then(m => new m.ARCoreWeb()),
 });
 
 /**
