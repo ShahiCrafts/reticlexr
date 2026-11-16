@@ -123,8 +123,9 @@ for product catalogues.
 
 <Note>
 `create()` asks the browser for an `immersive-ar` session with the
-`hit-test` and `local-floor` features required. A device/browser without
-`local-floor` will fail session creation rather than degrade — see
+`hit-test` feature required and `local-floor` requested. A
+device/browser without `local-floor` degrades to the `local` or
+`viewer` reference space instead of failing — see
 [Known issues](/docs/known-issues).
 </Note>
 

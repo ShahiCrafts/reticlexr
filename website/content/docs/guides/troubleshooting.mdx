@@ -7,19 +7,21 @@ description: Symptom-by-symptom fixes for the problems developers actually hit w
 
 Almost certainly the **secure context**. WebXR immersive AR requires
 HTTPS (or `localhost`). A LAN address over plain HTTP loads the page but
-session creation fails, and `checkSupport()` does not yet distinguish
-"insecure origin" from "not supported" in its `reason`. Serve the page
+session creation fails. Since 1.1.0, `checkSupport()` reports this
+distinctly with the code `INSECURE_CONTEXT` (in v1.0.0 its `reason` did
+not distinguish an insecure origin from an unsupported browser). Serve the page
 over HTTPS — see
 [HTTPS and phone testing](/docs/getting-started#https-and-phone-testing) —
 or open this site's [live demo](/demo), which is already HTTPS.
 
 ## The session fails immediately on some Android devices
 
-Session creation requires the WebXR features `hit-test` **and**
-`local-floor`. Devices/browsers with immersive AR + hit-test but no
-`local-floor` fail outright instead of degrading to a simpler reference
-space. There is no configuration workaround in v1.0.0; it's a known issue
-with a planned fallback chain (`local-floor` → `local` → `viewer`).
+That was v1.0.0: session creation required `local-floor`, and devices
+with immersive AR + hit-test but no `local-floor` failed outright.
+Since 1.1.0, `local-floor` is optional — the engine falls back through
+`local-floor` → `local` → `viewer`, so this failure mode is gone. If a
+session still fails at creation, the device lacks `hit-test` or
+immersive-AR support itself.
 
 ## `checkSupport()` says yes, but the native session fails later
 
@@ -32,52 +34,62 @@ failure as the real support test on Android. (The WebXR
 ## My model never appears (hook `placeModel`)
 
 If you're calling the hook's `placeModel(modelUrl, position, rotation,
-scale)`, pass **arrays**: position `[x, y, z]`, rotation as a quaternion
-`[x, y, z, w]`, scale `[sx, sy, sz]`. Older JSDoc described `{x, y, z}`
-objects; objects produce `NaN` components and the model is placed
-nowhere, silently. The facade's `ARView.placeModel(url)` doesn't take
-transform arguments at all — prefer it unless you need the engine-level
-control.
+scale)`: both shapes work since 1.1.0 — arrays (position `[x, y, z]`,
+rotation as a quaternion `[x, y, z, w]`, scale `[sx, sy, sz]`) or
+`{x, y, z}` objects (rotation objects are Euler angles in radians),
+normalised at the engine boundary. In v1.0.0 the engine wanted arrays
+while the JSDoc described objects, and objects produced `NaN`
+components and invisible models. If a model still never appears, check
+for `NaN` in the values themselves. The facade's
+`ARView.placeModel(url)` doesn't take transform arguments at all —
+prefer it unless you need the engine-level control.
 
 ## `detectedPlanes` in the hook is always zero
 
-Known bug: the hook reads array fields (`horizontalPlanes.length`, …)
-while the engine emits counts as numbers. Until it's fixed, subscribe to
-plane updates through `ARView.onPlanes()` or the engine's plane listener,
-whose payload is `{type, total, horizontal, vertical}`.
+Fixed in 1.1.0: the engine emits plane counts as numbers and the hook
+now reads them as numbers (in v1.0.0 it read `.length` of the numeric
+counts, so they always showed zero). The plane-listener payload is
+`{type, total, horizontal, vertical}` — counts as numbers.
 
 ## `placeModel(url, {x, y})` ignores where I tapped
 
-Correct — in v1.0.0 the WebXR `hitTest({x, y})` ignores its coordinates
-and always returns the centre-screen hit. Everything built on it (facade
-placement, the web `moveModel`) is centre-only. Design interactions
-around the reticle: the user aims the centre of the screen, then taps.
+Fixed in 1.1.0: non-centre points run a real ray-based hit test (an
+offset ray from the camera pose through the tapped point), so
+tap-to-place lands where the user tapped, and everything built on it
+(facade placement, the web `moveModel`) honours the point too. The
+centre point keeps the fast viewer-ray path. In v1.0.0,
+`hitTest({x, y})` ignored its coordinates and always returned the
+centre-screen hit.
 
 ## My reticle setting keeps turning back on
 
-`showReticle: false` is currently overridden back to `true` on session
-start, on placement and on removal. There is no persistent way to hide
-the reticle in v1.0.0 beyond calling `setReticleVisible(false)` after
-each of those moments. Known issue; the forced resets are slated for
-removal.
+Fixed in 1.1.0: the forced resets are gone — `showReticle: false` is a
+user preference that survives session start, placement and removal
+(v1.0.0 overrode it back to `true` at each of those moments).
+`setReticleVisible(false)` still hides it immediately.
 
 ## Every tap throws `TypeError: options.modelUrl is not a function`
 
-`enableCustomization({ modelUrl })` expects a **function** it calls on
-each tap. Pass `modelUrl: () => currentUrl`, not the string itself. See
+That was v1.0.0: `enableCustomization({ modelUrl })` expected a
+**function**. Since 1.1.0 it accepts a plain string or a
+`() => string` (use the function form when the URL changes between
+taps), and placement failures are routed to `options.onError` instead
+of being thrown through the tap handler. See
 [Gestures](/docs/guides/gestures).
 
 ## Memory grows while users browse products
 
-Removed models and plane-dot visualisations are detached from the scene
-but their geometries/materials/textures are not disposed in v1.0.0, and
-the model cache never evicts. Mitigations that help today:
-
-- Switch with `switchModel()` instead of repeated `placeModel()` calls.
-- Preload a bounded catalogue rather than every URL a user might touch.
-- Treat very long AR sessions with heavy model churn as out of scope
-  until the disposal work lands (it's high on the
-  [roadmap](/docs/known-issues#roadmap)).
+Largely fixed in 1.1.0. Removed models and plane visualisations are
+now disposed — per-instance resources immediately; shared geometry and
+cached textures when their cache entry is evicted or the engine is
+disposed. Plane dots are a single `InstancedMesh` per plane instead of
+one mesh per dot. The model cache is capped (20 models by default,
+LRU — see the `modelCacheLimit` config) with a `clearModelCache()`
+escape hatch, and `ARView.destroy()` performs a full engine teardown
+including the renderer and GL context. In v1.0.0 none of this was
+disposed and the cache never evicted. The remaining good practice is
+unchanged: switch with `switchModel()` instead of repeated
+`placeModel()` calls.
 
 ## `takeScreenshot` returns `CAMERA_CAPTURE_UNAVAILABLE`
 
@@ -91,9 +103,11 @@ and hide the feature when it fails. See
 
 ## An awaited `hitTest` never resolves after the user exits AR
 
-The fallback hit-test path resolves from an animation-frame callback; if
-the session ends first, the promise can hang. Guard it in your code with
-a timeout race until the engine resolves it on session end.
+Fixed in 1.1.0: the fallback hit-test promise settles when the session
+ends (resolving `{hit: false, error: 'SESSION_ENDED'}`) and races a
+one-second timeout as a backstop, so it cannot hang. In v1.0.0 it
+resolved only from an animation-frame callback and hung if the session
+ended first — the timeout-race workaround is no longer needed.
 
 ## `npx cap sync` didn't register the Android plugin
 

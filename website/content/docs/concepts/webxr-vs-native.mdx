@@ -14,10 +14,10 @@ corrected, code-verified split.
 | --- | --- | --- |
 | Session start/stop | Yes — `immersive-ar` XR session | Yes — ARCore `Session` via the plugin |
 | Plane detection | Yes — XR planes, dot/mesh visualisation | Yes — planes tracked, surface state events |
-| Hit testing | Yes — centre-screen (viewer space); `x, y` arguments ignored in v1.0.0 | Yes — real per-coordinate hit test against the frame |
+| Hit testing | Yes — centre fast path (viewer space); other `x, y` points get a real ray-based hit test (since 1.1.0; v1.0.0 ignored the coordinates) | Yes — real per-coordinate hit test against the frame |
 | **Model rendering** | **Yes — GLB/GLTF via Three.js, anchored in the scene** | **No — `placeModel` records metadata (id, path, scale, rotation, color) and emits `modelPlaced`, but no renderable is ever created** |
 | Model transforms | Yes — position/rotation/scale on anchors | Registry values only; nothing visible changes |
-| `moveModel` | Centre-hit based (inherits the centre-only hit test) | Resolves `{success: true}` without moving anything |
+| `moveModel` | Hit-test based — moves to the hit at the given `x, y` (centre by default) | Resolves `{success: true}` without moving anything |
 | Colors / textures | Yes — materials are real and rendered | Stored in the registry only |
 | Anchors | Yes — XR anchors drive model poses per frame | No real anchors are created; every placement uses the hardcoded id `"anchor_center"` and the documented `hitId` is ignored |
 | Screenshots | Yes — camera + scene composite (needs camera access) | No |

@@ -70,11 +70,14 @@ with `switchModel()` instead of stacking `placeModel()` calls.
 
 ## Material carry-over caveat
 
-With `preserveMaterial`, the engine copies the **first** material found on
-the old model onto **every** material of the new model. Single-material
-products carry over exactly as you'd expect. A multi-material product
-(fabric body + wooden legs) comes back uniformly colored/textured after a
-switch. If your products are multi-material, pass
+With `preserveMaterial`, each material of the new model inherits colour
+(and map, when the old material has one) from its counterpart on the old
+model — matched by material **name** first, then by traversal order.
+Multi-material products (fabric body + wooden legs) keep their
+per-material styling across a switch. (This is the 1.1.0 behaviour;
+v1.0.0 copied the **first** material onto **every** material, flattening
+multi-material products.) Materials without a counterpart keep the new
+model's own look. For a clean start instead, pass
 `{ preserveMaterial: false }` and re-apply styling explicitly with
 [`setColor`](/docs/guides/colors-and-textures) /
 `applyTexture` after the switch.

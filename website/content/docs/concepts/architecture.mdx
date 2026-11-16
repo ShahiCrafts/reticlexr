@@ -106,13 +106,15 @@ create() ─► setConfig() + startSession({ domOverlay })
   Three.js setup (once): WebGLRenderer, Scene, PerspectiveCamera (70°),
     lights, GLTFLoader, plane groups, reticle
   navigator.xr.requestSession('immersive-ar', {
-    requiredFeatures: ['local-floor', 'hit-test'],
-    optionalFeatures: ['plane-detection'?, 'light-estimation'?,
-                       'camera-access'? (with light estimation),
+    requiredFeatures: ['hit-test'],
+    optionalFeatures: ['local-floor'?, 'plane-detection'?,
+                       'light-estimation'?,
+                       'camera-access'? (only with enableScreenshots),
                        'dom-overlay'? (with overlay)] })
   renderer.xr.setSession(); hit-test source from the viewer space
 
-Per frame: viewer hit test → reticle pose + surface state + frame listeners
+Per frame: viewer hit test → reticle pose + surface state
+  (frame listeners notified on change, at most 10 Hz)
   every 8th frame: detected planes → dot/mesh visualisation
   anchor map → model + shadow transforms → render
 
