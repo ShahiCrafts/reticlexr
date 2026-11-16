@@ -54,9 +54,12 @@ ARCore-capable Android phone with Chrome. Full walkthrough:
 - **Tap-to-place GLB models** with centre reticle and hit testing
 - **Plane detection** with dotted surface visualisation and blob shadows
 - **Gestures** — drag to move, pinch to scale, twist to rotate
-- **Model preloading & switching** with material carry-over
+- **Model preloading & switching** (`switchModel` — keeps placement,
+  scale and rotation) with material carry-over
 - **Runtime customisation** — recolour models and swap textures live
-- **Screenshots** of the AR view from code
+- **Screenshots** of the AR view from code — opt-in per session with
+  `enableScreenshots: true`; on browsers without WebXR camera access
+  `takeScreenshot()` returns `CAMERA_CAPTURE_UNAVAILABLE`
 - **React hook** (`useARCore`) plus a framework-agnostic API
 - **DOM overlays** — your normal buttons and product UI inside AR
 - **Native Android bridge** — ARCore session, hit-test and surface events
@@ -76,13 +79,21 @@ ARCore-capable Android phone with Chrome. Full walkthrough:
 
 <!-- TODO (owner): record a short demo GIF of tap-to-place, pinch and rotate on a real phone and add it here. -->
 
-## Compatibility
+## Compatibility (unverified)
+
+> **Unverified:** no device/browser combination has been recorded as
+> tested yet (COMPAT-06, still TODO). The values below are the code's
+> requirements and the package's build configuration — not a tested
+> support matrix.
 
 - **Browser runtime:** Chrome on an ARCore-capable Android phone, over
   HTTPS. Requires the WebXR `hit-test` feature; `local-floor` is
   requested when available, with `local`/`viewer` fallbacks.
-- **Native:** Android minSdk 24, ARCore 1.40, Capacitor 8. The library
-  manifest marks AR as required, which merges into host apps.
+- **Native:** Android minSdk 24, ARCore 1.40, Capacitor 8 (build
+  configuration). The library manifest declares the AR and camera
+  features `required="false"`, so host apps stay installable on
+  non-AR devices; making AR required is an opt-in (see
+  [docs/INSTALLATION.md](docs/INSTALLATION.md)).
 - **React** ≥ 16.8 (peer). Plain ESM JavaScript with JSDoc; hand-written
   TypeScript declarations ship with the package.
 - Tested device/browser versions are not recorded yet — the honest matrix
