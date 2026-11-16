@@ -39,6 +39,13 @@ the remediation programme and will be completed before release._
   session; plugin destroy stops and joins the render thread and
   destroys all Filament resources in dependency order; the Filament
   engine is created lazily on first use instead of at plugin load.
+- **The Android library manifest no longer forces AR-required onto
+  host apps (NAT-12).** `android.hardware.camera.ar` is now
+  `required="false"` and the `com.google.ar.core` meta-data is
+  `optional`; on devices without ARCore, `checkSupport()` reports
+  unsupported and session entry points fail with coded errors. Hosts
+  that want AR-required can opt in from their own manifest (see
+  docs/INSTALLATION.md).
 - **Screenshots now require an explicit opt-in (SEC-04).**
   `lightEstimation: true` no longer also requests the WebXR
   `camera-access` feature. To use `takeScreenshot()`, start the

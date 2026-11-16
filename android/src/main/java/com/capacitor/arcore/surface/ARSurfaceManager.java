@@ -87,6 +87,17 @@ public class ARSurfaceManager {
     int planeCount = 0;
 
     for (Plane plane : updatedPlanes) {
+      // LEAK-06: prune planes that stopped tracking or were subsumed by
+      // another plane. The registry previously only ever grew, holding
+      // stale Plane handles for the whole session.
+      if (plane.getTrackingState() == TrackingState.STOPPED
+          || plane.getSubsumedBy() != null) {
+        if (trackedPlanes.remove(plane) != null) {
+          Log.d(TAG, "Plane pruned (stopped tracking or subsumed)");
+        }
+        continue;
+      }
+
       if (plane.getTrackingState() != TrackingState.TRACKING) {
         continue;
       }

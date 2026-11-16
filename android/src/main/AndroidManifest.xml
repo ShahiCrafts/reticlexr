@@ -3,14 +3,17 @@
     <!-- Camera permission for AR -->
     <uses-permission android:name="android.permission.CAMERA" />
 
-    <!-- AR features -->
-    <uses-feature android:name="android.hardware.camera.ar" android:required="true" />
+    <!-- AR features. NAT-12: the library must not force AR-required
+         onto every host app — ARCore is optional, so apps stay
+         installable on non-AR devices; hosts that want AR-required
+         opt in from their own manifest (see docs/INSTALLATION.md). -->
+    <uses-feature android:name="android.hardware.camera.ar" android:required="false" />
     <uses-feature android:name="android.hardware.camera" android:required="true" />
 
     <application>
-        <!-- ARCore metadata - indicates this app requires ARCore -->
+        <!-- ARCore metadata - ARCore is optional for host apps (NAT-12) -->
         <meta-data
             android:name="com.google.ar.core"
-            android:value="required" />
+            android:value="optional" />
     </application>
 </manifest>

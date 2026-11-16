@@ -2,6 +2,8 @@ package com.capacitor.arcore.view;
 
 import android.app.Activity;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
 import android.util.Log;
 import android.view.View;
 import android.webkit.WebView;
@@ -167,8 +169,13 @@ public class ARViewManager {
     }
 
     try {
-      // Restore background color exactly
-      capacitorWebView.setBackgroundColor(webViewState.backgroundColor);
+      // Restore background exactly (NAT-11): the captured drawable when
+      // the WebView had one, otherwise the captured colour.
+      if (webViewState.backgroundDrawable != null) {
+        capacitorWebView.setBackground(webViewState.backgroundDrawable);
+      } else {
+        capacitorWebView.setBackgroundColor(webViewState.backgroundColor);
+      }
 
       // Restore layer type exactly
       capacitorWebView.setLayerType(webViewState.layerType, null);
@@ -198,13 +205,26 @@ public class ARViewManager {
    */
   private static class WebViewState {
     int backgroundColor;
+    Drawable backgroundDrawable;
     int layerType;
     float alpha;
     int visibility;
 
     static WebViewState capture(WebView webView) {
       WebViewState state = new WebViewState();
-      state.backgroundColor = Color.TRANSPARENT;  // WebView is typically transparent over AR
+      // NAT-11: capture the WebView's REAL background. The previous
+      // code hardcoded TRANSPARENT, so restoreWebView() forced a
+      // transparent background onto hosts whose WebView was opaque.
+      // A ColorDrawable yields its colour; any other drawable is kept
+      // by reference and restored as-is. A WebView with no background
+      // drawable restores to transparent, matching its capture.
+      Drawable background = webView.getBackground();
+      state.backgroundDrawable = background;
+      if (background instanceof ColorDrawable) {
+        state.backgroundColor = ((ColorDrawable) background).getColor();
+      } else {
+        state.backgroundColor = Color.TRANSPARENT;
+      }
       state.layerType = webView.getLayerType();
       state.alpha = webView.getAlpha();
       state.visibility = webView.getVisibility();
