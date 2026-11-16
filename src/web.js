@@ -101,6 +101,18 @@ export class ARCoreWeb extends WebPlugin {
   }
 
   async checkSupport() {
+    // WebXR is only exposed in secure contexts. Report that distinctly —
+    // on an insecure origin navigator.xr is simply absent, and the generic
+    // "not available" reason sends developers down the wrong path
+    // (COMPAT-02).
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      return {
+        supported: false,
+        reason: "WebXR requires a secure context (HTTPS or localhost)",
+        code: "INSECURE_CONTEXT",
+      };
+    }
+
     if (typeof navigator === "undefined" || !navigator.xr) {
       return { supported: false, reason: "WebXR not available" };
     }
