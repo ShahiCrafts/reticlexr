@@ -7,7 +7,9 @@
  *   to the WebXR engine (`ARCoreWeb`, see web.d.ts).
  * - `ARView` / `createARView` + functional helpers: the high-level
  *   WebXR facade (see ar-view.d.ts).
- * - `useARCore`: the React hook (see hooks.d.ts).
+ * - `useARCore`: the React hook — supported via the `reticlexr/react`
+ *   subpath (see react.d.ts); the root re-export is deprecated
+ *   (API-02).
  * - `createARGestureController`: the gesture controller (see
  *   gestures.d.ts).
  */
@@ -33,11 +35,24 @@ export interface ARCoreHitTestResult {
   error?: string;
 }
 
-export interface ARCorePlaceModelOptions {
-  /** Path to a GLB model (e.g. "models/chair.glb"). */
-  modelPath: string;
-  hitId?: string;
-}
+/**
+ * Facade placeModel options (API-01): exactly one of `modelPath` /
+ * `modelUrl` is required — the facade forwards both to whichever
+ * runtime handles the call.
+ */
+export type ARCorePlaceModelOptions =
+  | {
+      /** Path to a GLB model (e.g. "models/chair.glb"). */
+      modelPath: string;
+      modelUrl?: string;
+      hitId?: string;
+    }
+  | {
+      modelPath?: string;
+      /** Alias for `modelPath` — a GLB URL/path. */
+      modelUrl: string;
+      hitId?: string;
+    };
 
 export interface ARCoreSetTransformOptions {
   modelId: string;
@@ -65,15 +80,29 @@ export interface ARCoreRemoveModelOptions {
   modelId: string;
 }
 
+/** One placed model, as returned by the facade's `getPlacedModels` (API-03). */
+export interface ARCorePlacedModel {
+  modelId: string;
+  /** The same id (the web engine's name for it); prefer `modelId`. */
+  anchorId: string;
+  modelUrl: string;
+  position: number[];
+  rotation: number[];
+  scale: number[];
+}
+
 export interface ARCoreSupportResult {
   supported: boolean;
   reason: string;
+  /** Machine-readable failure code, e.g. 'INSECURE_CONTEXT' (API-05). */
+  code?: string;
 }
 
 /**
  * The native facade's event types (API-07). Events are PER RUNTIME:
- * this is the Android plugin's set, bridged at import time. The WebXR
- * engine emits a different set through its own listener channels
+ * this is the Android plugin's set, bridged lazily on the first
+ * `ARCore.on` subscription (API-02). The WebXR engine emits a
+ * different set through its own listener channels
  * (see `EngineFrameEvent` / `EnginePlaneEvent` in web.d.ts) and never
  * through `ARCore.on`. `surfaceUpdated`, `trackingChanged`,
  * `sessionStarted`, `sessionStopped`, `modelMaterialChanged` and
@@ -93,6 +122,13 @@ export type ARCoreEventType =
   | 'modelMoved'
   | 'error';
 
+/**
+ * The Capacitor facade. Every async method follows the package's
+ * one error convention (API-05): failures reject with an `Error`
+ * carrying a stable `code` — a runtime code when one exists (e.g.
+ * the WebXR engine's `MODEL_NOT_FOUND`), otherwise a per-method
+ * `*_FAILED` fallback.
+ */
 export interface ARCoreFacade {
   startSession(
     options?: ARCoreStartSessionOptions
@@ -101,13 +137,25 @@ export interface ARCoreFacade {
   hitTest(options: ARCoreHitTestOptions): Promise<ARCoreHitTestResult>;
   placeModel(
     options: ARCorePlaceModelOptions
-  ): Promise<{ modelId: string; anchorId: string }>;
+  ): Promise<{
+    modelId: string;
+    /** The same id (the web engine's name for it); prefer `modelId`. */
+    anchorId: string;
+  }>;
   setTransform(options: ARCoreSetTransformOptions): Promise<void>;
   setMaterial(options: ARCoreSetMaterialOptions): Promise<void>;
   moveModel(
     options: ARCoreMoveModelOptions
   ): Promise<ARCoreHitTestResult>;
   removeModel(options: ARCoreRemoveModelOptions): Promise<void>;
+  /**
+   * List the currently placed models (API-03). Web returns the
+   * engine's list; the Android plugin method lands with the native
+   * remediation phase and this rejects on Android until then.
+   */
+  getPlacedModels(): Promise<ARCorePlacedModel[]>;
+  /** Remove every placed model (API-03). Same Android caveat. */
+  clearModels(): Promise<void>;
   checkSupport(): Promise<ARCoreSupportResult>;
   /**
    * Register a listener for facade (native-plugin) events.
@@ -130,14 +178,29 @@ export interface ARCoreFacade {
 export declare const ARCore: ARCoreFacade;
 export default ARCore;
 
+/**
+ * Install the native → local event bridge (API-02). Runs
+ * automatically on the first `ARCore.on()` subscription; idempotent
+ * — repeat calls on the same plugin are no-ops. Application code
+ * never needs to call this directly.
+ *
+ * @internal Exported for verification.
+ */
+export declare function setupEventBridge(
+  plugin?: unknown,
+  bus?: Record<string, Array<(data: unknown) => void>>
+): boolean;
+
 // The WebXR engine's types, re-exported at the root: ARView and the
 // hook expose engine types in their signatures, and the engine itself
-// (ARCHITECTURE.md §2.4) is part of the verified surface. Until the
-// exports map lands (Phase 4), this is how consumers reach them.
+// (ARCHITECTURE.md §2.4) is part of the verified surface. The
+// engine's own entry point is `reticlexr/web` (PKG-03 exports map).
+export { ARError, codedError } from './web.js';
 export type {
   AnchorData,
   ARConfig,
   ARCoreWeb,
+  ARErrorCode,
   ARSessionOptions,
   ARSessionResult,
   ARSupportResult,
@@ -148,6 +211,7 @@ export type {
   HitTestOptions,
   HitTestResult,
   PlaceModelOptions,
+  PlacedModelInfo,
   QuaternionArray,
   RotationInput,
   ScaleInput,
@@ -162,8 +226,18 @@ export type {
   Vector3Object,
 } from './web.js';
 
+/**
+ * @deprecated Import `useARCore` from `reticlexr/react` instead
+ * (API-02). This root re-export keeps working in 1.x and will be
+ * removed in the next major version.
+ */
 export { useARCore } from './hooks.js';
-export type { PlacedModel, PlaneCounts, UseARCoreReturn } from './hooks.js';
+export type {
+  PlacedModel,
+  PlaneCounts,
+  UseARCoreOptions,
+  UseARCoreReturn,
+} from './hooks.js';
 export { createARGestureController } from './gestures.js';
 export type {
   ARGestureController,

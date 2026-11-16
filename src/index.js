@@ -14,7 +14,7 @@
  * Public API:
  * - Session: startSession, stopSession, checkSupport
  * - Hit Testing: hitTest
- * - Model Placement: placeModel, removeModel
+ * - Model Placement: placeModel, removeModel, getPlacedModels, clearModels
  * - Model Transforms: setTransform
  * - Model Material: setMaterial
  * - Model Movement: moveModel
@@ -24,6 +24,19 @@
  */
 
 import { registerPlugin } from '@capacitor/core';
+
+// One error convention (API-05): facade failures reject with an
+// Error carrying a stable `code`. A code arriving from the runtime
+// (the WebXR engine's ARError codes, Capacitor's own codes) is
+// preserved; otherwise the per-method fallback applies. Messages
+// keep their historical 'Failed to …: <cause>' shape.
+function facadeError(prefix, e, fallbackCode) {
+  const err = /** @type {Error & { code?: string }} */ (
+    new Error(prefix + (e && e.message ? e.message : String(e)))
+  );
+  err.code = (e && typeof e.code === 'string' && e.code) || fallbackCode;
+  return err;
+}
 
 // Event emitter for native events
 const eventListeners = {};
@@ -55,7 +68,7 @@ export const ARCore = {
       const result = await ARCoreNative.startSession(options);
       return result;
     } catch (e) {
-      throw new Error('Failed to start AR session: ' + e.message);
+      throw facadeError('Failed to start AR session: ', e, 'SESSION_START_FAILED');
     }
   },
 
@@ -68,7 +81,7 @@ export const ARCore = {
     try {
       await ARCoreNative.stopSession();
     } catch (e) {
-      throw new Error('Failed to stop AR session: ' + e.message);
+      throw facadeError('Failed to stop AR session: ', e, 'SESSION_STOP_FAILED');
     }
   },
 
@@ -85,24 +98,37 @@ export const ARCore = {
       const result = await ARCoreNative.hitTest(options);
       return result;
     } catch (e) {
-      throw new Error('Hit test failed: ' + e.message);
+      throw facadeError('Hit test failed: ', e, 'HIT_TEST_FAILED');
     }
   },
 
   /**
    * Place a GLB model at a hit test location.
    *
+   * One option shape across runtimes (API-01): the native plugin
+   * reads `modelPath`; the WebXR engine's canonical field is
+   * `modelUrl`. The facade accepts either and forwards both, so the
+   * same call works on Android and on web.
+   *
    * @param {Object} options
    * @param {string} [options.modelPath] - Path to GLB model in assets (e.g., "models/chair.glb") (required by the plugin)
+   * @param {string} [options.modelUrl] - Alias for `modelPath` — a GLB URL/path
    * @param {string} [options.hitId] - Optional hit identifier
    * @returns {Promise<{modelId: string, anchorId: string}>}
    */
   placeModel: async (options = {}) => {
     try {
-      const result = await ARCoreNative.placeModel(options);
+      const normalized = { ...options };
+      if (normalized.modelUrl && !normalized.modelPath) {
+        normalized.modelPath = normalized.modelUrl;
+      }
+      if (normalized.modelPath && !normalized.modelUrl) {
+        normalized.modelUrl = normalized.modelPath;
+      }
+      const result = await ARCoreNative.placeModel(normalized);
       return result;
     } catch (e) {
-      throw new Error('Failed to place model: ' + e.message);
+      throw facadeError('Failed to place model: ', e, 'PLACE_MODEL_FAILED');
     }
   },
 
@@ -119,7 +145,7 @@ export const ARCore = {
     try {
       await ARCoreNative.setTransform(options);
     } catch (e) {
-      throw new Error('Failed to update transform: ' + e.message);
+      throw facadeError('Failed to update transform: ', e, 'TRANSFORM_FAILED');
     }
   },
 
@@ -135,7 +161,7 @@ export const ARCore = {
     try {
       await ARCoreNative.setMaterial(options);
     } catch (e) {
-      throw new Error('Failed to update material: ' + e.message);
+      throw facadeError('Failed to update material: ', e, 'MATERIAL_FAILED');
     }
   },
 
@@ -153,7 +179,7 @@ export const ARCore = {
       const result = await ARCoreNative.moveModel(options);
       return result;
     } catch (e) {
-      throw new Error('Failed to move model: ' + e.message);
+      throw facadeError('Failed to move model: ', e, 'MOVE_MODEL_FAILED');
     }
   },
 
@@ -168,7 +194,40 @@ export const ARCore = {
     try {
       await ARCoreNative.removeModel(options);
     } catch (e) {
-      throw new Error('Failed to remove model: ' + e.message);
+      throw facadeError('Failed to remove model: ', e, 'REMOVE_MODEL_FAILED');
+    }
+  },
+
+  /**
+   * List the currently placed models (API-03).
+   *
+   * On web this returns the engine's placed models
+   * (`{modelId, modelUrl, position, rotation, scale}` entries). The
+   * Android plugin method lands with the native remediation phase;
+   * until then this rejects on Android.
+   *
+   * @returns {Promise<Array<Object>>}
+   */
+  getPlacedModels: async () => {
+    try {
+      const result = await ARCoreNative.getPlacedModels();
+      return result;
+    } catch (e) {
+      throw facadeError('Failed to list placed models: ', e, 'GET_PLACED_MODELS_FAILED');
+    }
+  },
+
+  /**
+   * Remove every placed model (API-03). Same Android caveat as
+   * `getPlacedModels`.
+   *
+   * @returns {Promise<void>}
+   */
+  clearModels: async () => {
+    try {
+      await ARCoreNative.clearModels();
+    } catch (e) {
+      throw facadeError('Failed to clear models: ', e, 'CLEAR_MODELS_FAILED');
     }
   },
 
@@ -181,7 +240,8 @@ export const ARCore = {
    *              'modelMaterialChanged', 'modelMoved', 'error'
    *
    * Events are PER RUNTIME (API-07): this list is the native Android
-   * plugin's event set, bridged at import time. The WebXR engine emits
+   * plugin's event set, bridged lazily on the first subscription
+   * (API-02). The WebXR engine emits
    * a different set through its own channels and never through
    * `ARCore.on` — on web, subscribe via `ARView.onFrame`/`onPlanes`
    * (engine frame events: surfaceDetected, surfaceLost, modelPlaced,
@@ -197,6 +257,8 @@ export const ARCore = {
    * @returns {Function} Unsubscribe function
    */
   on: (eventType, callback) => {
+    // First subscription installs the native → local bridge (API-02)
+    setupEventBridge();
     if (!eventListeners[eventType]) {
       eventListeners[eventType] = [];
     }
@@ -212,14 +274,18 @@ export const ARCore = {
   /**
    * Check AR support on this device.
    *
-   * @returns {Promise<{supported: boolean, reason: string}>}
+   * @returns {Promise<{supported: boolean, reason: string, code?: string}>}
    */
   checkSupport: async () => {
     try {
       const result = await ARCoreNative.checkSupport();
       return result;
     } catch (e) {
-      return { supported: false, reason: e.message };
+      return {
+        supported: false,
+        reason: e.message,
+        code: (e && typeof e.code === 'string' && e.code) || 'SUPPORT_CHECK_FAILED',
+      };
     }
   },
 
@@ -235,9 +301,37 @@ export const ARCore = {
 };
 
 /**
- * Setup native event routing
+ * Plugins the event bridge has already been installed on (API-02).
+ * WeakSet so test doubles and re-registrations can be garbage
+ * collected; the registered plugin proxy lives for the page anyway.
  */
-function setupEventBridge() {
+const bridgedPlugins = new WeakSet();
+
+/**
+ * Install the native → local event bridge (API-02).
+ *
+ * The bridge subscribes to the native plugin's events and re-emits
+ * them to `ARCore.on()` listeners. It used to run at import time —
+ * twelve native listeners registered as a module side effect, which
+ * is hostile to SSR, tests and tree-shaking. It now installs lazily
+ * on the first `ARCore.on()` subscription — the earliest moment a
+ * bridged event can have a listener — and it is idempotent:
+ * installing twice on the same plugin is a no-op, so an event can
+ * never be delivered twice through duplicate bridge listeners.
+ *
+ * Exported for verification; application code never needs to call
+ * this directly.
+ *
+ * @param {Object} [plugin] - Plugin to subscribe to (defaults to the
+ *   registered ARCore plugin; injectable for tests)
+ * @param {Object} [bus] - Local listener registry to dispatch into
+ *   (defaults to the facade's registry; injectable for tests)
+ * @returns {boolean} True when this call installed the bridge
+ */
+export function setupEventBridge(plugin = ARCoreNative, bus = eventListeners) {
+  if (bridgedPlugins.has(plugin)) return false;
+  bridgedPlugins.add(plugin);
+
   const eventTypes = [
     'sessionStarted',
     'trackingChanged',
@@ -254,9 +348,9 @@ function setupEventBridge() {
   ];
 
   eventTypes.forEach((eventType) => {
-    ARCoreNative.addListener(eventType, (data) => {
-      if (eventListeners[eventType]) {
-        eventListeners[eventType].forEach((callback) => {
+    plugin.addListener(eventType, (data) => {
+      if (bus[eventType]) {
+        bus[eventType].forEach((callback) => {
           try {
             callback(data);
           } catch (e) {
@@ -266,18 +360,26 @@ function setupEventBridge() {
       }
     });
   });
-}
 
-// Setup bridge when plugin loads
-setupEventBridge();
+  return true;
+}
 
 export default ARCore;
 
-// React integration. Kept as a separate module internally, exported here as the
-// supported high-level API for React applications.
+// React integration. The supported entry for React applications is
+// the `reticlexr/react` subpath (src/react.js, API-02).
+/**
+ * @deprecated Import `useARCore` from `reticlexr/react` instead. The
+ * root re-export keeps working in 1.x but will be removed in the
+ * next major version — while it lives here, the root entry cannot
+ * drop its top-level React import.
+ */
 export { useARCore } from './hooks.js';
 
 export { createARGestureController } from './gestures.js';
+
+// The coded-error type thrown across the public API (API-05).
+export { ARError, codedError } from './web.js';
 
 // High-level abstraction API. Prefer this for application code.
 export { ARView, createARView, takeScreenshot, enableCustomization, addTextures, switchModel, placeModel } from './ar-view.js';

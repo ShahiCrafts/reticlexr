@@ -9,6 +9,7 @@ import {
   DetectedPlaneInfo,
   EngineFrameEvent,
   EnginePlaneEvent,
+  PlacedModelInfo,
   RotationInput,
   ScaleInput,
   ScreenshotOptions,
@@ -52,11 +53,15 @@ export interface ARViewPlaceModelOptions {
 
 export interface ARViewPlaceResult {
   success: boolean;
+  /** Canonical model identifier (API-01). */
   modelId?: string;
+  /** Deprecated alias for `modelId` — the same string. */
   anchorId?: string;
   /** Present on `switchModel` results. */
   modelUrl?: string;
-  /** Failure reason, e.g. 'NO_SURFACE'. */
+  /** Stable failure code, e.g. 'NO_SURFACE' (API-05). */
+  code?: string;
+  /** Deprecated alias for `code` — the same string. */
   reason?: string;
 }
 
@@ -78,6 +83,8 @@ export declare class ARView {
   overlay: HTMLElement | null;
   activeModelId: string | null;
   activeModelUrl: string | null;
+  /** Registry of models placed through this view (API-03): modelId → modelUrl. */
+  placedModelUrls: Map<string, string>;
   /** Local transform state: committed only after the engine accepts
    *  a change (BUG-11). */
   transform: { scale: number; rotationY: number };
@@ -106,6 +113,13 @@ export declare class ARView {
     options?: { preserveMaterial?: boolean }
   ): Promise<ARViewPlaceResult>;
   removeModel(): Promise<void>;
+  /** List the models placed through this view (API-03). */
+  getPlacedModels(): PlacedModelInfo[];
+  /**
+   * Remove every model placed through this view (API-03); disposal
+   * follows the Phase 3 ownership rule.
+   */
+  clearModels(): Promise<void>;
 
   /** Uniform scale, clamped to [0.1, 5] (API-08). */
   setScale(scale: number): Promise<void>;

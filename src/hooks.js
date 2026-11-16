@@ -10,7 +10,7 @@
  *
  * @example
  * // Basic usage in a React component
- * import { useARCore } from 'reticlexr';
+ * import { useARCore } from 'reticlexr/react';
  *
  * function ARComponent() {
  *   const {
@@ -36,9 +36,23 @@ import { useState, useEffect, useCallback, useRef } from "react";
 // We import the class directly rather than the singleton to maintain hook isolation
 import { ARCoreWeb } from "./web.js";
 
-// Create a module-level instance for the hook to use
-// This ensures all hook consumers share the same AR session
-const arCore = new ARCoreWeb();
+/**
+ * The shared default engine (API-04).
+ *
+ * Constructed LAZILY on first use — never at module import — so
+ * importing this module has no side effects (SSR, tests,
+ * tree-shaking). Hook consumers that pass no engine share this one
+ * instance (the historical behaviour: one session, one scene for
+ * the whole app). Consumers that need isolation — multiple
+ * independent AR views, tests, a second overlay — pass their own
+ * engine via `useARCore({ engine })` and get a fully independent
+ * hook instance; the engine is fixed at mount.
+ */
+let sharedEngine = null;
+function getSharedEngine() {
+  if (!sharedEngine) sharedEngine = new ARCoreWeb();
+  return sharedEngine;
+}
 
 /**
  * React hook for using ARCore functionality in React components.
@@ -51,6 +65,12 @@ const arCore = new ARCoreWeb();
  * - Model placement, transformation, and customization
  * - Automatic cleanup on component unmount
  *
+ * @param {Object} [options] - Hook options
+ * @param {ARCoreWeb} [options.engine] - Engine instance this hook
+ *   instance drives (API-04). Fixed at mount. Defaults to a shared
+ *   engine instance (constructed lazily), so existing consumers keep
+ *   the historical one-session-per-app behaviour; pass a dedicated
+ *   `new ARCoreWeb()` (from `reticlexr/web`) for an isolated view.
  * @returns {Object} AR state and methods. Fields:
  *   `isSupported` (boolean|null) — whether AR is supported (null while
  *   checking); `isSessionActive` (boolean); `placedModels` (Array) —
@@ -58,7 +78,8 @@ const arCore = new ARCoreWeb();
  *   error message, if any; `detectedPlanes` ({horizontal, vertical,
  *   total} counts); `surfaceState` — real-time surface detection state;
  *   and the methods `startSession`, `stopSession`, `hitTest`,
- *   `placeModel`, `removeModel`, `transformModel`, `setModelColor`,
+ *   `placeModel`, `removeModel`, `getPlacedModels`, `clearModels`,
+   *   `transformModel`, `setModelColor`,
  *   `setModelMaterial`, `setConfig`, `getConfig`, `setShadowConfig`,
  *   `getShadowConfig`, `setShadowVisible`, `getDetectedPlanes`,
  *   `setReticleVisible`, `setPlaneVisualization`, `clearError`,
@@ -81,7 +102,16 @@ const arCore = new ARCoreWeb();
  *   clearError,
  * } = useARCore();
  */
-export function useARCore() {
+export function useARCore(options = {}) {
+  // Engine resolution (API-04): the instance is chosen once, at
+  // mount — an explicitly passed engine wins, otherwise the shared
+  // default. Every callback below closes over this instance.
+  const engineRef = useRef(null);
+  if (engineRef.current === null) {
+    engineRef.current = options.engine || getSharedEngine();
+  }
+  const arCore = engineRef.current;
+
   // ============================================================
   // State Management
   // ============================================================
@@ -100,7 +130,8 @@ export function useARCore() {
 
   /**
    * Array of currently placed models in the scene
-   * Each model object contains: anchorId, modelUrl, position, rotation, scale
+   * Each model object contains: modelId, modelUrl, position, rotation,
+   * scale — plus anchorId, the deprecated alias of modelId (API-01)
    */
   const [placedModels, setPlacedModels] = useState([]);
 
@@ -227,6 +258,7 @@ export function useARCore() {
           setPlacedModels((prev) => [
             ...prev,
             {
+              modelId: data.modelId ?? data.anchorId,
               anchorId: data.anchorId,
               modelUrl: data.modelUrl,
               position: data.position,
@@ -237,13 +269,13 @@ export function useARCore() {
         } else if (data.type === "modelRemoved") {
           // A model was removed - filter it out
           setPlacedModels((prev) =>
-            prev.filter((m) => m.anchorId !== data.anchorId)
+            prev.filter((m) => m.modelId !== (data.modelId ?? data.anchorId))
           );
         } else if (data.type === "modelTransformed") {
           // A model's transform changed - update its properties
           setPlacedModels((prev) =>
             prev.map((m) =>
-              m.anchorId === data.anchorId
+              m.modelId === (data.modelId ?? data.anchorId)
                 ? {
                     ...m,
                     position: data.position || m.position,
@@ -377,7 +409,7 @@ export function useARCore() {
     async (x, y) => {
       // Guard: require active session for hit testing
       if (!isSessionActive) {
-        return { hit: false, error: "Session not active" };
+        return { hit: false, code: "SESSION_NOT_ACTIVE", error: "Session not active" };
       }
 
       try {
@@ -385,7 +417,7 @@ export function useARCore() {
       } catch (err) {
         const errorMsg = err.message || "Unknown error";
         setError(errorMsg);
-        return { hit: false, error: errorMsg };
+        return { hit: false, code: err.code || "HIT_TEST_FAILED", error: errorMsg };
       }
     },
     [isSessionActive]
@@ -408,9 +440,10 @@ export function useARCore() {
    *   {x, y, z, w}, or Euler rotation in radians {x, y, z}
    * @param {number|number[]|Object} [scale] - Uniform scale number, or
    *   per-axis [x, y, z] / {x, y, z}
-   * @returns {Promise<Object>} Result: `anchorId` (string) — unique ID
-   *   for the placed model; or `error` (string) — error message if
-   *   failed
+   * @returns {Promise<Object>} Result: `modelId` (string) — the
+   *   canonical unique ID for the placed model (`anchorId`, the same
+   *   string, is included as a deprecated alias); or `error`
+   *   (string) — error message if failed
    *
    * @example
    * const result = await placeModel(
@@ -420,15 +453,15 @@ export function useARCore() {
    *   { x: 1, y: 1, z: 1 }
    * );
    *
-   * if (result.anchorId) {
-   *   setCurrentModelId(result.anchorId);
+   * if (result.modelId) {
+   *   setCurrentModelId(result.modelId);
    * }
    */
   const placeModel = useCallback(
     async (modelUrl, position, rotation, scale) => {
       // Guard: require active session for placing models
       if (!isSessionActive) {
-        return { error: "Session not active" };
+        return { error: "Session not active", code: "SESSION_NOT_ACTIVE" };
       }
 
       try {
@@ -442,7 +475,7 @@ export function useARCore() {
       } catch (err) {
         const errorMsg = err.message || "Unknown error";
         setError(errorMsg);
-        return { error: errorMsg };
+        return { error: errorMsg, code: err.code || "PLACE_MODEL_FAILED" };
       }
     },
     [isSessionActive]
@@ -451,16 +484,45 @@ export function useARCore() {
   /**
    * Remove a placed model from the AR scene.
    *
-   * @param {string} anchorId - The ID of the model to remove
+   * @param {string} modelId - The ID of the model to remove
    * @returns {Promise<void>}
    *
    * @example
    * await removeModel(currentModelId);
    * setCurrentModelId(null);
    */
-  const removeModel = useCallback(async (anchorId) => {
+  const removeModel = useCallback(async (modelId) => {
     try {
-      await arCore.removeModel({ anchorId });
+      await arCore.removeModel({ modelId });
+    } catch (err) {
+      setError(err.message || "Unknown error");
+    }
+  }, []);
+
+  /**
+   * List the currently placed models (API-03), read live from the
+   * engine: `{ modelId, modelUrl, position, rotation, scale }`
+   * entries (`anchorId` included as the deprecated alias of
+   * `modelId`). The `placedModels` state mirrors the same list.
+   *
+   * @returns {Array<Object>} Placed model entries
+   */
+  const getPlacedModels = useCallback(() => {
+    return arCore.getPlacedModels();
+  }, []);
+
+  /**
+   * Remove every placed model (API-03). The engine disposes
+   * per-instance resources under the Phase 3 ownership rule and
+   * emits a modelRemoved event per model, which also keeps the
+   * `placedModels` state in sync.
+   *
+   * @returns {Promise<void>}
+   */
+  const clearModels = useCallback(async () => {
+    try {
+      await arCore.clearModels();
+      setPlacedModels([]);
     } catch (err) {
       setError(err.message || "Unknown error");
     }
@@ -472,7 +534,7 @@ export function useARCore() {
    * You can provide any combination of position, rotation, and scale.
    * Only the properties you provide will be updated.
    *
-   * @param {string} anchorId - The ID of the model to transform
+   * @param {string} modelId - The ID of the model to transform
    * @param {Object} transforms - Transform properties to apply
    * @param {number[]|Object} [transforms.position] - New position:
    *   [x, y, z] or {x, y, z}
@@ -493,10 +555,10 @@ export function useARCore() {
    *   scale: { x: 1.5, y: 1.5, z: 1.5 }
    * });
    */
-  const transformModel = useCallback(async (anchorId, transforms) => {
+  const transformModel = useCallback(async (modelId, transforms) => {
     try {
       await arCore.transformModel({
-        anchorId,
+        modelId,
         ...transforms,
       });
     } catch (err) {
@@ -514,7 +576,7 @@ export function useARCore() {
    * This applies a color tint to the model's materials.
    * Works best with models that have neutral base colors.
    *
-   * @param {string} anchorId - The ID of the model to color
+   * @param {string} modelId - The ID of the model to color
    * @param {string} color - CSS color value (hex, rgb, or named color)
    * @returns {Promise<void>}
    *
@@ -525,9 +587,9 @@ export function useARCore() {
    * // Set model to red
    * await setModelColor(modelId, 'rgb(255, 0, 0)');
    */
-  const setModelColor = useCallback(async (anchorId, color) => {
+  const setModelColor = useCallback(async (modelId, color) => {
     try {
-      await arCore.setModelColor({ anchorId, color });
+      await arCore.setModelColor({ modelId, color });
     } catch (err) {
       setError(err.message || "Unknown error");
     }
@@ -539,7 +601,7 @@ export function useARCore() {
    * Allows fine-grained control over material appearance including
    * metalness, roughness, and opacity for realistic rendering.
    *
-   * @param {string} anchorId - The ID of the model to modify
+   * @param {string} modelId - The ID of the model to modify
    * @param {Object} properties - Material properties to set
    * @param {number} [properties.metalness] - Metallic look (0-1)
    * @param {number} [properties.roughness] - Surface roughness (0-1)
@@ -560,9 +622,9 @@ export function useARCore() {
    *   opacity: 0.7
    * });
    */
-  const setModelMaterial = useCallback(async (anchorId, properties) => {
+  const setModelMaterial = useCallback(async (modelId, properties) => {
     try {
-      await arCore.setModelMaterial({ anchorId, ...properties });
+      await arCore.setModelMaterial({ modelId, ...properties });
     } catch (err) {
       setError(err.message || "Unknown error");
     }
@@ -710,7 +772,7 @@ export function useARCore() {
   const takeScreenshot = useCallback(
     async (options = {}) => {
       if (!isSessionActive) {
-        return { success: false, error: "Session not active" };
+        return { success: false, code: "SESSION_NOT_ACTIVE", error: "Session not active" };
       }
 
       const result = await arCore.takeScreenshot(options);
@@ -748,11 +810,11 @@ export function useARCore() {
 
   /**
    * Show or hide shadow for a specific model.
-   * @param {string} anchorId - ID of the model
+   * @param {string} modelId - ID of the model
    * @param {boolean} visible - Whether shadow should be visible
    */
-  const setShadowVisible = useCallback((anchorId, visible) => {
-    arCore.setShadowVisible(anchorId, visible);
+  const setShadowVisible = useCallback((modelId, visible) => {
+    arCore.setShadowVisible(modelId, visible);
   }, []);
 
   // ============================================================
@@ -776,6 +838,8 @@ export function useARCore() {
     hitTest,
     placeModel,
     removeModel,
+    getPlacedModels,
+    clearModels,
     transformModel,
 
     // Customization

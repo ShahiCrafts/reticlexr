@@ -78,13 +78,14 @@ Three details matter:
 3. **`switchModel` for switching.** The older README example used
    `placeModel` here with a comment claiming state carries over — it does
    not. `placeModel` performs a fresh centre hit test and adds a new model
-   (the old one stays, unreachable). See
+   (the old one stays placed — list them with `getPlacedModels()`, remove
+   them with `clearModels()`). See
    [Model preloading & switching](/docs/guides/model-preloading-and-switching).
 
 ## The `useARCore` hook
 
 ```jsx title="HookExample.jsx"
-import { useARCore } from 'reticlexr';
+import { useARCore } from 'reticlexr/react';
 
 export default function HookExample({ overlayRef }) {
   const ar = useARCore();

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ARCoreWeb, SCALE_MIN, SCALE_MAX } from './web.js';
+import { ARCoreWeb, SCALE_MIN, SCALE_MAX, codedError } from './web.js';
 import { createARGestureController } from './gestures.js';
 
 /** High-level, framework-agnostic AR facade. React/Vue/plain DOM can all use this. */
@@ -9,6 +9,10 @@ export class ARView {
     this.overlay = options.overlay || null;
     this.activeModelId = null;
     this.activeModelUrl = null;
+    // Registry of every model placed through this view (API-03):
+    // modelId -> modelUrl. placeModel can place more than the one
+    // active model; without this they were unreachable orphans.
+    this.placedModelUrls = new Map();
     this.gestures = null;
     this.textures = new Map();
     this.transform = { scale: 1, rotationY: 0 };
@@ -42,6 +46,9 @@ export class ARView {
   async destroy() {
     this.gestures?.destroy();
     this.gestures = null;
+    this.placedModelUrls.clear();
+    this.activeModelId = null;
+    this.activeModelUrl = null;
     // Full engine teardown (LEAK-03): ends the session AND releases
     // the renderer/GL context and model cache. The engine — and this
     // view, via create() — can be started again afterwards.
@@ -71,28 +78,56 @@ export class ARView {
    */
   async placeModel(modelUrl, options = {}) {
     const hit = options.position ? { hit: true, position: options.position, rotation: options.rotation } : await this.engine.hitTest({ x: options.x ?? .5, y: options.y ?? .5 });
-    if (!hit.hit) return { success: false, reason: 'NO_SURFACE' };
+    if (!hit.hit) return { success: false, code: 'NO_SURFACE', reason: 'NO_SURFACE' };
     const scale = options.scale ?? this.transform.scale;
     const rotation = options.rotation || hit.rotation || [0,0,0,1];
     const result = await this.engine.placeModel({ modelUrl, position: hit.position, rotation, scale });
-    this.activeModelId = result.anchorId;
+    this.activeModelId = result.modelId;
     this.activeModelUrl = modelUrl;
-    return { success: true, modelId: result.anchorId, ...result };
+    this.placedModelUrls.set(result.modelId, modelUrl);
+    return { success: true, modelId: result.modelId, ...result };
   }
 
   /** Replace the placed model without asking the user to place again. Position/rotation/scale are preserved. */
   async switchModel(modelUrl, options = {}) {
     if (!this.activeModelId) return this.placeModel(modelUrl, options);
-    const result = await this.engine.switchModel({ anchorId: this.activeModelId, modelUrl, preserveMaterial: options.preserveMaterial !== false });
+    const result = await this.engine.switchModel({ modelId: this.activeModelId, modelUrl, preserveMaterial: options.preserveMaterial !== false });
     this.activeModelUrl = modelUrl;
+    this.placedModelUrls.set(this.activeModelId, modelUrl);
     return { success: true, modelId: this.activeModelId, ...result };
   }
 
   async removeModel() {
     if (!this.activeModelId) return;
-    await this.engine.removeModel({ anchorId: this.activeModelId });
+    await this.engine.removeModel({ modelId: this.activeModelId });
+    this.placedModelUrls.delete(this.activeModelId);
     this.activeModelId = null;
     this.activeModelUrl = null;
+  }
+
+  /**
+   * List the models placed through this view (API-03), with their
+   * current transforms — see the engine's `getPlacedModels`.
+   */
+  getPlacedModels() {
+    return this.engine
+      .getPlacedModels()
+      .filter((m) => this.placedModelUrls.has(m.modelId));
+  }
+
+  /**
+   * Remove every model placed through this view (API-03). Each
+   * removal goes through the engine's removeModel, so disposal
+   * follows the Phase 3 ownership rule.
+   */
+  async clearModels() {
+    for (const modelId of Array.from(this.placedModelUrls.keys())) {
+      await this.engine.removeModel({ modelId });
+    }
+    this.placedModelUrls.clear();
+    this.activeModelId = null;
+    this.activeModelUrl = null;
+    this.transform = { scale: 1, rotationY: 0 };
   }
 
   /**
@@ -103,7 +138,7 @@ export class ARView {
   async setScale(scale) {
     if (!this.activeModelId) return;
     const s = Math.max(SCALE_MIN, Math.min(SCALE_MAX, scale));
-    await this.engine.transformModel({ anchorId: this.activeModelId, scale: [s,s,s] });
+    await this.engine.transformModel({ modelId: this.activeModelId, scale: [s,s,s] });
     // Commit local state only after the engine accepts it, so a failed
     // call cannot leave the facade's transform ahead of the scene (BUG-11)
     this.transform.scale = s;
@@ -113,13 +148,13 @@ export class ARView {
     if (!this.activeModelId) return;
     const rotationY = this.transform.rotationY + radians;
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rotationY, 0)).toArray();
-    await this.engine.transformModel({ anchorId: this.activeModelId, rotation: q });
+    await this.engine.transformModel({ modelId: this.activeModelId, rotation: q });
     this.transform.rotationY = rotationY;
   }
 
   async setColor(color) {
     if (!this.activeModelId) return;
-    await this.engine.setModelColor({ anchorId: this.activeModelId, color });
+    await this.engine.setModelColor({ modelId: this.activeModelId, color });
   }
 
   addTextures(textures) {
@@ -128,13 +163,13 @@ export class ARView {
   }
 
   async applyTexture(nameOrUrl, options = {}) {
-    if (!this.activeModelId) throw new Error('Place a model before applying a texture');
+    if (!this.activeModelId) throw codedError('NO_ACTIVE_MODEL', 'Place a model before applying a texture');
     const url = this.textures.get(nameOrUrl) || nameOrUrl;
-    return this.engine.setModelTexture({ anchorId: this.activeModelId, textureUrl: url, materialName: options.materialName });
+    return this.engine.setModelTexture({ modelId: this.activeModelId, textureUrl: url, materialName: options.materialName });
   }
 
   enableCustomization(options = {}) {
-    if (!this.overlay) throw new Error('createARView requires an overlay element before enabling gestures');
+    if (!this.overlay) throw codedError('OVERLAY_REQUIRED', 'createARView requires an overlay element before enabling gestures');
     this.gestures?.destroy();
     this.gestures = createARGestureController({
       element: this.overlay,

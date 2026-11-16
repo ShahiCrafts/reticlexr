@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="docs/assets/banner.svg" width="100%" alt="reticlexr: a high-level AR SDK. Put real products into your customers' rooms. Surfaces, models and gestures, handled.">
+  <img src="https://raw.githubusercontent.com/ShahiCrafts/reticlexr/main/docs/assets/banner.svg" width="100%" alt="reticlexr: a high-level AR SDK. Put real products into your customers' rooms. Surfaces, models and gestures, handled.">
 </p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/reticlexr"><img src="https://img.shields.io/npm/v/reticlexr?color=cb3837&logo=npm" alt="npm version"></a>
   <a href="https://www.npmjs.com/package/reticlexr"><img src="https://img.shields.io/npm/dm/reticlexr" alt="npm downloads"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="license: MIT"></a>
+  <a href="https://github.com/ShahiCrafts/reticlexr/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="license: MIT"></a>
   <img src="https://img.shields.io/badge/platform-WebXR%20%7C%20Android-blue" alt="platforms: WebXR and Android">
   <img src="https://img.shields.io/badge/React-Capacitor-61dafb?logo=react&logoColor=white" alt="React and Capacitor">
   <a href="https://reticlexr.vercel.app"><img src="https://img.shields.io/badge/docs-reticlexr.vercel.app-5740d8" alt="documentation site"></a>
@@ -28,9 +28,9 @@ npm install reticlexr
 npx cap sync
 ```
 
-> ⚠️ v1.0.0's `package.json` has no `capacitor` metadata key, so
-> `cap sync` discovery is unverified in a clean app. If the plugin is not
-> picked up, include it by hand — see
+> The package ships the `capacitor` metadata key, so `npx cap sync`
+> discovers the Android plugin automatically — verified in a clean
+> scratch Capacitor app. Details:
 > [Capacitor setup](https://reticlexr.vercel.app/docs/getting-started#capacitor-setup).
 
 ## Quick start
@@ -70,9 +70,9 @@ ARCore-capable Android phone with Chrome. Full walkthrough:
 | 🚀 Getting started | [getting-started](https://reticlexr.vercel.app/docs/getting-started) |
 | 🧩 API reference | [docs/api](https://reticlexr.vercel.app/docs/api) |
 | ▶️ Live demo | [reticlexr.vercel.app/demo](https://reticlexr.vercel.app/demo) — open it on your phone |
-| 🐞 Known issues | [docs/known-issues](https://reticlexr.vercel.app/docs/known-issues) · audit in [AUDIT.md](AUDIT.md) |
-| 🗺️ Architecture | [docs/concepts/architecture](https://reticlexr.vercel.app/docs/concepts/architecture) · [ARCHITECTURE.md](ARCHITECTURE.md) |
-| 📋 Changelog | [docs/changelog](https://reticlexr.vercel.app/docs/changelog) · [CHANGELOG.md](CHANGELOG.md) |
+| 🐞 Known issues | [docs/known-issues](https://reticlexr.vercel.app/docs/known-issues) · audit in [AUDIT.md](https://github.com/ShahiCrafts/reticlexr/blob/main/AUDIT.md) |
+| 🗺️ Architecture | [docs/concepts/architecture](https://reticlexr.vercel.app/docs/concepts/architecture) · [ARCHITECTURE.md](https://github.com/ShahiCrafts/reticlexr/blob/main/ARCHITECTURE.md) |
+| 📋 Changelog | [docs/changelog](https://reticlexr.vercel.app/docs/changelog) · [CHANGELOG.md](https://github.com/ShahiCrafts/reticlexr/blob/main/CHANGELOG.md) |
 
 <!-- TODO (owner): record a short demo GIF of tap-to-place, pinch and rotate on a real phone and add it here. -->
 
@@ -90,11 +90,11 @@ ARCore-capable Android phone with Chrome. Full walkthrough:
 
 ## Contributing
 
-Issues and PRs are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) or
+Issues and PRs are welcome — see [CONTRIBUTING.md](https://github.com/ShahiCrafts/reticlexr/blob/main/CONTRIBUTING.md) or
 the [contributing guide](https://reticlexr.vercel.app/docs/contributing).
 Please ground bug reports in a device model, Android and Chrome version:
 the compatibility matrix is built from exactly those reports.
 
 ## License
 
-MIT © Saugat Shahi — see [LICENSE](LICENSE).
+MIT © Saugat Shahi — see [LICENSE](https://github.com/ShahiCrafts/reticlexr/blob/main/LICENSE).

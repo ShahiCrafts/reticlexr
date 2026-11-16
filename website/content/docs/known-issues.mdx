@@ -50,13 +50,28 @@ are marked *(fixed in 1.1.0)*. Everything unmarked is still open.
   *(fixed in 1.1.0 — materials matched by name, then traversal order)*
 - **One active model, no enumeration.** The facade can't list placed
   models or clear them all; models placed by repeated `placeModel` calls
-  become unreachable.
+  become unreachable. *(fixed in 1.1.0 — `getPlacedModels()` /
+  `clearModels()` on the engine, `ARView`, the facade and the hook;
+  `ARView` tracks every placement)*
 - **Shared hook engine.** All `useARCore` consumers share one engine;
-  one unmount stops everyone's session.
+  one unmount stops everyone's session. *(fixed in 1.1.0 —
+  `useARCore({ engine })` drives an instance-scoped engine; the shared
+  default remains for existing consumers and is constructed lazily)*
 - **Four error conventions** across layers (thrown errors, `{hit:false}`,
-  `{success:false, reason}`, coded screenshot errors).
+  `{success:false, reason}`, coded screenshot errors). *(fixed in
+  1.1.0 — one coded-error convention: `ARError` rejections and `code`
+  fields on result-object failures)*
 - **Importing the package requires React** (the entry re-exports the
   hook) and runs an event-bridge setup as an import side effect.
+  *(partly fixed in 1.1.0 — the hook's supported entry is the
+  `reticlexr/react` subpath and the event bridge installs lazily and
+  idempotently; the root entry still re-exports the hook as a
+  deprecated alias, so the root import still pulls React until the
+  next major version)*
+- **Two model-identifier systems** (`modelId` in the facade,
+  `anchorId` in the engine) and two `placeModel` option shapes.
+  *(fixed in 1.1.0 — `modelId` is canonical everywhere; `anchorId`
+  and `modelPath` are deprecated aliases)*
 
 ## Native Android
 
@@ -118,21 +133,26 @@ model-cache eviction API, and an `engine.dispose()` · plane dots via
 `InstancedMesh` · serve native hit tests from the render loop's frame
 snapshot · bounded availability retry and lazy Filament init · first
 unit tests (gestures, hook event mapping) plus a Gradle assemble job in
-CI · a `reticlexr/react` subpath export with a lazy event bridge.
+CI · ~~a `reticlexr/react` subpath export with a lazy event bridge~~
+*(done in 1.1.0)*.
 
 ### Larger decisions
 
 **Native model rendering**: implement gltfio loading and real anchors
 natively, *or* formally scope the native plugin to session + hit-test
-and keep the claims corrected. Then: unify model identifiers, option
+and keep the claims corrected. Then: ~~unify model identifiers, option
 shapes and one coded-error convention across runtimes; a per-instance
-hook engine (or provider); code-split the AR stack in the example; and
+hook engine (or provider)~~ *(done in 1.1.0)*; code-split the AR stack
+in the example; and
 a TypeScript migration so this API reference can be generated instead
 of hand-maintained.
 
 <Todo>
 Not yet verifiable anywhere: `npm audit` results (the audit environment
-couldn't reach the audit endpoint), SSR safety under a framework
-prerender, and all compatibility-matrix values. Each is marked TODO at
-its point of use on this site rather than asserted.
+couldn't reach the audit endpoint) and all compatibility-matrix
+values. Each is marked TODO at its point of use on this site rather
+than asserted. SSR safety is verified at the package level (every
+entry imports DOM-free and a `useARCore` page server-renders against
+the packed tarball); a full framework prerender (e.g. Next.js) has
+not been run yet.
 </Todo>

@@ -60,6 +60,40 @@ export declare const SCALE_MIN: number;
 export declare const SCALE_MAX: number;
 export declare function clampScale(scale: Vector3Array): Vector3Array;
 
+/** Stable machine-readable error codes used across the package (API-05). */
+export type ARErrorCode =
+  | 'SESSION_START_FAILED'
+  | 'SESSION_NOT_ACTIVE'
+  | 'SESSION_ENDED'
+  | 'HIT_TEST_FAILED'
+  | 'HIT_TEST_TIMEOUT'
+  | 'HIT_TEST_UNAVAILABLE'
+  | 'NO_VIEWER_POSE'
+  | 'MODEL_NOT_FOUND'
+  | 'MODEL_URL_REQUIRED'
+  | 'MODEL_LOAD_FAILED'
+  | 'NO_SURFACE'
+  | 'NO_ACTIVE_MODEL'
+  | 'OVERLAY_REQUIRED'
+  | 'CAMERA_CAPTURE_UNAVAILABLE'
+  | 'CAPTURE_BUSY'
+  | 'INSECURE_CONTEXT'
+  | (string & {});
+
+/**
+ * The one error type thrown by reticlexr's public APIs (API-05):
+ * an `Error` with a stable, machine-readable `code`. Result-object
+ * APIs (hitTest, takeScreenshot) resolve with the same `code` on
+ * their failure results instead of rejecting.
+ */
+export declare class ARError extends Error {
+  code: string;
+  constructor(code: string, message: string);
+}
+
+/** Build an {@link ARError} (API-05). */
+export declare function codedError(code: string, message: string): ARError;
+
 export declare function rayFromScreenPoint(
   viewerTransform: {
     position: { x: number; y: number; z: number };
@@ -134,12 +168,14 @@ export interface HitTestResult {
   position?: Vector3Array;
   rotation?: QuaternionArray;
   planeType?: string;
+  /** Stable failure code when `hit` is false (API-05). */
+  code?: string;
   error?: string;
 }
 
 export interface PlaceModelOptions {
   modelUrl?: string;
-  /** Alias for `modelUrl`. */
+  /** Deprecated alias for `modelUrl` (API-01). */
   modelPath?: string;
   position?: Vector3Input;
   rotation?: RotationInput;
@@ -147,10 +183,25 @@ export interface PlaceModelOptions {
 }
 
 export interface TransformModelOptions {
-  anchorId: string;
+  /** Canonical model identifier (API-01). */
+  modelId?: string;
+  /** Deprecated alias for `modelId` — the same string. */
+  anchorId?: string;
   position?: Vector3Input;
   rotation?: RotationInput;
   scale?: ScaleInput;
+}
+
+/** One placed model, as returned by `getPlacedModels` (API-03). */
+export interface PlacedModelInfo {
+  /** Canonical model identifier (API-01). */
+  modelId: string;
+  /** Deprecated alias for `modelId` — the same string. */
+  anchorId: string;
+  modelUrl: string;
+  position: Vector3Array;
+  rotation: QuaternionArray;
+  scale: Vector3Array;
 }
 
 /** Stored transform state for one placed model. */
@@ -225,23 +276,45 @@ export type EngineFrameEvent =
   | { type: 'surfaceLost'; hasSurface: false }
   | {
       type: 'modelPlaced';
+      /** Canonical identifier (API-01). */
+      modelId: string;
+      /** Deprecated alias for `modelId` — the same string. */
       anchorId: string;
       modelUrl: string;
       position: Vector3Array;
       rotation: QuaternionArray;
       scale: Vector3Array;
     }
-  | { type: 'modelRemoved'; anchorId: string }
+  | {
+      type: 'modelRemoved';
+      modelId: string;
+      /** Deprecated alias for `modelId`. */
+      anchorId: string;
+    }
   | {
       type: 'modelTransformed';
+      modelId: string;
+      /** Deprecated alias for `modelId`. */
       anchorId: string;
       modelUrl: string;
       position: Vector3Array;
       rotation: QuaternionArray;
       scale: Vector3Array;
     }
-  | { type: 'modelColorChanged'; anchorId: string; color: string }
-  | { type: 'modelSwitched'; anchorId: string; modelUrl: string }
+  | {
+      type: 'modelColorChanged';
+      modelId: string;
+      /** Deprecated alias for `modelId`. */
+      anchorId: string;
+      color: string;
+    }
+  | {
+      type: 'modelSwitched';
+      modelId: string;
+      /** Deprecated alias for `modelId`. */
+      anchorId: string;
+      modelUrl: string;
+    }
   | { type: 'sessionEnded' };
 
 /** Plane-listener events emitted by the WebXR engine (API-07). */
@@ -294,11 +367,31 @@ export declare class ARCoreWeb extends WebPlugin {
   setReticleVisible(visible: boolean): void;
 
   loadModel(modelUrl: string): Promise<THREE.Object3D>;
-  placeModel(options: PlaceModelOptions): Promise<{ anchorId: string }>;
-  removeModel(options: { anchorId: string }): Promise<void>;
+  /**
+   * Place a model. Resolves with the canonical `modelId` (API-01);
+   * `anchorId` is its deprecated alias — the same string.
+   */
+  placeModel(
+    options: PlaceModelOptions
+  ): Promise<{ modelId: string; anchorId: string }>;
+  removeModel(options: {
+    modelId?: string;
+    /** Deprecated alias for `modelId`. */
+    anchorId?: string;
+  }): Promise<void>;
+  /** List the currently placed models (API-03). */
+  getPlacedModels(): PlacedModelInfo[];
+  /**
+   * Remove every placed model (API-03). Disposal follows the
+   * ownership rule: per-instance resources are disposed, the model
+   * cache survives.
+   */
+  clearModels(): Promise<void>;
   transformModel(options: TransformModelOptions): Promise<void>;
   switchModel(options: {
-    anchorId: string;
+    modelId?: string;
+    /** Deprecated alias for `modelId`. */
+    anchorId?: string;
     modelUrl: string;
     /**
      * Carry the old model's materials onto the new one (BUG-09):
@@ -308,20 +401,34 @@ export declare class ARCoreWeb extends WebPlugin {
      * counterpart keep their own look. Default true.
      */
     preserveMaterial?: boolean;
-  }): Promise<{ anchorId: string; modelUrl: string }>;
+  }): Promise<{ modelId: string; anchorId: string; modelUrl: string }>;
 
-  setModelColor(options: { anchorId: string; color: string }): Promise<void>;
+  setModelColor(options: {
+    modelId?: string;
+    /** Deprecated alias for `modelId`. */
+    anchorId?: string;
+    color: string;
+  }): Promise<void>;
   setModelMaterial(options: {
-    anchorId: string;
+    modelId?: string;
+    /** Deprecated alias for `modelId`. */
+    anchorId?: string;
     metalness?: number;
     roughness?: number;
     opacity?: number;
   }): Promise<void>;
   setModelTexture(options: {
-    anchorId: string;
+    modelId?: string;
+    /** Deprecated alias for `modelId`. */
+    anchorId?: string;
     textureUrl: string;
     materialName?: string;
-  }): Promise<{ success: boolean; anchorId: string; textureUrl: string }>;
+  }): Promise<{
+    success: boolean;
+    modelId: string;
+    anchorId: string;
+    textureUrl: string;
+  }>;
 
   /**
    * Capacitor-facade compatibility shim. Note the facade convention:
@@ -350,7 +457,7 @@ export declare class ARCoreWeb extends WebPlugin {
     y?: number;
   }): Promise<HitTestResult & { success?: boolean }>;
 
-  setShadowVisible(anchorId: string, visible: boolean): void;
+  setShadowVisible(modelId: string, visible: boolean): void;
   setShadowConfig(config?: Partial<ShadowConfig>): void;
   getShadowConfig(): ShadowConfig;
 

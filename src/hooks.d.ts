@@ -1,11 +1,12 @@
 /**
  * Type declarations for the React hook (`src/hooks.js`).
- * The hook wraps a module-level singleton engine and mirrors its
- * state into React state.
+ * By default every hook consumer shares one lazily-constructed
+ * engine; pass `{ engine }` for an instance-scoped hook (API-04).
  */
 import type * as THREE from 'three';
 import {
   ARConfig,
+  ARCoreWeb,
   ARSessionOptions,
   DetectedPlaneInfo,
   HitTestResult,
@@ -21,6 +22,9 @@ import {
 } from './web.js';
 
 export interface PlacedModel {
+  /** Canonical model identifier (API-01). */
+  modelId: string;
+  /** Deprecated alias for `modelId` — the same string. */
   anchorId: string;
   modelUrl: string;
   position: Vector3Array;
@@ -63,17 +67,24 @@ export interface UseARCoreReturn {
     position?: Vector3Input,
     rotation?: RotationInput,
     scale?: ScaleInput
-  ) => Promise<{ anchorId: string } | { error: string }>;
-  removeModel: (anchorId: string) => Promise<void>;
+  ) => Promise<
+    | { modelId: string; anchorId: string }
+    | { error: string; code?: string }
+  >;
+  removeModel: (modelId: string) => Promise<void>;
+  /** List the currently placed models, read live from the engine (API-03). */
+  getPlacedModels: () => PlacedModel[];
+  /** Remove every placed model (API-03); also clears the state mirror. */
+  clearModels: () => Promise<void>;
   transformModel: (
-    anchorId: string,
+    modelId: string,
     transforms: ModelTransforms
   ) => Promise<void>;
 
   // Customization
-  setModelColor: (anchorId: string, color: string) => Promise<void>;
+  setModelColor: (modelId: string, color: string) => Promise<void>;
   setModelMaterial: (
-    anchorId: string,
+    modelId: string,
     properties: {
       metalness?: number;
       roughness?: number;
@@ -88,7 +99,7 @@ export interface UseARCoreReturn {
   // Shadow controls
   setShadowConfig: (config: Partial<ShadowConfig>) => void;
   getShadowConfig: () => ShadowConfig;
-  setShadowVisible: (anchorId: string, visible: boolean) => void;
+  setShadowVisible: (modelId: string, visible: boolean) => void;
 
   // Plane detection & visualization
   getDetectedPlanes: () => DetectedPlaneInfo[];
@@ -107,4 +118,18 @@ export interface UseARCoreReturn {
   takeScreenshot: (options?: ScreenshotOptions) => Promise<ScreenshotResult>;
 }
 
-export declare function useARCore(): UseARCoreReturn;
+/** Options for {@link useARCore} (API-04). */
+export interface UseARCoreOptions {
+  /**
+   * Engine instance this hook instance drives. Fixed at mount.
+   * Defaults to a shared engine (constructed lazily on first use),
+   * preserving the historical one-session-per-app behaviour; pass a
+   * dedicated `new ARCoreWeb()` (from `reticlexr/web`) for an
+   * isolated AR view.
+   */
+  engine?: ARCoreWeb;
+}
+
+export declare function useARCore(
+  options?: UseARCoreOptions
+): UseARCoreReturn;
