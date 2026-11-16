@@ -2,9 +2,42 @@
   "name": "reticlexr",
   "version": "1.0.0",
   "description": "High-level AR abstraction for Capacitor and React with WebXR, ARCore, Three.js, gestures, model customization, and DOM overlays.",
+  "type": "module",
   "main": "src/index.js",
   "module": "src/index.js",
   "types": "src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js",
+      "default": "./src/index.js"
+    },
+    "./react": {
+      "types": "./src/react.d.ts",
+      "import": "./src/react.js",
+      "default": "./src/react.js"
+    },
+    "./web": {
+      "types": "./src/web.d.ts",
+      "import": "./src/web.js",
+      "default": "./src/web.js"
+    },
+    "./ar-view": {
+      "types": "./src/ar-view.d.ts",
+      "import": "./src/ar-view.js",
+      "default": "./src/ar-view.js"
+    },
+    "./gestures": {
+      "types": "./src/gestures.d.ts",
+      "import": "./src/gestures.js",
+      "default": "./src/gestures.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": [
+    "./src/index.js",
+    "./src/hooks.js"
+  ],
   "scripts": {
     "check-types": "tsc --noEmit --checkJs"
   },

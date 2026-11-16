@@ -23,6 +23,14 @@ the remediation programme and will be completed before release._
   the package no longer registers twelve native listeners as a side
   effect; the bridge installs on the first `ARCore.on()`
   subscription and is idempotent. No behaviour change for listeners.
+- **The package declares ESM and an exports map (PKG-03).**
+  `"type": "module"` plus an `exports` map covering `.`,
+  `./react`, `./web`, `./ar-view`, `./gestures` and `./package.json`.
+  Deep imports outside the map (e.g. `reticlexr/src/web.js`) no
+  longer resolve under Node/bundler exports rules — use the
+  subpaths. `sideEffects` is declared accurately: only the root
+  entry (plugin registration) and the hook module (shared-engine
+  construction) have import-time effects.
 
 ### Added
 

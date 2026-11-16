@@ -148,8 +148,8 @@ export declare function setupEventBridge(
 
 // The WebXR engine's types, re-exported at the root: ARView and the
 // hook expose engine types in their signatures, and the engine itself
-// (ARCHITECTURE.md §2.4) is part of the verified surface. Until the
-// exports map lands (Phase 4), this is how consumers reach them.
+// (ARCHITECTURE.md §2.4) is part of the verified surface. The
+// engine's own entry point is `reticlexr/web` (PKG-03 exports map).
 export type {
   AnchorData,
   ARConfig,
