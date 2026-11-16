@@ -50,6 +50,15 @@ the remediation programme and will be completed before release._
   hook keeps its historical behaviour — one shared engine for the
   app — except that the shared engine is now constructed lazily on
   first use instead of at module import.
+- **Enumerate and clear placed models (API-03).**
+  `getPlacedModels()` and `clearModels()` now exist on the engine,
+  `ARView`, the `ARCore` facade and the `useARCore` hook. `ARView`
+  tracks every model placed through it (previously only the active
+  model was reachable and repeat placements became orphans).
+  Clearing routes each removal through `removeModel`, so disposal
+  follows the ownership rule. The Android plugin methods land with
+  the native remediation phase; the facade methods reject on
+  Android until then.
 
 ### Deprecated
 

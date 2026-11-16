@@ -9,6 +9,7 @@ import {
   DetectedPlaneInfo,
   EngineFrameEvent,
   EnginePlaneEvent,
+  PlacedModelInfo,
   RotationInput,
   ScaleInput,
   ScreenshotOptions,
@@ -80,6 +81,8 @@ export declare class ARView {
   overlay: HTMLElement | null;
   activeModelId: string | null;
   activeModelUrl: string | null;
+  /** Registry of models placed through this view (API-03): modelId → modelUrl. */
+  placedModelUrls: Map<string, string>;
   /** Local transform state: committed only after the engine accepts
    *  a change (BUG-11). */
   transform: { scale: number; rotationY: number };
@@ -108,6 +111,13 @@ export declare class ARView {
     options?: { preserveMaterial?: boolean }
   ): Promise<ARViewPlaceResult>;
   removeModel(): Promise<void>;
+  /** List the models placed through this view (API-03). */
+  getPlacedModels(): PlacedModelInfo[];
+  /**
+   * Remove every model placed through this view (API-03); disposal
+   * follows the Phase 3 ownership rule.
+   */
+  clearModels(): Promise<void>;
 
   /** Uniform scale, clamped to [0.1, 5] (API-08). */
   setScale(scale: number): Promise<void>;

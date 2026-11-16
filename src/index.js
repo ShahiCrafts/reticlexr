@@ -14,7 +14,7 @@
  * Public API:
  * - Session: startSession, stopSession, checkSupport
  * - Hit Testing: hitTest
- * - Model Placement: placeModel, removeModel
+ * - Model Placement: placeModel, removeModel, getPlacedModels, clearModels
  * - Model Transforms: setTransform
  * - Model Material: setMaterial
  * - Model Movement: moveModel
@@ -182,6 +182,39 @@ export const ARCore = {
       await ARCoreNative.removeModel(options);
     } catch (e) {
       throw new Error('Failed to remove model: ' + e.message);
+    }
+  },
+
+  /**
+   * List the currently placed models (API-03).
+   *
+   * On web this returns the engine's placed models
+   * (`{modelId, modelUrl, position, rotation, scale}` entries). The
+   * Android plugin method lands with the native remediation phase;
+   * until then this rejects on Android.
+   *
+   * @returns {Promise<Array<Object>>}
+   */
+  getPlacedModels: async () => {
+    try {
+      const result = await ARCoreNative.getPlacedModels();
+      return result;
+    } catch (e) {
+      throw new Error('Failed to list placed models: ' + e.message);
+    }
+  },
+
+  /**
+   * Remove every placed model (API-03). Same Android caveat as
+   * `getPlacedModels`.
+   *
+   * @returns {Promise<void>}
+   */
+  clearModels: async () => {
+    try {
+      await ARCoreNative.clearModels();
+    } catch (e) {
+      throw new Error('Failed to clear models: ' + e.message);
     }
   },
 

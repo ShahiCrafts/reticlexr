@@ -69,6 +69,10 @@ export interface UseARCoreReturn {
     scale?: ScaleInput
   ) => Promise<{ modelId: string; anchorId: string } | { error: string }>;
   removeModel: (modelId: string) => Promise<void>;
+  /** List the currently placed models, read live from the engine (API-03). */
+  getPlacedModels: () => PlacedModel[];
+  /** Remove every placed model (API-03); also clears the state mirror. */
+  clearModels: () => Promise<void>;
   transformModel: (
     modelId: string,
     transforms: ModelTransforms

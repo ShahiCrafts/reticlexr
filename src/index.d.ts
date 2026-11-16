@@ -80,6 +80,17 @@ export interface ARCoreRemoveModelOptions {
   modelId: string;
 }
 
+/** One placed model, as returned by the facade's `getPlacedModels` (API-03). */
+export interface ARCorePlacedModel {
+  modelId: string;
+  /** The same id (the web engine's name for it); prefer `modelId`. */
+  anchorId: string;
+  modelUrl: string;
+  position: number[];
+  rotation: number[];
+  scale: number[];
+}
+
 export interface ARCoreSupportResult {
   supported: boolean;
   reason: string;
@@ -128,6 +139,14 @@ export interface ARCoreFacade {
     options: ARCoreMoveModelOptions
   ): Promise<ARCoreHitTestResult>;
   removeModel(options: ARCoreRemoveModelOptions): Promise<void>;
+  /**
+   * List the currently placed models (API-03). Web returns the
+   * engine's list; the Android plugin method lands with the native
+   * remediation phase and this rejects on Android until then.
+   */
+  getPlacedModels(): Promise<ARCorePlacedModel[]>;
+  /** Remove every placed model (API-03). Same Android caveat. */
+  clearModels(): Promise<void>;
   checkSupport(): Promise<ARCoreSupportResult>;
   /**
    * Register a listener for facade (native-plugin) events.
@@ -181,6 +200,7 @@ export type {
   HitTestOptions,
   HitTestResult,
   PlaceModelOptions,
+  PlacedModelInfo,
   QuaternionArray,
   RotationInput,
   ScaleInput,

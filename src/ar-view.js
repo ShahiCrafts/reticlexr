@@ -9,6 +9,10 @@ export class ARView {
     this.overlay = options.overlay || null;
     this.activeModelId = null;
     this.activeModelUrl = null;
+    // Registry of every model placed through this view (API-03):
+    // modelId -> modelUrl. placeModel can place more than the one
+    // active model; without this they were unreachable orphans.
+    this.placedModelUrls = new Map();
     this.gestures = null;
     this.textures = new Map();
     this.transform = { scale: 1, rotationY: 0 };
@@ -42,6 +46,9 @@ export class ARView {
   async destroy() {
     this.gestures?.destroy();
     this.gestures = null;
+    this.placedModelUrls.clear();
+    this.activeModelId = null;
+    this.activeModelUrl = null;
     // Full engine teardown (LEAK-03): ends the session AND releases
     // the renderer/GL context and model cache. The engine — and this
     // view, via create() — can be started again afterwards.
@@ -77,6 +84,7 @@ export class ARView {
     const result = await this.engine.placeModel({ modelUrl, position: hit.position, rotation, scale });
     this.activeModelId = result.modelId;
     this.activeModelUrl = modelUrl;
+    this.placedModelUrls.set(result.modelId, modelUrl);
     return { success: true, modelId: result.modelId, ...result };
   }
 
@@ -85,14 +93,41 @@ export class ARView {
     if (!this.activeModelId) return this.placeModel(modelUrl, options);
     const result = await this.engine.switchModel({ modelId: this.activeModelId, modelUrl, preserveMaterial: options.preserveMaterial !== false });
     this.activeModelUrl = modelUrl;
+    this.placedModelUrls.set(this.activeModelId, modelUrl);
     return { success: true, modelId: this.activeModelId, ...result };
   }
 
   async removeModel() {
     if (!this.activeModelId) return;
     await this.engine.removeModel({ modelId: this.activeModelId });
+    this.placedModelUrls.delete(this.activeModelId);
     this.activeModelId = null;
     this.activeModelUrl = null;
+  }
+
+  /**
+   * List the models placed through this view (API-03), with their
+   * current transforms — see the engine's `getPlacedModels`.
+   */
+  getPlacedModels() {
+    return this.engine
+      .getPlacedModels()
+      .filter((m) => this.placedModelUrls.has(m.modelId));
+  }
+
+  /**
+   * Remove every model placed through this view (API-03). Each
+   * removal goes through the engine's removeModel, so disposal
+   * follows the Phase 3 ownership rule.
+   */
+  async clearModels() {
+    for (const modelId of Array.from(this.placedModelUrls.keys())) {
+      await this.engine.removeModel({ modelId });
+    }
+    this.placedModelUrls.clear();
+    this.activeModelId = null;
+    this.activeModelUrl = null;
+    this.transform = { scale: 1, rotationY: 0 };
   }
 
   /**

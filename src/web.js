@@ -2139,6 +2139,44 @@ export class ARCoreWeb extends WebPlugin {
   }
 
   /**
+   * List the models currently placed in the scene (API-03).
+   *
+   * @returns {Array<{modelId: string, anchorId: string, modelUrl: string, position: number[], rotation: number[], scale: number[]}>}
+   *   One entry per placed model, in placement order. Transform
+   *   arrays are copies — mutating them does not affect the scene.
+   */
+  getPlacedModels() {
+    const placed = [];
+    this.loadedModels.forEach((model, anchorId) => {
+      const anchor = this.anchors.get(anchorId);
+      if (!anchor) return;
+      placed.push({
+        modelId: anchorId,
+        anchorId,
+        modelUrl: anchor.modelUrl,
+        position: [...anchor.position],
+        rotation: [...anchor.rotation],
+        scale: [...anchor.scale],
+      });
+    });
+    return placed;
+  }
+
+  /**
+   * Remove every placed model (API-03).
+   *
+   * Each model goes through `removeModel`, so per-instance
+   * resources are disposed under the OWNERSHIP RULE (Phase 3) and a
+   * `modelRemoved` event fires per model. Cache-owned resources are
+   * NOT disposed — the model cache survives a clear.
+   */
+  async clearModels() {
+    for (const anchorId of Array.from(this.loadedModels.keys())) {
+      await this.removeModel({ modelId: anchorId });
+    }
+  }
+
+  /**
    * Apply a new position/rotation/scale to a placed model.
    * Transform inputs accept the same shapes as `placeModel` (BUG-01);
    * omitted or unrecognisable values leave the current transform intact.

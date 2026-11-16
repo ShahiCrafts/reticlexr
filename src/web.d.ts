@@ -156,6 +156,18 @@ export interface TransformModelOptions {
   scale?: ScaleInput;
 }
 
+/** One placed model, as returned by `getPlacedModels` (API-03). */
+export interface PlacedModelInfo {
+  /** Canonical model identifier (API-01). */
+  modelId: string;
+  /** Deprecated alias for `modelId` — the same string. */
+  anchorId: string;
+  modelUrl: string;
+  position: Vector3Array;
+  rotation: QuaternionArray;
+  scale: Vector3Array;
+}
+
 /** Stored transform state for one placed model. */
 export interface AnchorData {
   modelUrl: string;
@@ -331,6 +343,14 @@ export declare class ARCoreWeb extends WebPlugin {
     /** Deprecated alias for `modelId`. */
     anchorId?: string;
   }): Promise<void>;
+  /** List the currently placed models (API-03). */
+  getPlacedModels(): PlacedModelInfo[];
+  /**
+   * Remove every placed model (API-03). Disposal follows the
+   * ownership rule: per-instance resources are disposed, the model
+   * cache survives.
+   */
+  clearModels(): Promise<void>;
   transformModel(options: TransformModelOptions): Promise<void>;
   switchModel(options: {
     modelId?: string;

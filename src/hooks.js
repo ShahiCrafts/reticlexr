@@ -78,7 +78,8 @@ function getSharedEngine() {
  *   error message, if any; `detectedPlanes` ({horizontal, vertical,
  *   total} counts); `surfaceState` — real-time surface detection state;
  *   and the methods `startSession`, `stopSession`, `hitTest`,
- *   `placeModel`, `removeModel`, `transformModel`, `setModelColor`,
+ *   `placeModel`, `removeModel`, `getPlacedModels`, `clearModels`,
+   *   `transformModel`, `setModelColor`,
  *   `setModelMaterial`, `setConfig`, `getConfig`, `setShadowConfig`,
  *   `getShadowConfig`, `setShadowVisible`, `getDetectedPlanes`,
  *   `setReticleVisible`, `setPlaneVisualization`, `clearError`,
@@ -499,6 +500,35 @@ export function useARCore(options = {}) {
   }, []);
 
   /**
+   * List the currently placed models (API-03), read live from the
+   * engine: `{ modelId, modelUrl, position, rotation, scale }`
+   * entries (`anchorId` included as the deprecated alias of
+   * `modelId`). The `placedModels` state mirrors the same list.
+   *
+   * @returns {Array<Object>} Placed model entries
+   */
+  const getPlacedModels = useCallback(() => {
+    return arCore.getPlacedModels();
+  }, []);
+
+  /**
+   * Remove every placed model (API-03). The engine disposes
+   * per-instance resources under the Phase 3 ownership rule and
+   * emits a modelRemoved event per model, which also keeps the
+   * `placedModels` state in sync.
+   *
+   * @returns {Promise<void>}
+   */
+  const clearModels = useCallback(async () => {
+    try {
+      await arCore.clearModels();
+      setPlacedModels([]);
+    } catch (err) {
+      setError(err.message || "Unknown error");
+    }
+  }, []);
+
+  /**
    * Transform a placed model (move, rotate, or scale).
    *
    * You can provide any combination of position, rotation, and scale.
@@ -808,6 +838,8 @@ export function useARCore(options = {}) {
     hitTest,
     placeModel,
     removeModel,
+    getPlacedModels,
+    clearModels,
     transformModel,
 
     // Customization
