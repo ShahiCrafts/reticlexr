@@ -744,10 +744,10 @@ export class ARCoreWeb extends WebPlugin {
         this.viewerSpace = null;
       });
 
-      // Reset state
+      // Reset transient state (config.showReticle is the user preference
+      // and must survive session restarts — BUG-04)
       this.modelPlaced = false;
       this.reticleVisible = false;
-      this.config.showReticle = true;
 
       console.log("[ARCore] Session started - showReticle:", this.config.showReticle, "planeDetection:", this.planeDetectionSupported);
 
@@ -1223,7 +1223,6 @@ export class ARCoreWeb extends WebPlugin {
       // Keep surface feedback active after placement. This lets users see where
       // another object could be placed and avoids losing spatial context.
       this.modelPlaced = true;
-      this.config.showReticle = true;
 
       this.frameListeners.forEach((cb) =>
         cb({
@@ -1265,7 +1264,6 @@ export class ARCoreWeb extends WebPlugin {
     this.anchors.delete(anchorId);
 
     this.modelPlaced = this.loadedModels.size > 0;
-    this.config.showReticle = true;
 
     this.frameListeners.forEach((cb) => cb({ type: "modelRemoved", anchorId }));
   }
