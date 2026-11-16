@@ -18,7 +18,6 @@ import {
   LuPackage,
   LuPlay,
   LuRefreshCcw,
-  LuSmartphone,
   LuUsers,
 } from 'react-icons/lu';
 import { NAV } from '@/lib/nav';
@@ -66,45 +65,6 @@ function FallbackIcon() {
   return <LuFileText {...iconProps} />;
 }
 
-function DemoIcon() {
-  return <LuSmartphone {...iconProps} />;
-}
-
-/* ---------- Bottom card ---------- */
-
-/** Flat isometric cube in the site's blue scale. */
-function CubeArt() {
-  return (
-    <svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true" className="shrink-0">
-      <polygon points="24,5 41,14 24,23 7,14" fill="#93c5fd" />
-      <polygon points="7,14 24,23 24,41 7,32" fill="#2563eb" />
-      <polygon points="24,23 41,14 41,32 24,41" fill="#60a5fa" />
-    </svg>
-  );
-}
-
-function DemoCard({ onNavigate }: { onNavigate?: () => void }) {
-  return (
-    <div className="mt-10 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/5">
-      <div className="flex items-start gap-3.5">
-        <CubeArt />
-        <div className="min-w-0">
-          <p className="text-[15px] font-semibold leading-snug text-slate-900 dark:text-white">
-            Build amazing AR experiences with reticlexr.
-          </p>
-          <Link
-            href="/demo"
-            onClick={onNavigate}
-            className="mt-2 inline-block text-sm font-medium text-blue-600 hover:text-blue-700 focus-visible:outline-2 focus-visible:outline-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
-          >
-            View demo →
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ---------- Nav ---------- */
 
 function NavItem({
@@ -120,7 +80,7 @@ function NavItem({
   active?: boolean;
   onNavigate?: () => void;
 }) {
-  const icon = slug ? (ICONS[slug]?.(active) ?? <FallbackIcon />) : <DemoIcon />;
+  const icon = ICONS[slug ?? '']?.(active) ?? <FallbackIcon />;
   return (
     <li className="relative">
       {active && (
@@ -133,7 +93,7 @@ function NavItem({
         href={href}
         onClick={onNavigate}
         aria-current={active ? 'page' : undefined}
-        className={`flex items-center gap-3 py-4 pl-4 pr-3 text-sm leading-6 focus-visible:outline-2 focus-visible:outline-blue-500 ${
+        className={`flex items-center gap-3 pl-4 pr-3 text-sm leading-6 focus-visible:outline-2 focus-visible:outline-blue-500 ${
           active
             ? 'font-medium text-[#030712] dark:text-white'
             : 'text-[#4A5565] hover:text-[#030712] dark:text-slate-400 dark:hover:text-white'
@@ -150,17 +110,16 @@ function NavItem({
 
 /** Docs sidebar: small-caps section titles, icon items whose list carries
     a 1px vertical track line; the active item is marked by a 2px
-    near-black bar segment over that track (no filled background), and a
-    demo card at the bottom. */
+    near-black bar segment over that track (no filled background). */
 export function SidebarNav({ currentSlug, onNavigate }: { currentSlug?: string; onNavigate?: () => void }) {
   return (
     <nav aria-label="Documentation">
       {NAV.map((section, i) => (
-        <div key={section.title} className={i > 0 ? 'mt-10' : undefined}>
-          <h3 className="mb-2 font-mono text-xs font-medium uppercase tracking-[0.1em] text-[#6A7282] dark:text-slate-400">
+        <div key={section.title} className={i > 0 ? 'mt-8' : undefined}>
+          <h3 className="mb-3 font-mono text-xs font-medium uppercase tracking-[0.1em] text-[#6A7282] dark:text-slate-400">
             {section.title}
           </h3>
-          <ul className="space-y-0.5 border-l border-slate-200 dark:border-white/10">
+          <ul className="space-y-3.5 border-l border-slate-200 dark:border-white/10">
             {section.pages.map((page) => (
               <NavItem
                 key={page.slug}
@@ -174,15 +133,6 @@ export function SidebarNav({ currentSlug, onNavigate }: { currentSlug?: string; 
           </ul>
         </div>
       ))}
-      <div className="mt-10">
-        <h3 className="mb-2 font-mono text-xs font-medium uppercase tracking-[0.1em] text-[#6A7282] dark:text-slate-400">
-          Try it
-        </h3>
-        <ul className="space-y-0.5 border-l border-slate-200 dark:border-white/10">
-          <NavItem href="/demo" title="Live demo" onNavigate={onNavigate} />
-        </ul>
-      </div>
-      <DemoCard onNavigate={onNavigate} />
     </nav>
   );
 }

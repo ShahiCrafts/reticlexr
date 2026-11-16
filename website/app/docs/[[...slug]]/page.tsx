@@ -13,6 +13,7 @@ import { SidebarNav } from '@/components/Sidebar';
 import { Toc } from '@/components/Toc';
 import { CopyEnhancer } from '@/components/CopyEnhancer';
 import { mdxComponents } from '@/components/mdx-components';
+import { LuPencil } from 'react-icons/lu';
 
 export function generateStaticParams() {
   return FLAT_PAGES.map((p) => ({ slug: p.slug.split('/') }));
@@ -36,7 +37,7 @@ function GutterStrip() {
   return (
     <div
       aria-hidden="true"
-      className="gutter-strip hidden w-10 shrink-0 border-x border-slate-200 lg:block dark:border-white/10"
+      className="gutter-strip hidden w-5 shrink-0 border-x border-slate-200 lg:block dark:border-white/10"
     />
   );
 }
@@ -53,11 +54,15 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
   const searchIndex = getSearchIndex();
 
   return (
-    <DocsShell currentSlug={slugStr} searchIndex={searchIndex}>
+    <DocsShell
+      currentSlug={slugStr}
+      searchIndex={searchIndex}
+      breadcrumb={{ section: section?.title, title: page.title }}
+    >
       <div className="flex">
         {/* Left sidebar — plain text nav, own scroll (scrollbar hidden),
-            sticky under the top bar. 288px wide, 24px padding. */}
-        <aside className="no-scrollbar sticky top-[72px] hidden max-h-[calc(100vh-72px)] w-72 shrink-0 overflow-y-auto p-6 lg:block">
+            sticky under the top bar. 320px wide, 24px padding. */}
+        <aside className="no-scrollbar sticky top-[72px] hidden max-h-[calc(100vh-72px)] w-80 shrink-0 overflow-y-auto p-6 lg:block">
           <SidebarNav currentSlug={slugStr} />
         </aside>
 
@@ -106,16 +111,18 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
 
           <CopyEnhancer />
 
-          <div className="mx-auto mt-14 max-w-3xl">
-            <a
-              href={editUrl(page.filePath)}
-              target="_blank"
-              rel="noreferrer"
-              className="text-sm text-slate-500 hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-blue-500 dark:text-slate-400 dark:hover:text-white"
-            >
-              Edit this page on GitHub →
-            </a>
-          </div>
+          {/* Floating edit button — same GitHub edit target as the old
+              "Edit this page on GitHub" text link, as a FAB */}
+          <a
+            href={editUrl(page.filePath)}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Edit this page on GitHub"
+            title="Edit this page on GitHub"
+            className="fixed right-6 top-[7.5rem] z-30 flex h-12 w-12 items-center justify-center rounded-full bg-[#030712] text-white shadow-lg shadow-slate-950/25 transition hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 lg:top-20 dark:bg-white dark:text-slate-950 dark:shadow-black/40 dark:hover:bg-slate-200"
+          >
+            <LuPencil size={19} strokeWidth={1.9} aria-hidden />
+          </a>
 
           {/* Prev / Next — plain text links with small chevrons, no boxes,
               borders or backgrounds (Tailwind-docs style) */}

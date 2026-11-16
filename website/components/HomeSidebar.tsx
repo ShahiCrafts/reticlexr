@@ -199,7 +199,7 @@ export function HomeSidebar() {
       </div>
 
       <div className="mt-8 flex items-center justify-between px-3 text-xs text-slate-500 dark:text-slate-400">
-        <span>v1.0.0 • MIT License</span>
+        <span>v1.1.0 • MIT License</span>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="#fb7185" aria-hidden="true">
           <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
         </svg>

@@ -17,7 +17,7 @@ promise.
 
 | Requirement | Source | Tested versions |
 | --- | --- | --- |
-| Secure context (HTTPS or `localhost`) | WebXR platform rule; the library does not special-case it | — |
+| Secure context (HTTPS or `localhost`) | WebXR platform rule; `checkSupport()` reports it with a distinct `INSECURE_CONTEXT` code | — |
 | `immersive-ar` session support | `navigator.xr.requestSession('immersive-ar', …)` | TODO |
 | `hit-test` feature | Required feature at session creation | TODO |
 | `local-floor` feature | Requested first at session creation; falls back to `local`, then `viewer` when unavailable | TODO |
@@ -61,13 +61,13 @@ AR required is an opt-in from your own manifest — see the
 | `@capacitor/core` | `^8.5.2` (peer) | Provided by the host Capacitor app |
 | `three` | `^0.180.0` (peer) | Provided by the host app — one shared copy; duplicates break GLTF class identity |
 | Module format | ESM (`type: module`) with an `exports` map | Subpaths: `.`, `./react`, `./web`, `./ar-view`, `./gestures`, `./package.json` |
-| TypeScript | Hand-written declarations ship (`src/*.d.ts`) | JSDoc in the implementation is type-checked in CI (`tsc --checkJs`) |
+| TypeScript | Hand-written declarations ship (`src/*.d.ts`) | JSDoc in the implementation is type-checked by `npm run check-types` (`tsc --checkJs`) |
 
 ## Devices
 
 <Todo>
 Device matrix is empty by honesty, not by oversight: no device has been
-recorded as tested with v1.0.0. If you run the demo on your phone,
+recorded as tested with any release. If you run the demo on your phone,
 reporting the device model, Android version and Chrome version (in a
 GitHub issue) directly fills this table.
 </Todo>

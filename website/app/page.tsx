@@ -41,25 +41,25 @@ const FEATURE_CARDS: Array<{
 }> = [
   {
     title: 'WebXR Powered',
-    body: 'Leverage ARCore on Android with ease.',
+    body: 'Model rendering on WebXR, backed by ARCore on Android.',
     href: '/docs/concepts/webxr-vs-native',
     icon: <LuPackage size={22} strokeWidth={1.8} aria-hidden />,
   },
   {
     title: 'Simple API',
-    body: 'A clean and intuitive API for AR experiences.',
+    body: 'A small API for placing and styling models in AR.',
     href: '/docs/api',
     icon: <LuZap size={22} strokeWidth={1.8} aria-hidden />,
   },
   {
     title: 'React Ready',
-    body: 'Built for modern React applications.',
+    body: 'A dedicated hook for React applications.',
     href: '/docs/guides/react-integration',
     icon: <LuAtom size={22} strokeWidth={1.5} aria-hidden />,
   },
   {
     title: 'Open Source',
-    body: 'Contribute and grow with us.',
+    body: 'MIT licensed; contributions welcome.',
     href: GITHUB_URL,
     external: true,
     icon: <FaGithub size={22} aria-hidden />,
@@ -82,10 +82,10 @@ function ArCoreIcon() {
 export default function LandingPage() {
   const searchIndex = getSearchIndex();
   return (
-    <div className="flex min-h-screen flex-col bg-white text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
+    <div className="flex min-h-screen flex-col overflow-x-clip bg-white text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
       <TopBar searchIndex={searchIndex} />
 
-      <div className="mx-auto w-full max-w-7xl flex-1 px-4 sm:px-8">
+      <div className="mx-auto w-full max-w-[90rem] flex-1 px-4 sm:px-6">
         <main className="min-w-0 pb-20 pt-10">
           {/* Hero */}
           <section className="grid items-center gap-14 lg:grid-cols-[1.05fr_0.95fr]">
@@ -101,7 +101,7 @@ export default function LandingPage() {
                 your customers&rsquo; rooms.
               </h1>
               <p className="mt-6 max-w-xl text-lg leading-relaxed text-slate-600 dark:text-slate-300">
-                reticlexr absorbs WebXR sessions, Three.js scenes, GLTF loading, hit testing,
+                reticlexr absorbs WebXR sessions, Three.js scenes, glTF loading, hit testing,
                 plane visualisation and multi-touch gesture math behind a small API — so your app
                 can focus on products and UI.
               </p>
@@ -123,7 +123,7 @@ export default function LandingPage() {
               <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2">
                 <CheckItem label="ARCore Ready" />
                 <CheckItem label="React Friendly" />
-                <CheckItem label="Smooth Performance" />
+                <CheckItem label="MIT Licensed" />
               </div>
             </div>
 
@@ -171,7 +171,7 @@ export default function LandingPage() {
                 Get started in minutes
               </h2>
               <p className="mt-3 leading-relaxed text-slate-600 dark:text-slate-300">
-                Add AR to your React app with just a few lines of code.
+                Add AR to your React app with a few lines of code.
               </p>
               <Link
                 href="/docs/getting-started"
@@ -228,32 +228,6 @@ export default function LandingPage() {
             </div>
           </section>
 
-          {/* Honest native note */}
-          <section className="mt-20" aria-label="Platform notes">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
-              <h2 className="font-semibold text-slate-900 dark:text-white">
-                Native Android: session + hit-test today; model rendering runs on WebXR
-              </h2>
-              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-                Two runtimes sit behind the package, and they are not at feature parity yet: models
-                render in the WebXR runtime, while the native Capacitor plugin provides ARCore
-                session management, hit testing and surface events. The live demo runs in your
-                browser — open it on an ARCore-capable Android phone over HTTPS to place a model in
-                your room.
-              </p>
-              <p className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium">
-                <Link href="/docs/concepts/webxr-vs-native" className="text-blue-700 hover:underline focus-visible:outline-2 focus-visible:outline-blue-500 dark:text-blue-300">
-                  WebXR vs native ARCore
-                </Link>
-                <Link href="/docs/known-issues" className="text-blue-700 hover:underline focus-visible:outline-2 focus-visible:outline-blue-500 dark:text-blue-300">
-                  Known issues &amp; roadmap
-                </Link>
-                <Link href="/docs/compatibility" className="text-blue-700 hover:underline focus-visible:outline-2 focus-visible:outline-blue-500 dark:text-blue-300">
-                  Compatibility
-                </Link>
-              </p>
-            </div>
-          </section>
         </main>
       </div>
 

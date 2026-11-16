@@ -60,7 +60,7 @@ the session; the rest of this list is 1.1.0 behaviour). Disposal:
 The plugin's `load()` constructs its managers once; the Filament
 engine is created **lazily** on first use (if it cannot initialise,
 session entry points fail with a coded `FILAMENT_UNAVAILABLE`
-instead of leaving a poisoned renderer).
+instead of leaving the renderer in a broken state).
 `startSession` then: camera permission → ARCore availability / install →
 `Session` creation and configuration → native view inserted behind the
 WebView, which is made transparent.

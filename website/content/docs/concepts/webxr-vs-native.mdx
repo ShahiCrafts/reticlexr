@@ -18,7 +18,7 @@ corrected, code-verified split, updated for 1.1.0.
 | **Model rendering** | **Yes — GLB/GLTF via Three.js, anchored in the scene** | **No — `placeModel` rejects with `NOT_IMPLEMENTED`; there is no native renderer (Option B, see below)** |
 | Model transforms | Yes — position/rotation/scale on placed models | `setTransform` / `setMaterial` reject with `NOT_IMPLEMENTED` |
 | `moveModel` | Hit-test based (centre or ray) | Rejects with `NOT_IMPLEMENTED` |
-| Colors / textures | Yes — materials are real and rendered | Via the WebXR runtime only |
+| Colours / textures | Yes — materials are real and rendered | Via the WebXR runtime only |
 | Anchors | Yes — XR anchors drive model poses per frame | Hit tests create real ARCore anchors and return their `anchorId`; there are no native model placements to anchor |
 | Screenshots | Yes — camera + scene composite (needs the `enableScreenshots` opt-in) | No |
 | Gestures | Yes — Pointer Events controller over the DOM overlay | Via your web UI (the WebView stays on top) |
@@ -38,7 +38,7 @@ corrected, code-verified split, updated for 1.1.0.
 - **Building a product viewer today:** use the WebXR path
   (`createARView`). It is the only runtime that renders models, and it
   runs on ARCore-capable Android devices through Chrome or the Capacitor
-  web view.
+  WebView.
 - **Planning on the native path:** it is **session + hit-test +
   surface events**, by decision (audit Option B): the model methods
   reject with `NOT_IMPLEMENTED` rather than reporting success for

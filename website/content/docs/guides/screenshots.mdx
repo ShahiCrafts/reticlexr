@@ -68,7 +68,7 @@ Camera access is an explicit opt-in: the session must start with
 `enableScreenshots: true` (`ARView.create()` or the engine's
 `startSession()`), which adds `camera-access` to the session's
 optional features. It is **not** implied by `lightEstimation`
-(that coupling was removed in 1.1.0 — SEC-04). Without the opt-in —
+(that coupling was removed in 1.1.0). Without the opt-in —
 or on browsers that don't grant camera access at all —
 `takeScreenshot` returns `CAMERA_CAPTURE_UNAVAILABLE` while AR
 keeps running. Design your UI to treat screenshots as best-effort,

@@ -16,7 +16,7 @@ or open this site's [live demo](/demo), which is already HTTPS.
 
 ## The session fails immediately on some Android devices
 
-**Fixed in 1.1.0 (COMPAT-01).** Session creation used to hard-require
+**Fixed in 1.1.0.** Session creation used to hard-require
 the WebXR `local-floor` feature; devices with immersive AR + hit-test
 but no `local-floor` failed outright. The engine now requests
 `local-floor` first and falls back to `local`, then `viewer`. If a
@@ -26,7 +26,7 @@ required.
 
 ## `checkSupport()` says yes, but the native session fails later
 
-**Fixed in 1.1.0 (NAT-06).** The native facade's `checkSupport` used
+**Fixed in 1.1.0.** The native facade's `checkSupport` used
 to resolve `{supported: true}` unconditionally. It now returns the
 real `ArCoreApk.checkAvailability()` result, so an unsupported or
 ARCore-less device reports `supported: false` up front. Still handle
@@ -35,7 +35,7 @@ and the session (installs, updates, permissions).
 
 ## My model never appears (hook `placeModel`)
 
-**Fixed in 1.1.0 (BUG-01).** The hook's `placeModel(modelUrl,
+**Fixed in 1.1.0.** The hook's `placeModel(modelUrl,
 position, rotation, scale)` used to require array shapes while its
 JSDoc described `{x, y, z}` objects — objects produced `NaN`
 transforms and invisible models. Transform inputs are now normalised
@@ -47,14 +47,14 @@ still never appears, check the `placeModel` result for an `error` /
 
 ## `detectedPlanes` in the hook is always zero
 
-**Fixed in 1.1.0 (BUG-02).** The hook read array fields while the
+**Fixed in 1.1.0.** The hook read array fields while the
 engine emits plane counts as numbers; it now reads the numbers.
 Plane listeners (`ARView.onPlanes()`, the engine's plane listener)
 receive `{type, total, horizontal, vertical}` as before.
 
 ## `placeModel(url, {x, y})` ignores where I tapped
 
-**Fixed in 1.1.0 (BUG-03).** The WebXR `hitTest({x, y})` used to
+**Fixed in 1.1.0.** The WebXR `hitTest({x, y})` used to
 ignore its coordinates and always return the centre-screen hit.
 Non-centre coordinates now perform a ray-based hit test
 (`hitTestAtPoint`), so tap-point placement works; the centre
@@ -62,7 +62,7 @@ coordinates still use the reticle path.
 
 ## My reticle setting keeps turning back on
 
-**Fixed in 1.1.0 (BUG-04).** `showReticle: false` used to be forced
+**Fixed in 1.1.0.** `showReticle: false` used to be forced
 back to `true` on session start, placement and removal. The setting
 is now honoured; `setReticleVisible(false)` also persists.
 
@@ -76,7 +76,7 @@ pre-1.1.0 build. See [Gestures](/docs/guides/gestures).
 
 ## Memory grows while users browse products
 
-**Fixed in 1.1.0 (LEAK-01…04).** Removed/switched models are now
+**Fixed in 1.1.0.** Removed/switched models are now
 disposed under a documented ownership rule, plane dots are disposed
 with their planes, and the model cache is LRU-capped
 (`config.modelCacheLimit`, default 20 — entries with live
@@ -88,7 +88,7 @@ switching — it reuses the placement instead of adding a new model.
 
 ## `takeScreenshot` returns `CAMERA_CAPTURE_UNAVAILABLE`
 
-The session has no WebXR camera access. Since 1.1.0 (SEC-04),
+The session has no WebXR camera access. Since 1.1.0,
 camera access is an explicit opt-in: start the session with
 `enableScreenshots: true` (`ARView.create()` or `startSession()`) —
 `lightEstimation: true` no longer requests it. On browsers that
@@ -99,13 +99,13 @@ and hide the feature when it fails. See
 
 ## An awaited `hitTest` never resolves after the user exits AR
 
-**Fixed in 1.1.0 (BUG-08).** The fallback hit-test path used to hang
+**Fixed in 1.1.0.** The fallback hit-test path used to hang
 if the session ended first; it now settles on every path, including
 session end.
 
 ## `npx cap sync` didn't register the Android plugin
 
-**Fixed in 1.1.0 (PKG-01).** The package now ships the `capacitor`
+**Fixed in 1.1.0.** The package now ships the `capacitor`
 metadata key, and `cap sync` auto-discovers the plugin — verified
 in a clean scratch Capacitor app (plugin in
 `capacitor.plugins.json`, `:reticlexr` in the generated settings,
@@ -125,7 +125,7 @@ re-export is removed in the next major version.
 
 ## A second native `startSession` shows a session but no rendering
 
-**Fixed in 1.1.0 (NAT-02/NAT-08).** The native render loop now has
+**Fixed in 1.1.0.** The native render loop now has
 a dedicated stop flag and the plugin forwards Capacitor's
 pause/resume/destroy hooks, so a session restarted after
 `stopSession` in the same app run renders normally.

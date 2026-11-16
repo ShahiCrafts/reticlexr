@@ -41,7 +41,7 @@ export function QuickStartCode() {
     /* Tailwind-docs terminal look: near-black outer panel, plain header row
        with an icon-only copy button, code in an inset inner panel. */
     <div className="overflow-hidden rounded-xl border border-slate-800 bg-[#05070d]">
-      <div className="flex items-center justify-between px-3 pb-1.5 pt-0.5">
+      <div className="flex items-center justify-between px-3 pb-1.5 pt-3">
         <span className="text-xs leading-5 text-[#99A1AF]">Terminal</span>
         <button
           type="button"

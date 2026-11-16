@@ -80,11 +80,13 @@ open **by decision** rather than by oversight.
 - **Hand-written TypeScript declarations** ship and are kept
   honest by `tsc --checkJs`; the package declares ESM + an
   `exports` map with subpaths; `three` and `@capacitor/core` are
-  peer dependencies; lockfiles are committed and CI installs with
-  `npm ci`.
-- **Tests exist:** the Vitest suite (24 files, 25 tests) runs in
-  CI alongside the type-check, the example build and a Gradle
-  `:reticlexr:assembleDebug` job.
+  peer dependencies; lockfiles are committed and the CI workflow
+  installs with `npm ci`.
+- **Tests exist:** the Vitest suite (24 files, 25 tests) passes
+  locally, and the committed CI workflow defines jobs for it
+  alongside the type-check, the example build and a Gradle
+  `:reticlexr:assembleDebug` build. The workflow has not yet had a
+  completed run, so treat the suite as a local verification for now.
 
 ## Still open
 
@@ -100,7 +102,7 @@ open **by decision** rather than by oversight.
   [Compatibility](/docs/compatibility). Device testing is TODO.
 - **`npm audit` has never been run.** The audit environment's
   registry proxy refuses the audit endpoint (403), so no
-  vulnerability counts exist. CI carries the audit as a
+  vulnerability counts exist. The CI workflow defines the audit as a
   non-blocking step; run `npm audit` at the repository root and in
   `example/` wherever the registry permits.
 - **SSR:** all entry points pass DOM-less import checks (no

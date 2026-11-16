@@ -90,10 +90,10 @@ export function Search({ index }: { index: SearchEntry[] }) {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Search documentation (Command K)"
-        className="flex w-40 items-center gap-2 rounded-full bg-slate-100 py-2 pl-3.5 pr-3 text-sm text-slate-500 hover:bg-slate-200/70 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-blue-500 sm:w-52 dark:bg-white/10 dark:text-slate-400 dark:hover:bg-white/15 dark:hover:text-slate-200"
+        className="flex w-10 items-center justify-center gap-2 rounded-full bg-slate-100 py-2 text-sm text-slate-500 hover:bg-slate-200/70 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-blue-500 sm:w-52 sm:justify-start sm:pl-3.5 sm:pr-3 dark:bg-white/10 dark:text-slate-400 dark:hover:bg-white/15 dark:hover:text-slate-200"
       >
         <LuSearch size={15} strokeWidth={2} aria-hidden />
-        <span className="flex-1 text-left">Search docs…</span>
+        <span className="hidden flex-1 text-left sm:block">Search docs…</span>
         <kbd className="hidden font-sans text-xs text-slate-400 lg:inline dark:text-slate-500">
           ⌘ K
         </kbd>

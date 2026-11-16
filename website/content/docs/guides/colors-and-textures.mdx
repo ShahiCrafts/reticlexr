@@ -1,9 +1,9 @@
 ---
 title: Colors & textures
-description: Recolor the placed model, register and apply your own textures, and tune material properties — plus the multi-material caveats.
+description: Recolour the placed model, register and apply your own textures, and tune material properties — plus the multi-material caveats.
 ---
 
-## Recoloring the active model
+## Recolouring the active model
 
 ```js
 await ar.placeModel('/models/sofa.glb');
@@ -11,7 +11,7 @@ await ar.setColor('#68705b'); // hex string, applied to the active model
 ```
 
 `ARView.setColor(color)` applies to the active model only. It is the
-building block for the color swatches in the [live demo](/demo) and the
+building block for the colour swatches in the [live demo](/demo) and the
 example app:
 
 ```jsx title="Swatches.jsx"
@@ -54,7 +54,7 @@ await ar.applyTexture('oak', { materialName: 'Top' }); // one named material onl
   CORS-enabled if cross-origin.
 
 <Note>
-Two engine-level behaviours to design around in v1.0.0:
+Two engine-level behaviours to design around:
 
 - Applying a texture replaces the previous one on the material; since
   1.1.0 the replaced texture is disposed (unless it is the model's
@@ -65,12 +65,12 @@ Two engine-level behaviours to design around in v1.0.0:
 - When `switchModel` carries material state over (`preserveMaterial`, the
   default), materials are matched by name, then by traversal order, so
   multi-material products keep their per-material styling — see
-  [Model preloading & switching](/docs/guides/model-preloading-and-switching#material-carry-over-caveat).
+  [Model preloading & switching](/docs/guides/model-preloading-and-switching#material-carry-over).
 </Note>
 
 ## Material properties (engine / hook level)
 
-The facade exposes color and texture. Finer material control lives one
+The facade exposes colour and texture. Finer material control lives one
 layer down, on the engine, and through the hook:
 
 ```js
@@ -81,13 +81,15 @@ ar.setModelMaterial(modelId, { metalness: 0.1, roughness: 0.8, opacity: 1 });
 `setModelMaterial({ modelId, metalness?, roughness?, opacity? })` sets
 the given PBR properties on the anchored model's materials. All three
 properties are optional; omitted ones are left unchanged. There is no
-facade (`ARView`) wrapper for this in v1.0.0 — if you hold an `ARView`,
+facade (`ARView`) wrapper for this — if you hold an `ARView`,
 its engine is `ar.engine` and accepts the same call with an options
 object.
 
 ## Native facade equivalent
 
-The native `ARCore` facade has `setMaterial({ modelId, color })` for the
-Android path. Every layer uses the same identifier name, `modelId`
-(the engine's old name, `anchorId`, still works as a deprecated alias) —
-see the [API reference](/docs/api#arcore-native-facade).
+The native `ARCore` facade exposes `setMaterial({ modelId, color })`
+with the same `modelId` convention (the engine's old name, `anchorId`,
+still works as a deprecated alias) — but on Android the call rejects
+with `NOT_IMPLEMENTED`: colour and material changes are
+WebXR-runtime features. See the
+[API reference](/docs/api#arcore-native-facade).

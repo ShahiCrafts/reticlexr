@@ -43,7 +43,7 @@ resolve.
 
 <Note>
 One identifier everywhere: a placed model is a **`modelId`** on
-every layer and runtime (API-01). `anchorId` survives as a
+every layer and runtime. `anchorId` survives as a
 **deprecated alias** — the same string — on inputs, results and
 event payloads, and is removed in the next major version.
 </Note>
@@ -75,7 +75,7 @@ if (support.supported) {
 | `hitTest` | `(options: { x: number, y: number })` — normalised [0, 1] | `Promise<{ hit, position?, rotation?, planeType?, error? }>` |
 | `placeModel` | `(options: { modelPath: string, hitId?: string } \| { modelUrl: string, hitId?: string })` | `Promise<{ modelId: string, anchorId: string }>` |
 | `setTransform` | `(options: { modelId, rotation?: {x,y,z} degrees, scale?: number })` | `Promise<void>` |
-| `setMaterial` | `(options: { modelId, color: string })` — hex color | `Promise<void>` |
+| `setMaterial` | `(options: { modelId, color: string })` — hex colour | `Promise<void>` |
 | `moveModel` | `(options: { modelId, x: number, y: number })` | `Promise<Object>` |
 | `removeModel` | `(options: { modelId })` | `Promise<void>` |
 | `getPlacedModels` | `()` | `Promise<Array<{ modelId, modelUrl, position, rotation, scale }>>` |
@@ -162,7 +162,7 @@ off();
 | `clearModels()` | Removes every model placed through this view |
 | `setScale(scale)` | Clamped to **[0.1, 5]**, applied uniformly |
 | `rotateBy(radians)` | Accumulates `transform.rotationY`, applies a Y rotation |
-| `setColor(color)` | Sets the active model's color (hex string) |
+| `setColor(color)` | Sets the active model's colour (hex string) |
 | `addTextures({ name: url })` | Registers named texture URLs; returns `this` |
 | `applyTexture(nameOrUrl, options?)` | Options: `{ materialName? }`. Throws if no model is placed |
 | `takeScreenshot(options?)` | Delegates to the engine — see [Screenshots](/docs/guides/screenshots) |
@@ -253,7 +253,7 @@ teardown; the instance can start again), `clearModelCache()`,
 | `clearModels()` | Removes every placed model |
 | `transformModel({ modelId, position?, rotation?, scale? })` | Applies a model transform |
 | `switchModel({ modelId, modelUrl, preserveMaterial = true })` | Swaps the model on an existing placement; material carry-over matches by name, then order |
-| `setModelColor({ modelId, color })` | Recolors |
+| `setModelColor({ modelId, color })` | Recolours |
 | `setModelMaterial({ modelId, metalness?, roughness?, opacity? })` | PBR property update |
 | `setModelTexture({ modelId, textureUrl, materialName? })` | Applies a texture |
 | `setTransform(options)` / `setMaterial(options)` / `moveModel(options)` | Facade-compatibility shims accepting `modelId` (or its `anchorId` alias); a plain `{x,y,z}` rotation in `setTransform` is Euler **degrees** |
@@ -345,8 +345,7 @@ if (first) ar.setModelColor(first.modelId, '#a55f3b');
 Transform arguments are **normalised**: positions accept
 `[x, y, z]` or `{x, y, z}`, rotations a quaternion array/object or
 Euler radians, scales a number, array or object. (In 1.0.0,
-`{x, y, z}` objects produced `NaN` transforms — that was BUG-01,
-fixed in 1.1.0.) With the shared default engine, one consumer
+`{x, y, z}` objects produced `NaN` transforms — fixed in 1.1.0.) With the shared default engine, one consumer
 stopping the session stops it for all consumers — mount the hook
 once, or pass a dedicated engine per view.
 </Note>
@@ -374,7 +373,7 @@ radians. Full guide: [Gestures](/docs/guides/gestures).
 
 ## Error conventions
 
-One convention across the package (API-05): async methods reject
+One convention across the package: async methods reject
 with an **`ARError`** — an `Error` with a stable, machine-readable
 `code`. Result-object APIs resolve with the same `code` on their
 failure results. Messages may change; codes are the contract.

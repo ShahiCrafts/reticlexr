@@ -12,14 +12,18 @@
 </p>
 
 **Product AR for React + Capacitor in about ten lines of code.**
-`reticlexr` is a high-level AR SDK: point the camera at the floor,
-and your GLB product models land on real surfaces with a reticle, plane
-visualisation, touch gestures and runtime recolouring handled for you.
-Models render in a WebXR + Three.js runtime; a native Capacitor plugin
-adds ARCore session management, hit testing and surface events on
-Android.
+`reticlexr` is a high-level AR SDK: point the camera at the floor, and
+your GLB product models land on real surfaces — tap-to-place with a
+centre reticle and hit testing, plane visualisation, touch gestures,
+runtime recolouring and screenshots, handled for you. Models render in
+a WebXR + Three.js runtime; a native Capacitor plugin adds ARCore
+session management, hit testing and surface events on Android (models
+render via WebXR — native model rendering is not implemented).
 
-📖 **Full documentation: [reticlexr.vercel.app](https://reticlexr.vercel.app)** — this README is only the front door.
+📖 **Full documentation: [reticlexr.vercel.app](https://reticlexr.vercel.app)** —
+the getting-started walkthrough, guides, the complete API reference,
+compatibility and known issues live there. This README is only the
+front door.
 
 ## Install
 
@@ -28,42 +32,11 @@ npm install reticlexr
 npx cap sync
 ```
 
-> The package ships the `capacitor` metadata key, so `npx cap sync`
-> discovers the Android plugin automatically — verified in a clean
-> scratch Capacitor app. Details:
-> [Capacitor setup](https://reticlexr.vercel.app/docs/getting-started#capacitor-setup).
-
-## Quick start
-
-```js
-import { createARView } from 'reticlexr';
-
-const ar = createARView({ overlay: document.querySelector('#ar-overlay') });
-await ar.create();                                    // start the AR session
-await ar.preloadModels(['/models/sofa.glb']);         // cache the GLB
-const placed = await ar.placeModel('/models/sofa.glb'); // place at the reticle
-if (!placed.success) console.log('Keep scanning:', placed.reason);
-```
-
-WebXR AR needs a **secure context** (HTTPS or `localhost`) and an
-ARCore-capable Android phone with Chrome. Full walkthrough:
-[Getting started](https://reticlexr.vercel.app/docs/getting-started).
-
-## Features
-
-- **Tap-to-place GLB models** with centre reticle and hit testing
-- **Plane detection** with dotted surface visualisation and blob shadows
-- **Gestures** — drag to move, pinch to scale, twist to rotate
-- **Model preloading & switching** (`switchModel` — keeps placement,
-  scale and rotation) with material carry-over
-- **Runtime customisation** — recolour models and swap textures live
-- **Screenshots** of the AR view from code — opt-in per session with
-  `enableScreenshots: true`; on browsers without WebXR camera access
-  `takeScreenshot()` returns `CAMERA_CAPTURE_UNAVAILABLE`
-- **React hook** (`useARCore`) plus a framework-agnostic API
-- **DOM overlays** — your normal buttons and product UI inside AR
-- **Native Android bridge** — ARCore session, hit-test and surface events
-  (native model rendering is not implemented yet; models render via WebXR)
+The package ships the `capacitor` metadata key, so `npx cap sync`
+discovers the Android plugin automatically. Then follow
+[Getting started](https://reticlexr.vercel.app/docs/getting-started)
+for the walkthrough — WebXR AR needs a secure context (HTTPS or
+`localhost`) and an ARCore-capable Android phone with Chrome.
 
 ## Documentation
 
@@ -77,34 +50,18 @@ ARCore-capable Android phone with Chrome. Full walkthrough:
 | 🗺️ Architecture | [docs/concepts/architecture](https://reticlexr.vercel.app/docs/concepts/architecture) · [ARCHITECTURE.md](https://github.com/ShahiCrafts/reticlexr/blob/main/ARCHITECTURE.md) |
 | 📋 Changelog | [docs/changelog](https://reticlexr.vercel.app/docs/changelog) · [CHANGELOG.md](https://github.com/ShahiCrafts/reticlexr/blob/main/CHANGELOG.md) |
 
-<!-- TODO (owner): record a short demo GIF of tap-to-place, pinch and rotate on a real phone and add it here. -->
+## Compatibility
 
-## Compatibility (unverified)
-
-> **Unverified:** no device/browser combination has been recorded as
-> tested yet (COMPAT-06, still TODO). The values below are the code's
-> requirements and the package's build configuration — not a tested
-> support matrix.
-
-- **Browser runtime:** Chrome on an ARCore-capable Android phone, over
-  HTTPS. Requires the WebXR `hit-test` feature; `local-floor` is
-  requested when available, with `local`/`viewer` fallbacks.
-- **Native:** Android minSdk 24, ARCore 1.40, Capacitor 8 (build
-  configuration). The library manifest declares the AR and camera
-  features `required="false"`, so host apps stay installable on
-  non-AR devices; making AR required is an opt-in (see
-  [docs/INSTALLATION.md](docs/INSTALLATION.md)).
-- **React** ≥ 16.8 (peer). Plain ESM JavaScript with JSDoc; hand-written
-  TypeScript declarations ship with the package.
-- Tested device/browser versions are not recorded yet — the honest matrix
-  lives at [docs/compatibility](https://reticlexr.vercel.app/docs/compatibility).
+Requires Chrome on an ARCore-capable Android phone (WebXR `hit-test`);
+the native plugin builds for Android minSdk 24 with Capacitor 8, and
+React ≥ 16.8 is a peer dependency. No device/browser combination has
+been recorded as tested yet — the honest, unverified matrix is at
+[docs/compatibility](https://reticlexr.vercel.app/docs/compatibility).
 
 ## Contributing
 
 Issues and PRs are welcome — see [CONTRIBUTING.md](https://github.com/ShahiCrafts/reticlexr/blob/main/CONTRIBUTING.md) or
 the [contributing guide](https://reticlexr.vercel.app/docs/contributing).
-Please ground bug reports in a device model, Android and Chrome version:
-the compatibility matrix is built from exactly those reports.
 
 ## License
 

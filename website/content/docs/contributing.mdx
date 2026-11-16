@@ -25,25 +25,33 @@ Thanks for contributing to reticlexr.
 | Native Android plugin | `android/` |
 | Example app | `example/` |
 | Documentation site (this site) | `website/` |
-| Legacy markdown docs | `docs/` |
+| Markdown docs (API reference, installation) | `docs/` |
 
-## What CI runs today
+## Before you open a PR
 
-Be aware of what is — and isn't — checked automatically:
+Run the checks locally:
 
-- `node --check` syntax validation on the five `src/*.js` files.
-- The example app installs and builds (`vite build`).
+- `npm test` — the Vitest suite (24 files, 25 tests).
+- `npm run check-types` — `tsc --checkJs` over the implementation
+  and its hand-written declarations.
+- `cd example && npm install && npm run build` — the example app
+  build.
 
-There is **no test suite, no lint and no Android/Gradle compile job**
-yet. That means for AR-specific changes, your PR description carries the
-verification: include the device/browser details, what you ran, and what
-you saw. Gesture math, coordinate mapping and event shapes are the most
-valuable first unit tests if you'd like to contribute infrastructure —
-see the [roadmap](/docs/known-issues#roadmap).
+## What CI checks
+
+The committed workflow (`.github/workflows/ci.yml`) defines two
+jobs: a `js` job (install with `npm ci`, the type-check, the test
+suite, a consumer smoke test, a non-blocking `npm audit`, and the
+example build) and a `gradle-assemble` job (`cap sync` plus
+`:reticlexr:assembleDebug`). The workflow has not yet had a
+completed run, so the local checks above are the verification that
+counts. For AR-specific changes, your PR description carries the
+rest: include the device/browser details, what you ran, and what
+you saw.
 
 ## Pull requests
 
-Keep changes focused, describe user-visible behavior, document public
+Keep changes focused, describe user-visible behaviour, document public
 API changes, and include device/browser details for AR-specific fixes.
 
 ## Versioning

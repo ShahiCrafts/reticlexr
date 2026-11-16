@@ -11,8 +11,9 @@ to the active model:
 
 ```js title="gestures.js"
 const cleanup = ar.enableCustomization({
-  // REQUIRED, and it is a function: the controller calls it on every tap
-  // to learn which model a tap should place.
+  // REQUIRED: which model a tap should place. A plain URL string works;
+  // pass a function and it is called on every tap, so the model placed
+  // can follow the user's current selection.
   modelUrl: () => currentModelUrl,
   onTap: () => console.log('placed'),
   onScale: (factor) => console.log('scale is now', factor),
@@ -25,17 +26,19 @@ cleanup();
 
 | Gesture | Effect |
 | --- | --- |
-| One-finger tap | Places `modelUrl()` at the centre hit test (or re-places) |
+| One-finger tap | Places the current `modelUrl` at the tap point (only when no model is placed yet) |
 | Pinch (two fingers, in/out) | Scales the active model — `ARView.setScale` clamps to **[0.1, 5]** |
 | Twist (two fingers, rotate) | Rotates the active model around Y |
 | Drag (one finger) | Available in the standalone controller (`onDrag`); `enableCustomization` does not bind it to the model |
 
-<Warning>
-`modelUrl` is **invoked as a function** on every tap. Passing a plain
-string — which the name invites — throws a `TypeError` inside the tap
-handler on every tap. Always pass `() => url`. (The example app does this
-via a ref so the latest selected product is used.)
-</Warning>
+<Note>
+`modelUrl` accepts a plain URL string or a `() => string` function.
+The function form is called on every tap — use it when the model to
+place can change between taps (the example app reads the latest
+selected product from a ref). A plain string always places the same
+model. (Before 1.1.0 only the function form worked; a string threw a
+`TypeError` inside the tap handler.)
+</Note>
 
 Overlay elements marked with `data-ui` are ignored by the gesture layer,
 so your buttons and sheets never double as scene gestures.
@@ -71,7 +74,7 @@ Payload semantics worth knowing:
 - `onRotate`'s `delta` is likewise incremental, in radians, wrapped to
   ±π.
 - A tap is a pointer down/up pair within `tapMaxDuration` and
-  `tapMaxDistance`. One low-severity quirk: a `pointercancel` (system
+  `tapMaxDistance`. One known quirk: a `pointercancel` (system
   gesture, notification) that happens to be short and stationary is
   currently treated as a completed tap and can place a model.
 

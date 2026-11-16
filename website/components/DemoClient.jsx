@@ -297,7 +297,7 @@ export default function DemoClient() {
                     key={c}
                     type="button"
                     onClick={() => chooseColor(c)}
-                    aria-label={`Set color ${name}`}
+                    aria-label={`Set colour ${name}`}
                     className={`h-8 w-8 rounded-full border-2 focus-visible:outline-2 focus-visible:outline-blue-300 ${color === c ? 'border-white' : 'border-white/30'}`}
                     style={{ background: c }}
                   />

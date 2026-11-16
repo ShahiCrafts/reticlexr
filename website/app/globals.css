@@ -29,11 +29,13 @@
   /* Near-black page background in dark mode (reference-style slate-950). */
   --color-slate-950: #05070d;
 
-  /* Inter (variable) + IBM Plex Mono, loaded via next/font/google in
-     app/layout.tsx and exposed as --font-inter / --font-plex-mono.
-     Inter is the sans for the whole site; Plex Mono covers code and the
-     small-caps mono labels. Matches the Tailwind CSS v4 docs. */
-  --font-sans: var(--font-inter), "Inter", ui-sans-serif, system-ui,
+  /* Inter Variable + IBM Plex Mono. Inter Variable is self-hosted via
+     @fontsource-variable/inter (imported in app/layout.tsx); Plex Mono
+     loads via next/font/google and is exposed as --font-plex-mono.
+     Inter Variable is the sans for the whole site; Plex Mono covers
+     code and the small-caps mono labels. Matches the Tailwind CSS v4
+     docs. */
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui,
     -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace,
     SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
@@ -147,6 +149,29 @@ figure[data-rehype-pretty-code-figure] [data-highlighted-line] {
   border-left-color: rgb(37 99 235);
 }
 
+/* InstallTabs' inner panel sits inside .prose, where the typography
+   rules would otherwise zero its padding and give it 24px vertical
+   margins. Pin it to the shared editor geometry: 4px inset, 20px
+   padding on all sides (its 8px radius comes from rounded-lg). */
+.prose pre.editor-inner {
+  margin: 0.25rem;
+  padding: 1.25rem;
+}
+
+/* Callout header labels: prose paragraph margins (18.75px top/bottom)
+   would otherwise inflate the header row of Note/Warning/Tip/Todo
+   banners from 24px to 66px. */
+.prose .callout-head {
+  margin: 0;
+}
+
+/* Step panels align with the step header: typography's figure margin
+   (24px here) would otherwise push the panel below the header row —
+   the arbitrary-variant utility on the container loses that cascade. */
+.prose .step-panel figure {
+  margin-top: 0;
+}
+
 /* Inline code inside prose: plain slate chip, no colour tint */
 .prose :where(code):not(:where(pre code)) {
   border-radius: 0.375rem;
@@ -154,6 +179,8 @@ figure[data-rehype-pretty-code-figure] [data-highlighted-line] {
   font-family: var(--font-mono);
   font-weight: 500;
   background: rgb(241 245 249); /* slate-100 */
+  /* Long identifiers/paths may break instead of forcing horizontal scroll */
+  overflow-wrap: anywhere;
 }
 
 .dark .prose :where(code):not(:where(pre code)) {
@@ -166,7 +193,7 @@ figure[data-rehype-pretty-code-figure] [data-highlighted-line] {
 }
 
 /* ---------- Docs prose tuning — type scale measured from the
-   Tailwind CSS v4 docs (Inter, gray-950 headings on gray-700 body) --- */
+   Tailwind CSS v4 docs (Inter Variable, gray-950 headings on gray-700 body) --- */
 
 .prose {
   --tw-prose-body: #364153;

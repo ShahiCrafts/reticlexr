@@ -7,7 +7,7 @@ import { getSearchIndex } from '@/lib/content';
 export const metadata: Metadata = {
   title: 'Live demo',
   description:
-    'Try reticlexr live in your browser: place, switch, recolor and photograph a model with WebXR.',
+    'Try reticlexr live in your browser: place, switch, recolour and photograph a model with WebXR.',
 };
 
 export default function DemoPage() {
@@ -20,7 +20,7 @@ export default function DemoPage() {
           This is the repository&rsquo;s example playground, running as a page on this site against
           the library source in <code className="font-mono text-[0.85em]">src/</code>. It uses the
           WebXR runtime: surface dots, tap-to-place, pinch/twist gestures, in-place model switching
-          with <code className="font-mono text-[0.85em]">switchModel()</code>, runtime colors and
+          with <code className="font-mono text-[0.85em]">switchModel()</code>, runtime colours and
           screenshots.
         </p>
 

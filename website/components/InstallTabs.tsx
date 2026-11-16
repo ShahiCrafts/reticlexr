@@ -72,7 +72,7 @@ export function InstallTabs({ pkg = 'reticlexr' }: { pkg?: string }) {
           panel. Token colours match the site's terminal Shiki theme
           (lib/terminal-theme.ts): verb pink, arguments sky. */}
       <div className="mt-3 overflow-hidden rounded-xl border border-slate-800 bg-[#05070d]">
-        <div className="flex items-center justify-between px-3 pb-1.5 pt-0.5">
+        <div className="flex items-center justify-between px-3 pb-1.5 pt-3">
           <span className="text-xs leading-5 text-[#99A1AF]">Terminal</span>
           <button
             onClick={copyPanel}
@@ -86,7 +86,7 @@ export function InstallTabs({ pkg = 'reticlexr' }: { pkg?: string }) {
             )}
           </button>
         </div>
-        <pre className="m-1 overflow-x-auto rounded-lg border border-[#2f3542] bg-[#1d2029] px-5 py-5 font-mono text-sm leading-5">
+        <pre className="editor-inner m-1 overflow-x-auto rounded-lg border border-[#2f3542] bg-[#1d2029] px-5 py-5 font-mono text-sm leading-5">
           <code>
             <span className="text-[#f97583]">{verb}</span>{' '}
             <span className="text-[#74d4ff]">{rest.join(' ')}</span>
