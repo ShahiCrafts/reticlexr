@@ -196,6 +196,12 @@ export function clampScale(scale) {
   return scale.map((v) => Math.min(SCALE_MAX, Math.max(SCALE_MIN, v)));
 }
 
+// Scratch matrix for per-frame pose application (PERF-04): plane pose
+// updates run inside the render loop's plane pass and must not
+// allocate a Matrix4 per plane per change. Only used for immediate
+// copy-into-target work, never retained.
+const _scratchMatrix4 = new THREE.Matrix4();
+
 export class ARCoreWeb extends WebPlugin {
   constructor() {
     super();
@@ -670,16 +676,14 @@ export class ARCoreWeb extends WebPlugin {
           planeData.dots = dots;
           planeData.lastChangedTime = plane.lastChangedTime;
         } else {
-          // Just update the pose
+          // Just update the pose (scratch matrix — PERF-04)
           if (planeData.mesh) {
-            const matrix = new THREE.Matrix4();
-            matrix.fromArray(pose.transform.matrix);
-            planeData.mesh.matrix.copy(matrix);
+            _scratchMatrix4.fromArray(pose.transform.matrix);
+            planeData.mesh.matrix.copy(_scratchMatrix4);
           }
           if (planeData.dots) {
-            const matrix = new THREE.Matrix4();
-            matrix.fromArray(pose.transform.matrix);
-            planeData.dots.matrix.copy(matrix);
+            _scratchMatrix4.fromArray(pose.transform.matrix);
+            planeData.dots.matrix.copy(_scratchMatrix4);
           }
         }
       }
