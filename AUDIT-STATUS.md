@@ -64,7 +64,7 @@ findings plus the 3 TODO items SEC-01, COMPAT-03, COMPAT-06).
 | COMPAT-06 | TODO | TODO | — | — |
 | SEC-01 | TODO | TODO | — | — | Owner to run where the registry permits it: `npm audit` (repo root) and `cd example && npm audit`. Attempted again in Phase 6 from this environment: both fail with HTTP 403 `policy_denied` on POST /-/npm/v1/security/audits/quick (managed registry proxy) — no counts exist and none are claimed. CI carries a non-blocking audit step (TEST-02 workflow) so the first real run happens there or on the owner's machine. |
 | SEC-02 | medium | fixed | e4bc492e9bbc575fdf9ac47772d115fcc43160f2 | tested |
-| SEC-03 | low | open | — | — |
+| SEC-03 | low | fixed (docs) | 174e390d1c6731790eb61e6cb9a45e9dbc2ff618 (website: docs/vercel-site f9278fe) | code-verified: "Model URLs: trust and CORS" section in docs/API.md + the website API page — URLs are app-supplied config with the same trust as bundled assets; cross-origin models/textures require CORS on the host. Grep confirms no validateModelUrl (or any URL-validation helper) exists in src/ — none is documented or claimed |
 | SEC-04 | low | fixed | 6d3d0da9af8e897d88382a41905ec08b85e6b845 | tested |
 | PKG-01 | high | fixed | ab2cc94b45b074d1514495c656870dc259a68e36 | tested (scratch cap sync; Gradle assemble SDK-TODO) |
 | PKG-02 | high | fixed | 1865dcd5f2176baaba608e353e8cb8c4ad75f368 | tested |
@@ -72,15 +72,15 @@ findings plus the 3 TODO items SEC-01, COMPAT-03, COMPAT-06).
 | PKG-04 | medium | fixed | 093f1bf96742d4a95176573e80834fd2a5d7d58f | tested |
 | PKG-05 | low | fixed | 713639b8d1ceeadcae532799d740cafd2901418f | code-verified |
 | TEST-01 | high | fixed | 8c689bd, 635b599, 86513da | All 24 harness files converted to Vitest (vitest.config.mjs includes tests/harness/*.mjs; `npm test` = vitest run). Assertion preservation counted statically per file (check() call sites, helper definitions excluded): 277 before → 280 after; identical per file except leak-phase3 +3 (the negative control's balloon signature is now 3 explicit assertions — it was an exit-code verdict before; nat-notimplemented's 4 call sites execute 12 assertions across its 3 cases, unchanged). Suite green: 24 files / 25 tests. The leak negative control is an always-on test (disposal disabled via the ownership mechanism must balloon per path). |
-| TEST-02 | medium | prepared | — (working tree only) | Workflow updated in the working tree (backup: ci-gradle-assemble.yml): triggers push [main, fix/**, docs/**] + pull_request; `js` job = npm ci → check-types → Vitest → consumer smoke → non-blocking npm audit (continue-on-error) → example npm ci + build; `gradle-assemble` job kept (cap sync + :reticlexr:assembleDebug) with setup-java cache: gradle. NOT fixed until the owner pushes .github/workflows/ci.yml with workflow scope and a run exists — the connector cannot push workflow files (403). |
+| TEST-02 | medium | workflow pushed; never executed | 70750117db4ba0aec390a3f9a53ea500c34fb659 | The final workflow (js + gradle-assemble jobs, per the owner's spec) was pushed via git. Its only run (43898545525) failed before any job started — GitHub annotation: "The job was not started because your account is locked due to a billing issue." The owner waived the CI-green gate ("we dont need to run the workflow"). No job has ever executed: nothing in this programme is "compiled in CI", and every Phase 5/6 native item remains "code-verified, device TODO". |
 | TEST-03 | low | fixed | 7c781c3 | example/tsconfig.json deleted (strict TS over src/** that nothing ran — the example is plain JSX and no tsc step exists in its build; type-checking lives in root check-types + the consumer smoke test). Deleted via the connector's delete_file (snapshot pushes cannot delete). |
-| DOC-01 | critical | open | — | — |
-| DOC-02 | high | open | — | — |
-| DOC-03 | medium | open | — | — |
-| DOC-04 | medium | open | — | — |
-| DOC-05 | low | open | — | — |
-| DOC-06 | low | open | — | — |
-| DOC-07 | low | open | — | — |
+| DOC-01 | critical | fixed | b59349bc1b66b0281301d945ea0880e6400258a3, fa71a933de8b6e04e21e304d3b06b33d4bd7e962, 174e390d1c6731790eb61e6cb9a45e9dbc2ff618, ec0e53e0d8d85c8d65d74d5710b734d5eacdd195 (website: docs/vercel-site 803d26f, 12ea52f, 88fda55) | code-verified against the final code at 7075011: native rejects NOT_IMPLEMENTED for exactly placeModel, moveModel, setTransform, setMaterial, removeModel, getPlacedModels, clearModels; README/CHANGELOG/docs + website now all state the Option B split |
+| DOC-02 | high | fixed | b59349bc1b66b0281301d945ea0880e6400258a3 | code-verified: README switching bullet names switchModel; the React example already used ar.switchModel (ARPlayground.jsx, verified unchanged); website model guide already taught switchModel |
+| DOC-03 | medium | fixed | 174e390d1c6731790eb61e6cb9a45e9dbc2ff618 | code-verified: docs/API.md rewritten against the shipped .d.ts surface — all entry points, ARView, useARCore (subpath + deprecated root alias), engine, facade, gestures, per-runtime events, ARError codes, deprecated-alias table |
+| DOC-04 | medium | fixed | ec0e53e0d8d85c8d65d74d5710b734d5eacdd195 | tested: guide followed in a clean scratch Capacitor 8 app (/tmp/doc04) with the SDK installed from the local repo path (stand-in for the unpublished npm package): cap sync registered ARCorePlugin + ':reticlexr' in the generated gradle files with no manual edits; manifest merge re-run with the Phase 6 manifmerger route — base merge = camera + ar features required="false" + com.google.ar.core optional + CAMERA permission; opt-in merge (tools:replace) flips both to required="true" + meta-data "required", exactly as the guide states |
+| DOC-05 | low | fixed | b59349bc1b66b0281301d945ea0880e6400258a3, 174e390d1c6731790eb61e6cb9a45e9dbc2ff618 (website: docs/vercel-site 88fda55) | code-verified: README + docs/API.md carry the enableScreenshots opt-in + CAMERA_CAPTURE_UNAVAILABLE caveat; the website screenshots guide now starts its sample session with enableScreenshots: true and its warning states camera-access is NOT implied by lightEstimation; the example app already started with enableScreenshots: true (verified) |
+| DOC-06 | low | fixed | 4002a2c820c5113dda6eee780ba76b200f8695fb | code-verified: dead plugins.ARCore.startOnLoad block removed from example/capacitor.config.json (the only remaining startOnLoad mention in the repo is AUDIT.md history) |
+| DOC-07 | low | fixed | b59349bc1b66b0281301d945ea0880e6400258a3, 174e390d1c6731790eb61e6cb9a45e9dbc2ff618 (website: docs/vercel-site 77914d7) | code-verified: compatibility labelled **unverified** in README, docs/API.md and the website compatibility page; no versions invented — real device values remain the COMPAT-06 TODO (owner) |
 
 ## Phase 1 notes
 
@@ -600,3 +600,49 @@ Phase 4 harness suite (23/23) is unaffected.
   smoke test green, example build passes with the PERF-03 numbers
   above. Phase 6 stops here — Phase 7 (docs truth) does not start
   without the owner's go-ahead.
+
+## Phase 7 — docs tell the truth (DONE; CI gate waived by the owner)
+
+- **CI (TEST-02):** the final workflow was pushed via git as
+  7075011. Its only run (43898545525) never started a job — the
+  account is locked over a billing issue — and the owner waived
+  the CI-green gate. Nothing is "compiled in CI"; Phase 5/6 native
+  items remain "code-verified, device TODO".
+- **Library (fix/audit-remediation):** 4002a2c DOC-06 (dead
+  startOnLoad removed); b59349b README truth pass (DOC-01/02/05/07);
+  fa71a93 CHANGELOG 1.1.0 completed (DOC-01); 174e390 docs/API.md
+  rewritten to the full verified surface (DOC-03, SEC-03, DOC-05);
+  ec0e53e docs/INSTALLATION.md rewritten as the consumer guide
+  (DOC-04) with the capacitor-arcore migration note (the old name
+  was never published — nothing to migrate).
+- **DOC-04 executed, not just written:** the guide was followed in
+  a clean scratch Capacitor 8 app (/tmp/doc04) with the SDK
+  installed from the local repo path as the stand-in for the
+  unpublished package. `npx cap sync android` registered the
+  plugin (capacitor.plugins.json → com.capacitor.arcore.ARCorePlugin;
+  generated settings include ':reticlexr'; generated app gradle has
+  `implementation project(':reticlexr')`) with no manual edits. The
+  manifest merge was re-run with the Phase 6 manifmerger route:
+  base merge = camera + ar features required="false" +
+  com.google.ar.core "optional" + CAMERA permission; opt-in merge
+  (tools:replace) flips both features to required="true" + the
+  meta-data to "required" — exactly the guide's claims.
+- **Website (docs/vercel-site, separate commits, NOT deployed —
+  the owner triggers deployments):** 12ea52f Known Issues rewritten
+  to the final state; f9278fe API reference rewritten; 77914d7
+  compatibility labelled Unverified + changelog 1.1.0 summary;
+  cc0f64b getting-started to final state; 803d26f WebXR-vs-native
+  to the 1.1.0 split; 88fda55 guides/concepts batch (screenshots,
+  troubleshooting, react-integration, lifecycle, architecture,
+  model-preloading-and-switching).
+- **Rename sweep:** live references use reticlexr everywhere; the
+  old names remain only in AUDIT.md history, the ARCHITECTURE.md
+  rename note, the CHANGELOG rename record and AUDIT-STATUS
+  history — all labelled. The website contains zero old-name
+  references.
+- **Still open after Phase 7 (owner items, unchanged):** COMPAT-06
+  real device compatibility values (TODO), SEC-01 npm audit
+  (registry-blocked here), COMPAT-03 full framework prerender
+  (TODO), on-device testing of all Phase 5/6 native code, npm
+  publish. Phase 8 (final completion pass + PR) does not start
+  without the owner's go-ahead; no PR was opened.
