@@ -180,15 +180,68 @@ figure[data-rehype-pretty-code-figure] [data-highlighted-line] {
   scroll-margin-top: 5.5rem;
 }
 
-/* Step code column (see components/Step.tsx): panels sit flush at the top
-   of the column and stack with a single gap. */
-.step-code > * {
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
+/* ---------- Docs tables: light header row, hairline row borders ---------- */
+
+.prose table {
+  max-width: 100%;
 }
 
-.step-code > * + * {
-  margin-top: 1rem !important;
+.prose thead {
+  background: rgb(248 250 252); /* slate-50 */
+  border-bottom: 1px solid rgb(226 232 240); /* slate-200 */
+}
+
+.prose thead th {
+  font-weight: 600;
+  color: rgb(15 23 42); /* slate-900 */
+  padding: 0.625rem 0.875rem;
+}
+
+.prose tbody td {
+  padding: 0.625rem 0.875rem;
+  border-top: 1px solid rgb(241 245 249); /* slate-100 */
+}
+
+.prose tbody tr {
+  border-top: 0;
+}
+
+.dark .prose thead {
+  background: rgb(255 255 255 / 0.04);
+  border-bottom-color: rgb(255 255 255 / 0.1);
+}
+
+.dark .prose thead th {
+  color: rgb(255 255 255);
+}
+
+.dark .prose tbody td {
+  border-top-color: rgb(255 255 255 / 0.06);
+}
+
+/* ---------- Header wash (docs pages only) ----------
+   The single permitted gradient on the site: a soft pale-blue wash in the
+   top-right of the docs header zone, behind the top bar and page title,
+   fading out downward/leftward. Swoosh strokes are an inline SVG layered
+   on top of this element (see DocsShell in components/TopBar.tsx). */
+
+.header-wash {
+  background: radial-gradient(
+    58rem 32rem at 88% -8rem,
+    rgb(147 197 253 / 0.55),
+    rgb(191 219 254 / 0.28) 42%,
+    rgb(219 234 254 / 0.08) 62%,
+    transparent 75%
+  );
+}
+
+.dark .header-wash {
+  background: radial-gradient(
+    58rem 32rem at 88% -8rem,
+    rgb(30 64 175 / 0.38),
+    rgb(30 58 138 / 0.18) 42%,
+    transparent 72%
+  );
 }
 
 /* ---------- Hatch gutters (docs shell, very wide screens) ----------

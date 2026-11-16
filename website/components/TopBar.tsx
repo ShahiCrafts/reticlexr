@@ -15,11 +15,52 @@ const NAV_LINKS = [
   { label: 'Changelog', href: '/docs/changelog' },
 ];
 
-export function TopBar({ searchIndex, currentSlug }: { searchIndex: SearchEntry[]; currentSlug?: string }) {
+/** Reticle / target logo mark: white crosshair target on a blue tile. */
+export function LogoMark({ size = 34 }: { size?: number }) {
+  return (
+    <span
+      className="flex shrink-0 items-center justify-center rounded-[9px] bg-blue-600"
+      style={{ width: size, height: size }}
+      aria-hidden="true"
+    >
+      <svg
+        width={size * 0.68}
+        height={size * 0.68}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="#ffffff"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        aria-hidden="true"
+      >
+        <circle cx="12" cy="12" r="5.4" />
+        <path d="M12 2.6v3.6M12 17.8v3.6M2.6 12h3.6M17.8 12h3.6" />
+        <circle cx="12" cy="12" r="1.25" fill="#ffffff" stroke="none" />
+      </svg>
+    </span>
+  );
+}
+
+export function TopBar({
+  searchIndex,
+  currentSlug,
+  translucent = false,
+}: {
+  searchIndex: SearchEntry[];
+  currentSlug?: string;
+  /** Render the bar translucent so the docs header wash shows through. */
+  translucent?: boolean;
+}) {
   const [drawer, setDrawer] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950">
+    <header
+      className={`sticky top-0 z-50 border-b border-slate-200 dark:border-white/10 ${
+        translucent
+          ? 'bg-white/80 backdrop-blur-md dark:bg-slate-950/75'
+          : 'bg-white dark:bg-slate-950'
+      }`}
+    >
       <div className="mx-auto flex h-[60px] max-w-[90rem] items-center gap-3 px-4 sm:px-6 lg:px-8">
         <button
           type="button"
@@ -34,14 +75,15 @@ export function TopBar({ searchIndex, currentSlug }: { searchIndex: SearchEntry[
         </button>
 
         <Link href="/" className="flex items-center gap-2.5 focus-visible:outline-2 focus-visible:outline-blue-500" aria-label="reticlexr documentation home">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-600 text-[11px] font-bold text-white" aria-hidden="true">
-            AR
-          </span>
-          <span className="text-[15px] font-semibold tracking-tight text-slate-950 dark:text-white">
+          <LogoMark />
+          <span className="text-[17px] font-bold tracking-tight text-slate-950 dark:text-white">
             reticlexr
           </span>
-          <span className="rounded-full border border-slate-200 px-2 py-0.5 text-xs font-medium text-slate-500 dark:border-white/15 dark:text-slate-400">
+          <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-500 dark:border-white/15 dark:text-slate-400">
             v1.0.0
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
           </span>
         </Link>
 
@@ -58,8 +100,8 @@ export function TopBar({ searchIndex, currentSlug }: { searchIndex: SearchEntry[
                   aria-current={active ? 'page' : undefined}
                   className={`relative px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-blue-500 ${
                     active
-                      ? 'font-medium text-slate-950 dark:text-white'
-                      : 'text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white'
+                      ? 'font-semibold text-blue-600 dark:text-blue-400'
+                      : 'font-medium text-slate-700 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white'
                   }`}
                 >
                   {item.label}
@@ -128,20 +170,45 @@ export function SiteFooter() {
   );
 }
 
+/** Decorative header wash for docs pages: soft pale-blue radial wash in the
+    top-right with two thin swoosh curves arcing across it. Docs-only. */
+function HeaderWash() {
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[27rem] overflow-hidden">
+      <div className="header-wash absolute inset-0" />
+      <svg
+        className="absolute right-0 top-0 h-full w-[min(62rem,85%)] opacity-90 dark:opacity-40"
+        viewBox="0 0 900 430"
+        preserveAspectRatio="none"
+        fill="none"
+        aria-hidden="true"
+      >
+        <path d="M110 -20 C 370 55, 560 165, 920 235" stroke="#ffffff" strokeWidth="1.6" />
+        <path d="M205 -30 C 445 85, 640 225, 930 330" stroke="#bfdbfe" strokeWidth="1.4" />
+        <path d="M40 -12 C 310 35, 520 125, 905 185" stroke="#ffffff" strokeWidth="1.1" opacity="0.55" />
+      </svg>
+    </div>
+  );
+}
+
 export function DocsShell({
   children,
   currentSlug,
   searchIndex,
   hatch = false,
+  wash = false,
 }: {
   children: ReactNode;
   currentSlug?: string;
   searchIndex: SearchEntry[];
   /** Flank the shell with diagonal hatch gutters on very wide screens (docs only). */
   hatch?: boolean;
+  /** Soft blue gradient wash behind the header + title zone (docs pages only). */
+  wash?: boolean;
 }) {
   return (
-    <div className="flex min-h-screen flex-col bg-white text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
+    <div className="relative flex min-h-screen flex-col bg-white text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
+      {wash && <HeaderWash />}
       {hatch && (
         <>
           <div
@@ -154,9 +221,11 @@ export function DocsShell({
           />
         </>
       )}
-      <TopBar searchIndex={searchIndex} currentSlug={currentSlug} />
-      <div className="mx-auto w-full max-w-[90rem] flex-1 px-4 sm:px-6 lg:px-8">{children}</div>
-      <SiteFooter />
+      <TopBar searchIndex={searchIndex} currentSlug={currentSlug} translucent={wash} />
+      <div className="relative z-10 mx-auto w-full max-w-[90rem] flex-1 px-4 sm:px-6 lg:px-8">{children}</div>
+      <div className="relative z-10">
+        <SiteFooter />
+      </div>
     </div>
   );
 }

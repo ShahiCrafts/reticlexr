@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { MDXRemote } from 'next-mdx-remote/rsc';
+import remarkGfm from 'remark-gfm';
 import rehypeSlug from 'rehype-slug';
 import rehypePrettyCode from 'rehype-pretty-code';
 import { getDocPage, getSearchIndex, editUrl } from '@/lib/content';
@@ -39,7 +40,7 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
   const searchIndex = getSearchIndex();
 
   return (
-    <DocsShell currentSlug={slugStr} searchIndex={searchIndex} hatch>
+    <DocsShell currentSlug={slugStr} searchIndex={searchIndex} hatch wash>
       <div className="flex gap-12 py-10 lg:py-12">
         {/* Left sidebar — plain text nav, own scroll, sticky under the top bar */}
         <aside className="sticky top-[60px] hidden max-h-[calc(100vh-60px)] w-60 shrink-0 overflow-y-auto py-2 pr-2 lg:block">
@@ -70,6 +71,7 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
               components={mdxComponents}
               options={{
                 mdxOptions: {
+                  remarkPlugins: [remarkGfm],
                   rehypePlugins: [
                     rehypeSlug,
                     [

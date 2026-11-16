@@ -3,9 +3,14 @@ title: Getting started
 description: Install reticlexr, wire it into a Capacitor app, and place your first model — then test on a real phone over HTTPS.
 ---
 
-<Steps>
-<Step n="01" title="Install the package">
-<StepText>
+<Info>
+This guide will help you get up and running with reticlexr in just a few minutes.
+</Info>
+
+## Install the package
+
+<InstallTabs />
+
 The package ships as plain ESM source — there is no build step and no
 transpilation. Two runtime dependencies come with it:
 
@@ -28,15 +33,15 @@ export is on the roadmap.
 There are no type declarations in the package yet: it is untyped JavaScript
 with JSDoc. TypeScript projects can still consume it, but get no checking
 until declarations ship.
-</StepText>
-<StepCode>
-<InstallTabs />
-</StepCode>
-</Step>
 
-<Step n="02" title="Sync with Capacitor">
-<StepText>
+## Capacitor setup
+
 For a Capacitor app, install the package and sync:
+
+```bash title="Terminal"
+npm install reticlexr
+npx cap sync
+```
 
 <Warning title="Capacitor discovery caveat (PKG-01)">
 The package's `package.json` does not yet contain the
@@ -62,36 +67,18 @@ reticlexr`, `npx cap sync`, build, run — and update this page with
 the confirmed result. Until then, treat the settings.gradle include above
 as the known-good path.
 </Todo>
-</StepText>
-<StepCode>
 
-```bash title="Terminal"
-npm install reticlexr
-npx cap sync
-```
+The native Android side, once wired, provides session management, hit
+testing and surface events through ARCore. Be aware of what it does
+**not** do yet: native model rendering is not implemented — models render
+in the WebXR runtime. Read
+[WebXR vs native ARCore](/docs/concepts/webxr-vs-native) before planning
+an Android-native-only experience.
 
-</StepCode>
-</Step>
+## Your first AR view
 
-<Step n="03" title="Create your first AR view">
-<StepText>
 The high-level API is `createARView()`. It needs a DOM element to use as
 the immersive session's overlay — your buttons and product UI live there.
-
-What happens next is covered by the guides:
-[React integration](/docs/guides/react-integration) for component-shaped
-usage, [Gestures](/docs/guides/gestures) for tap/pinch/twist, and
-[Model preloading & switching](/docs/guides/model-preloading-and-switching)
-for product catalogues.
-
-<Note>
-`create()` asks the browser for an `immersive-ar` session with the
-`hit-test` and `local-floor` features required. A device/browser without
-`local-floor` will fail session creation rather than degrade — see
-[Known issues](/docs/known-issues).
-</Note>
-</StepText>
-<StepCode>
 
 ```js title="first-ar.js"
 import { createARView } from 'reticlexr';
@@ -128,42 +115,18 @@ if (!result.success) {
 </div>
 ```
 
-</StepCode>
-</Step>
+What happens next is covered by the guides:
+[React integration](/docs/guides/react-integration) for component-shaped
+usage, [Gestures](/docs/guides/gestures) for tap/pinch/twist, and
+[Model preloading & switching](/docs/guides/model-preloading-and-switching)
+for product catalogues.
 
-<Step n="04" title="Test on a phone">
-<StepText>
-WebXR immersive AR only runs in a **secure context**: HTTPS, or
-`localhost`. A page served over plain HTTP on a LAN address will load, but
-session creation will fail — and `checkSupport()` does not currently
-distinguish "insecure origin" from "not supported", so check the URL
-scheme first when AR refuses to start.
-
-The zero-setup option is this site's [live demo](/demo): it is served over
-HTTPS, so only the device requirements apply. To test your own app, the
-example ships LAN HTTPS tooling with a self-signed development CA — the
-full walkthrough is in [HTTPS and phone testing](#https-and-phone-testing)
-below.
-</StepText>
-<StepCode>
-
-```bash title="Terminal"
-cd example
-npm install
-npm run cert        # generates a private dev CA + server cert for your LAN IP
-npm run dev:https   # serves https://<LAN-IP>:5173
-```
-
-</StepCode>
-</Step>
-</Steps>
-
-The native Android side, once wired, provides session management, hit
-testing and surface events through ARCore. Be aware of what it does
-**not** do yet: native model rendering is not implemented — models render
-in the WebXR runtime. Read
-[WebXR vs native ARCore](/docs/concepts/webxr-vs-native) before planning
-an Android-native-only experience.
+<Note>
+`create()` asks the browser for an `immersive-ar` session with the
+`hit-test` and `local-floor` features required. A device/browser without
+`local-floor` will fail session creation rather than degrade — see
+[Known issues](/docs/known-issues).
+</Note>
 
 ## HTTPS and phone testing
 
