@@ -2017,7 +2017,9 @@ export class ARCoreWeb extends WebPlugin {
       // Same root cause as the coded path in takeScreenshot: the
       // session never granted camera-access (SEC-04 opt-in missing).
       this._warnScreenshotHintOnce();
-      const err = new Error('WebXR camera access was not granted — pass enableScreenshots: true to startSession to enable screenshots');
+      const err = /** @type {Error & { code?: string }} */ (
+        new Error('WebXR camera access was not granted — pass enableScreenshots: true to startSession to enable screenshots')
+      );
       err.code = 'CAMERA_CAPTURE_UNAVAILABLE';
       throw err;
     }

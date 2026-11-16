@@ -135,7 +135,9 @@ export class ARView {
     this.gestures?.destroy();
     this.gestures = createARGestureController({
       element: this.overlay,
-      onTap: async ({ x, y, event }) => {
+      // The gesture payload is {x, y} in pixels (see gestures.js); it
+      // has never carried an `event` field (API-06 drift).
+      onTap: async ({ x, y }) => {
         if (!this.activeModelId && options.modelUrl) {
           try {
             // modelUrl accepts a plain string or a () => string (BUG-05)
@@ -150,7 +152,7 @@ export class ARView {
             return;
           }
         }
-        options.onTap?.({ x, y, event });
+        options.onTap?.({ x, y });
       },
       onPinch: ({ factor }) => {
         if (!this.activeModelId) return;
