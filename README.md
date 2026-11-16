@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/ShahiCrafts/reticlexr/main/docs/assets/banner.svg" width="100%" alt="reticlexr: a high-level AR SDK. Put real products into your customers' rooms. Surfaces, models and gestures, handled.">
+  <img src="docs/assets/banner.svg" width="100%" alt="reticlexr: a high-level AR SDK. Put real products into your customers' rooms. Surfaces, models and gestures, handled.">
 </p>
 
 <p align="center">
