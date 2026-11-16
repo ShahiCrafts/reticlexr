@@ -1,11 +1,12 @@
-// Verification harness (Phases 1-2). Stub-based, runs under plain
-// Node: `node tests/harness/bug11.mjs`. Phase 6 (TEST-01) formalises
-// these into the Vitest suite — see tests/README.md.
+// Verification harness (Phases 1-2). Stub-based, Vitest suite (TEST-01): run with `npm test`. See tests/README.md.
 // Throwaway BUG-11 verification: stub engine, no DOM/WebXR.
+
+import { test, expect } from 'vitest';
+
+test('bug11', async () => {
 const { ARView } = await import('../../src/ar-view.js');
 
-let failures = 0;
-const check = (name, cond) => { console.log(cond ? 'PASS' : 'FAIL', name); if (!cond) failures++; };
+const check = (name, cond) => expect(cond, name).toBe(true);
 
 function makeView({ fail = false } = {}) {
   const calls = [];
@@ -44,6 +45,4 @@ function makeView({ fail = false } = {}) {
   check('rotateBy failure propagates error', threw === true);
   check('rotateBy failure leaves transform.rotationY unchanged', view.transform.rotationY === 0.25);
 }
-
-console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURES`);
-process.exit(failures === 0 ? 0 : 1);
+});

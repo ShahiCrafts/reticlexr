@@ -1,21 +1,19 @@
-// Verification harness (Phases 1-2). Stub-based, runs under plain
-// Node: `node tests/harness/bug01.mjs`. Phase 6 (TEST-01) formalises
-// these into the Vitest suite — see tests/README.md.
+// Verification harness (Phases 1-2). Stub-based, Vitest suite (TEST-01): run with `npm test`. See tests/README.md.
 // BUG-01 harness: transform normalisation at the engine boundary.
-globalThis.window = globalThis;
+
+import { test, expect } from 'vitest';
 import * as THREE from 'three';
+
+test('bug01', async () => {
+globalThis.window = globalThis;
 const { ARCoreWeb, normalizeVector3, normalizeQuaternion, normalizeScale } =
   await import('../../src/web.js');
 
-let pass = 0, fail = 0;
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const near = (a, b, eps = 1e-6) =>
   Array.isArray(a) && Array.isArray(b) && a.length === b.length &&
   a.every((v, i) => Math.abs(v - b[i]) <= eps);
-function check(name, cond) {
-  if (cond) { pass++; console.log('  ok  ', name); }
-  else { fail++; console.log('  FAIL', name); }
-}
+const check = (name, cond) => expect(cond, name).toBe(true);
 
 // --- normalizeVector3 ---
 check('vec array passthrough', eq(normalizeVector3([1, 2, 3]), [1, 2, 3]));
@@ -101,6 +99,4 @@ await e3.setTransform({ modelId: 'a9', rotation: { x: 0, y: 0, z: 0, w: 1 } }); 
 check('setTransform quat object NOT treated as degrees', eq(e3.anchors.get('a9').rotation, [0, 0, 0, 1]));
 await e3.setTransform({ modelId: 'a9', position: { x: 7, y: 8, z: 9 }, scale: 3 });
 check('setTransform object position + numeric scale', eq(e3.anchors.get('a9').position, [7, 8, 9]) && eq(e3.anchors.get('a9').scale, [3, 3, 3]));
-
-console.log(`\nBUG-01 harness: ${pass} passed, ${fail} failed`);
-process.exit(fail ? 1 : 0);
+});

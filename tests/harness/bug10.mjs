@@ -1,11 +1,12 @@
-// Verification harness (Phases 1-2). Stub-based, runs under plain
-// Node: `node tests/harness/bug10.mjs`. Phase 6 (TEST-01) formalises
-// these into the Vitest suite — see tests/README.md.
+// Verification harness (Phases 1-2). Stub-based, Vitest suite (TEST-01): run with `npm test`. See tests/README.md.
 // Throwaway BUG-10 verification: pure gesture controller, stub element.
+
+import { test, expect } from 'vitest';
+
+test('bug10', async () => {
 const { createARGestureController } = await import('../../src/gestures.js');
 
-let failures = 0;
-const check = (name, cond) => { console.log(cond ? 'PASS' : 'FAIL', name); if (!cond) failures++; };
+const check = (name, cond) => expect(cond, name).toBe(true);
 
 function makeElement() {
   const handlers = {};
@@ -60,6 +61,4 @@ const ev = (pointerId, x, y) => ({ pointerId, clientX: x, clientY: y, target: nu
   el.handlers.pointermove(ev(1, 130, 100));
   check('two-pointer cancel: no tap, remaining pointer still drags', taps === 0 && drags > 0);
 }
-
-console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURES`);
-process.exit(failures === 0 ? 0 : 1);
+});

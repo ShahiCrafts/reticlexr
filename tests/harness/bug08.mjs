@@ -1,11 +1,12 @@
-// Verification harness (Phases 1-2). Stub-based, runs under plain
-// Node: `node tests/harness/bug08.mjs`. Phase 6 (TEST-01) formalises
-// these into the Vitest suite — see tests/README.md.
+// Verification harness (Phases 1-2). Stub-based, Vitest suite (TEST-01): run with `npm test`. See tests/README.md.
 // Throwaway BUG-08 verification: fake XRSession, no DOM/WebXR hardware.
+
+import { test, expect } from 'vitest';
+
+test('bug08', async () => {
 const { ARCoreWeb } = await import('../../src/web.js');
 
-let failures = 0;
-const check = (name, cond) => { console.log(cond ? 'PASS' : 'FAIL', name); if (!cond) failures++; };
+const check = (name, cond) => expect(cond, name).toBe(true);
 
 function makeSession(rafImpl) {
   const s = new EventTarget();
@@ -64,6 +65,4 @@ function makeEngine(session) {
   const r = await engine.hitTest({ x: 0.5, y: 0.5 });
   check('hit resolves position/rotation arrays', r && r.hit === true && JSON.stringify(r.position) === '[1,2,3]' && JSON.stringify(r.rotation) === '[0,0,0,1]');
 }
-
-console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURES`);
-process.exit(failures === 0 ? 0 : 1);
+});

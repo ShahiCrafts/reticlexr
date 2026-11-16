@@ -1,7 +1,9 @@
-// Verification harness (Phases 1-2). Stub-based, runs under plain
-// Node: `node tests/harness/bug05.mjs`. Phase 6 (TEST-01) formalises
-// these into the Vitest suite — see tests/README.md.
+// Verification harness (Phases 1-2). Stub-based, Vitest suite (TEST-01): run with `npm test`. See tests/README.md.
 // Throwaway BUG-05 verification: stub element + stub engine, no DOM/WebXR.
+
+import { test, expect } from 'vitest';
+
+test('bug05', async () => {
 globalThis.innerWidth = 1000;
 globalThis.innerHeight = 1000;
 
@@ -39,8 +41,7 @@ function makeEngine({ failPlace = false } = {}) {
 }
 
 const tick = () => new Promise(r => setTimeout(r, 20));
-let failures = 0;
-const check = (name, cond) => { console.log(cond ? 'PASS' : 'FAIL', name); if (!cond) failures++; };
+const check = (name, cond) => expect(cond, name).toBe(true);
 
 // Case 1: string modelUrl (previously threw TypeError on every tap)
 {
@@ -89,6 +90,4 @@ const check = (name, cond) => { console.log(cond ? 'PASS' : 'FAIL', name); if (!
   await tick();
   check('no unhandled rejections across all cases', unhandled === 0);
 }
-
-console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURES`);
-process.exit(failures === 0 ? 0 : 1);
+});

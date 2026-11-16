@@ -1,14 +1,15 @@
-// Verification harness (Phases 1-2). Stub-based, runs under plain
-// Node: `node tests/harness/bug07.mjs`. Phase 6 (TEST-01) formalises
-// these into the Vitest suite — see tests/README.md.
+// Verification harness (Phases 1-2). Stub-based, Vitest suite (TEST-01): run with `npm test`. See tests/README.md.
 // BUG-07 (recreated in Phase 2; the Phase 1 original was a throwaway
 // /tmp script): when startSession fails AFTER requestSession succeeded
 // (here: every reference space rejects), the live session is ended and
 // the engine's session fields are cleared before the error propagates.
+
+import { test, expect } from 'vitest';
+
+test('bug07', async () => {
 const { ARCoreWeb } = await import('../../src/web.js');
 
-let failures = 0;
-const check = (name, cond) => { console.log(cond ? 'PASS' : 'FAIL', name); if (!cond) failures++; };
+const check = (name, cond) => expect(cond, name).toBe(true);
 
 globalThis.document = { body: { appendChild() {} } };
 
@@ -44,6 +45,4 @@ check('engine.session cleared', engine.session === null);
 check('engine.hitTestSource cleared', engine.hitTestSource === null);
 check('engine.referenceSpace cleared', engine.referenceSpace === null);
 check('engine.viewerSpace cleared', engine.viewerSpace === null);
-
-console.log(failures ? `\n${failures} FAILURES` : '\nALL PASS');
-process.exit(failures ? 1 : 0);
+});
