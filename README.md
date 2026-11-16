@@ -28,9 +28,9 @@ npm install reticlexr
 npx cap sync
 ```
 
-> ⚠️ v1.0.0's `package.json` has no `capacitor` metadata key, so
-> `cap sync` discovery is unverified in a clean app. If the plugin is not
-> picked up, include it by hand — see
+> The package ships the `capacitor` metadata key, so `npx cap sync`
+> discovers the Android plugin automatically — verified in a clean
+> scratch Capacitor app. Details:
 > [Capacitor setup](https://reticlexr.vercel.app/docs/getting-started#capacitor-setup).
 
 ## Quick start
