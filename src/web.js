@@ -196,6 +196,53 @@ export function clampScale(scale) {
   return scale.map((v) => Math.min(SCALE_MAX, Math.max(SCALE_MIN, v)));
 }
 
+// ============================================================
+// Canonical model identity (API-01) + deprecation warnings
+// ============================================================
+// ONE identifier name across every layer and runtime: `modelId`.
+// On the web engine the id's VALUE is the anchor id the engine has
+// always generated, so `anchorId` keeps working everywhere it used
+// to appear — as a deprecated alias: accepted on input, still
+// present on outputs and event payloads, removed in the next major
+// version. The native facade has always used `modelId`; its
+// placeModel option `modelPath` and the engine's `modelUrl` are
+// unified the same way (the facade translates between them).
+
+const _deprecationWarnings = new Set();
+
+/**
+ * Warn once per process about a deprecated alias (API-01). The
+ * one-time shape matches the SEC-04 opt-in warning: discoverable,
+ * never spammy.
+ *
+ * @param {string} key - Stable key identifying the deprecated usage
+ * @param {string} message - What to use instead
+ */
+export function warnDeprecatedOnce(key, message) {
+  if (_deprecationWarnings.has(key)) return;
+  _deprecationWarnings.add(key);
+  console.warn(`[reticlexr] DEPRECATED: ${message}`);
+}
+
+/**
+ * Resolve the canonical model id from an options object that may
+ * carry the deprecated `anchorId` alias (API-01).
+ *
+ * @param {{modelId?: string, anchorId?: string}} options
+ * @returns {string|undefined}
+ */
+function resolveModelId(options) {
+  if (options.modelId) return options.modelId;
+  if (options.anchorId) {
+    warnDeprecatedOnce(
+      "anchorId",
+      "the 'anchorId' option is deprecated — use 'modelId' (the value is the same id)"
+    );
+    return options.anchorId;
+  }
+  return undefined;
+}
+
 // Scratch matrix for per-frame pose application (PERF-04): plane pose
 // updates run inside the render loop's plane pass and must not
 // allocate a Matrix4 per plane per change. Only used for immediate
@@ -1968,7 +2015,7 @@ export class ARCoreWeb extends WebPlugin {
    *
    * @param {Object} options
    * @param {string} [options.modelUrl] - GLTF/GLB URL (or `modelPath`)
-   * @param {string} [options.modelPath] - Alias for `modelUrl`
+   * @param {string} [options.modelPath] - Deprecated alias for `modelUrl`
    * @param {number[]|{x:number,y:number,z:number}} [options.position] -
    *   World position; defaults to the latest surface hit position
    * @param {number[]|Object} [options.rotation] - Rotation (see above);
@@ -1976,7 +2023,9 @@ export class ARCoreWeb extends WebPlugin {
    * @param {number|number[]|{x:number,y:number,z:number}} [options.scale] -
    *   Scale; defaults to [1, 1, 1]. Clamped to [0.1, 5] per axis — the
    *   one scale range shared by every layer and runtime (API-08)
-   * @returns {Promise<{anchorId: string}>}
+   * @returns {Promise<{modelId: string, anchorId: string}>} `modelId`
+   *   is the canonical identifier (API-01); `anchorId` is its
+   *   deprecated alias — the same string.
    */
   async placeModel({
     modelUrl,
@@ -1985,6 +2034,12 @@ export class ARCoreWeb extends WebPlugin {
     rotation,
     scale,
   }) {
+    if (modelPath && !modelUrl) {
+      warnDeprecatedOnce(
+        "modelPath",
+        "the placeModel option 'modelPath' is deprecated — use 'modelUrl'"
+      );
+    }
     modelUrl = modelUrl || modelPath;
     position = normalizeVector3(position, this.lastHitPosition);
     // No hit was involved in an explicit placement: a missing/null rotation
@@ -2035,6 +2090,7 @@ export class ARCoreWeb extends WebPlugin {
       this.frameListeners.forEach((cb) =>
         cb({
           type: "modelPlaced",
+          modelId: anchorId,
           anchorId,
           modelUrl,
           position,
@@ -2043,14 +2099,15 @@ export class ARCoreWeb extends WebPlugin {
         })
       );
 
-      return { anchorId };
+      return { modelId: anchorId, anchorId };
     } catch (error) {
       this.anchors.delete(anchorId);
       throw new Error(`Failed to load model: ${error.message}`);
     }
   }
 
-  async removeModel({ anchorId }) {
+  async removeModel(options = {}) {
+    const anchorId = resolveModelId(options);
     const model = this.loadedModels.get(anchorId);
     if (model) {
       this.scene.remove(model);
@@ -2078,7 +2135,7 @@ export class ARCoreWeb extends WebPlugin {
 
     this.modelPlaced = this.loadedModels.size > 0;
 
-    this.frameListeners.forEach((cb) => cb({ type: "modelRemoved", anchorId }));
+    this.frameListeners.forEach((cb) => cb({ type: "modelRemoved", modelId: anchorId, anchorId }));
   }
 
   /**
@@ -2087,13 +2144,16 @@ export class ARCoreWeb extends WebPlugin {
    * omitted or unrecognisable values leave the current transform intact.
    *
    * @param {Object} options
-   * @param {string} options.anchorId
+   * @param {string} [options.modelId] - Canonical model identifier (API-01)
+   * @param {string} [options.anchorId] - Deprecated alias for `modelId`
    * @param {number[]|{x:number,y:number,z:number}} [options.position]
    * @param {number[]|Object} [options.rotation]
    * @param {number|number[]|{x:number,y:number,z:number}} [options.scale] -
    *   Clamped to [0.1, 5] per axis (API-08)
    */
-  async transformModel({ anchorId, position, rotation, scale }) {
+  async transformModel(options = {}) {
+    const anchorId = resolveModelId(options);
+    let { position, rotation, scale } = options;
     const anchor = this.anchors.get(anchorId);
     if (!anchor) {
       throw new Error(`Anchor ${anchorId} not found`);
@@ -2117,12 +2177,12 @@ export class ARCoreWeb extends WebPlugin {
     }
 
     this.frameListeners.forEach((cb) =>
-      cb({ type: "modelTransformed", anchorId, ...anchor })
+      cb({ type: "modelTransformed", modelId: anchorId, anchorId, ...anchor })
     );
   }
 
-  setShadowVisible(anchorId, visible) {
-    const shadow = this.modelShadows.get(anchorId);
+  setShadowVisible(modelId, visible) {
+    const shadow = this.modelShadows.get(modelId);
     if (shadow) shadow.visible = visible;
   }
 
@@ -2145,11 +2205,11 @@ export class ARCoreWeb extends WebPlugin {
   //                    most 10 Hz while the centre ray has a hit
   //   surfaceLost      {hasSurface: false} — once, when the centre ray
   //                    loses its hit
-  //   modelPlaced      {anchorId, modelUrl, position, rotation, scale}
-  //   modelRemoved     {anchorId}
-  //   modelTransformed {anchorId, modelUrl, position, rotation, scale}
-  //   modelColorChanged {anchorId, color}
-  //   modelSwitched    {anchorId, modelUrl}
+  //   modelPlaced      {modelId, anchorId (deprecated alias), modelUrl, position, rotation, scale}
+  //   modelRemoved     {modelId, anchorId (deprecated alias)}
+  //   modelTransformed {modelId, anchorId (deprecated alias), modelUrl, position, rotation, scale}
+  //   modelColorChanged {modelId, anchorId (deprecated alias), color}
+  //   modelSwitched    {modelId, anchorId (deprecated alias), modelUrl}
   //   sessionEnded     {} — the XR session ended
   //
   // Plane listeners (addPlaneListener) — payloads always carry `type`:
@@ -2202,7 +2262,9 @@ export class ARCoreWeb extends WebPlugin {
     return this.camera;
   }
 
-  async setModelColor({ anchorId, color }) {
+  async setModelColor(options = {}) {
+    const anchorId = resolveModelId(options);
+    const { color } = options;
     const model = this.loadedModels.get(anchorId);
     if (!model) throw new Error(`Model with anchorId ${anchorId} not found`);
 
@@ -2220,11 +2282,13 @@ export class ARCoreWeb extends WebPlugin {
     });
 
     this.frameListeners.forEach((cb) =>
-      cb({ type: "modelColorChanged", anchorId, color })
+      cb({ type: "modelColorChanged", modelId: anchorId, anchorId, color })
     );
   }
 
-  async setModelMaterial({ anchorId, metalness, roughness, opacity }) {
+  async setModelMaterial(options = {}) {
+    const anchorId = resolveModelId(options);
+    const { metalness, roughness, opacity } = options;
     const model = this.loadedModels.get(anchorId);
     if (!model) throw new Error(`Model with anchorId ${anchorId} not found`);
 
@@ -2254,7 +2318,9 @@ export class ARCoreWeb extends WebPlugin {
    * first, then by traversal order (BUG-09). Materials without a
    * counterpart keep the new model's own materials.
    */
-  async switchModel({ anchorId, modelUrl, preserveMaterial = true }) {
+  async switchModel(options = {}) {
+    const anchorId = resolveModelId(options);
+    const { modelUrl, preserveMaterial = true } = options;
     const anchor = this.anchors.get(anchorId);
     const oldModel = this.loadedModels.get(anchorId);
     if (!anchor || !oldModel) throw new Error(`Anchor ${anchorId} not found`);
@@ -2319,11 +2385,13 @@ export class ARCoreWeb extends WebPlugin {
       shadow.position.set(anchor.position[0], anchor.position[1] + .001, anchor.position[2]);
       this.scene.add(shadow); this.modelShadows.set(anchorId, shadow);
     }
-    this.frameListeners.forEach(cb => cb({ type:'modelSwitched', anchorId, modelUrl }));
-    return { anchorId, modelUrl };
+    this.frameListeners.forEach(cb => cb({ type:'modelSwitched', modelId: anchorId, anchorId, modelUrl }));
+    return { modelId: anchorId, anchorId, modelUrl };
   }
 
-  async setModelTexture({ anchorId, textureUrl, materialName }) {
+  async setModelTexture(options = {}) {
+    const anchorId = resolveModelId(options);
+    const { textureUrl, materialName } = options;
     const model = this.loadedModels.get(anchorId);
     if (!model) throw new Error(`Model with anchorId ${anchorId} not found`);
     const texture = await this.textureLoader.loadAsync(textureUrl);
@@ -2348,13 +2416,16 @@ export class ARCoreWeb extends WebPlugin {
         owned.needsUpdate = true;
       });
     });
-    return { success:true, anchorId, textureUrl };
+    return { success:true, modelId: anchorId, anchorId, textureUrl };
   }
 
-  // Capacitor facade compatibility: the native API uses modelId/setTransform/setMaterial.
-  // On web the model identifier is the anchor id, so normalize both forms here.
+  // Capacitor facade compatibility: the native API's canonical
+  // identifier is modelId (API-01) — the same name the engine now
+  // uses. The deprecated anchorId alias is still accepted here (this
+  // IS the compatibility layer, so it resolves silently) and
+  // forwarded under the canonical name.
   async setTransform(options = {}) {
-    const anchorId = options.anchorId || options.modelId;
+    const modelId = options.modelId || options.anchorId;
     // Facade convention: a plain {x, y, z} rotation here is Euler DEGREES
     // (the native API's documented form). Quaternion objects ({…, w}) and
     // arrays pass through to transformModel's normalisation untouched
@@ -2369,23 +2440,23 @@ export class ARCoreWeb extends WebPlugin {
     const scale = typeof options.scale === "number"
       ? [options.scale, options.scale, options.scale]
       : options.scale;
-    return this.transformModel({ anchorId, position: options.position, rotation, scale });
+    return this.transformModel({ modelId, position: options.position, rotation, scale });
   }
 
   async setMaterial(options = {}) {
-    const anchorId = options.anchorId || options.modelId;
-    if (options.color) await this.setModelColor({ anchorId, color: options.color });
+    const modelId = options.modelId || options.anchorId;
+    if (options.color) await this.setModelColor({ modelId, color: options.color });
     if (options.metalness !== undefined || options.roughness !== undefined || options.opacity !== undefined) {
-      await this.setModelMaterial({ anchorId, metalness: options.metalness, roughness: options.roughness, opacity: options.opacity });
+      await this.setModelMaterial({ modelId, metalness: options.metalness, roughness: options.roughness, opacity: options.opacity });
     }
     return { success: true };
   }
 
   async moveModel(options = {}) {
-    const anchorId = options.anchorId || options.modelId;
+    const modelId = options.modelId || options.anchorId;
     const hit = await this.hitTest({ x: options.x ?? 0.5, y: options.y ?? 0.5 });
     if (!hit.hit) return hit;
-    await this.transformModel({ anchorId, position: hit.position, rotation: hit.rotation });
+    await this.transformModel({ modelId, position: hit.position, rotation: hit.rotation });
     return { ...hit, success: true };
   }
 

@@ -75,22 +75,22 @@ export class ARView {
     const scale = options.scale ?? this.transform.scale;
     const rotation = options.rotation || hit.rotation || [0,0,0,1];
     const result = await this.engine.placeModel({ modelUrl, position: hit.position, rotation, scale });
-    this.activeModelId = result.anchorId;
+    this.activeModelId = result.modelId;
     this.activeModelUrl = modelUrl;
-    return { success: true, modelId: result.anchorId, ...result };
+    return { success: true, modelId: result.modelId, ...result };
   }
 
   /** Replace the placed model without asking the user to place again. Position/rotation/scale are preserved. */
   async switchModel(modelUrl, options = {}) {
     if (!this.activeModelId) return this.placeModel(modelUrl, options);
-    const result = await this.engine.switchModel({ anchorId: this.activeModelId, modelUrl, preserveMaterial: options.preserveMaterial !== false });
+    const result = await this.engine.switchModel({ modelId: this.activeModelId, modelUrl, preserveMaterial: options.preserveMaterial !== false });
     this.activeModelUrl = modelUrl;
     return { success: true, modelId: this.activeModelId, ...result };
   }
 
   async removeModel() {
     if (!this.activeModelId) return;
-    await this.engine.removeModel({ anchorId: this.activeModelId });
+    await this.engine.removeModel({ modelId: this.activeModelId });
     this.activeModelId = null;
     this.activeModelUrl = null;
   }
@@ -103,7 +103,7 @@ export class ARView {
   async setScale(scale) {
     if (!this.activeModelId) return;
     const s = Math.max(SCALE_MIN, Math.min(SCALE_MAX, scale));
-    await this.engine.transformModel({ anchorId: this.activeModelId, scale: [s,s,s] });
+    await this.engine.transformModel({ modelId: this.activeModelId, scale: [s,s,s] });
     // Commit local state only after the engine accepts it, so a failed
     // call cannot leave the facade's transform ahead of the scene (BUG-11)
     this.transform.scale = s;
@@ -113,13 +113,13 @@ export class ARView {
     if (!this.activeModelId) return;
     const rotationY = this.transform.rotationY + radians;
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rotationY, 0)).toArray();
-    await this.engine.transformModel({ anchorId: this.activeModelId, rotation: q });
+    await this.engine.transformModel({ modelId: this.activeModelId, rotation: q });
     this.transform.rotationY = rotationY;
   }
 
   async setColor(color) {
     if (!this.activeModelId) return;
-    await this.engine.setModelColor({ anchorId: this.activeModelId, color });
+    await this.engine.setModelColor({ modelId: this.activeModelId, color });
   }
 
   addTextures(textures) {
@@ -130,7 +130,7 @@ export class ARView {
   async applyTexture(nameOrUrl, options = {}) {
     if (!this.activeModelId) throw new Error('Place a model before applying a texture');
     const url = this.textures.get(nameOrUrl) || nameOrUrl;
-    return this.engine.setModelTexture({ anchorId: this.activeModelId, textureUrl: url, materialName: options.materialName });
+    return this.engine.setModelTexture({ modelId: this.activeModelId, textureUrl: url, materialName: options.materialName });
   }
 
   enableCustomization(options = {}) {

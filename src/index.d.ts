@@ -35,11 +35,24 @@ export interface ARCoreHitTestResult {
   error?: string;
 }
 
-export interface ARCorePlaceModelOptions {
-  /** Path to a GLB model (e.g. "models/chair.glb"). */
-  modelPath: string;
-  hitId?: string;
-}
+/**
+ * Facade placeModel options (API-01): exactly one of `modelPath` /
+ * `modelUrl` is required — the facade forwards both to whichever
+ * runtime handles the call.
+ */
+export type ARCorePlaceModelOptions =
+  | {
+      /** Path to a GLB model (e.g. "models/chair.glb"). */
+      modelPath: string;
+      modelUrl?: string;
+      hitId?: string;
+    }
+  | {
+      modelPath?: string;
+      /** Alias for `modelPath` — a GLB URL/path. */
+      modelUrl: string;
+      hitId?: string;
+    };
 
 export interface ARCoreSetTransformOptions {
   modelId: string;
@@ -104,7 +117,11 @@ export interface ARCoreFacade {
   hitTest(options: ARCoreHitTestOptions): Promise<ARCoreHitTestResult>;
   placeModel(
     options: ARCorePlaceModelOptions
-  ): Promise<{ modelId: string; anchorId: string }>;
+  ): Promise<{
+    modelId: string;
+    /** The same id (the web engine's name for it); prefer `modelId`. */
+    anchorId: string;
+  }>;
   setTransform(options: ARCoreSetTransformOptions): Promise<void>;
   setMaterial(options: ARCoreSetMaterialOptions): Promise<void>;
   moveModel(

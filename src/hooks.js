@@ -129,7 +129,8 @@ export function useARCore(options = {}) {
 
   /**
    * Array of currently placed models in the scene
-   * Each model object contains: anchorId, modelUrl, position, rotation, scale
+   * Each model object contains: modelId, modelUrl, position, rotation,
+   * scale — plus anchorId, the deprecated alias of modelId (API-01)
    */
   const [placedModels, setPlacedModels] = useState([]);
 
@@ -256,6 +257,7 @@ export function useARCore(options = {}) {
           setPlacedModels((prev) => [
             ...prev,
             {
+              modelId: data.modelId ?? data.anchorId,
               anchorId: data.anchorId,
               modelUrl: data.modelUrl,
               position: data.position,
@@ -266,13 +268,13 @@ export function useARCore(options = {}) {
         } else if (data.type === "modelRemoved") {
           // A model was removed - filter it out
           setPlacedModels((prev) =>
-            prev.filter((m) => m.anchorId !== data.anchorId)
+            prev.filter((m) => m.modelId !== (data.modelId ?? data.anchorId))
           );
         } else if (data.type === "modelTransformed") {
           // A model's transform changed - update its properties
           setPlacedModels((prev) =>
             prev.map((m) =>
-              m.anchorId === data.anchorId
+              m.modelId === (data.modelId ?? data.anchorId)
                 ? {
                     ...m,
                     position: data.position || m.position,
@@ -437,9 +439,10 @@ export function useARCore(options = {}) {
    *   {x, y, z, w}, or Euler rotation in radians {x, y, z}
    * @param {number|number[]|Object} [scale] - Uniform scale number, or
    *   per-axis [x, y, z] / {x, y, z}
-   * @returns {Promise<Object>} Result: `anchorId` (string) — unique ID
-   *   for the placed model; or `error` (string) — error message if
-   *   failed
+   * @returns {Promise<Object>} Result: `modelId` (string) — the
+   *   canonical unique ID for the placed model (`anchorId`, the same
+   *   string, is included as a deprecated alias); or `error`
+   *   (string) — error message if failed
    *
    * @example
    * const result = await placeModel(
@@ -449,8 +452,8 @@ export function useARCore(options = {}) {
    *   { x: 1, y: 1, z: 1 }
    * );
    *
-   * if (result.anchorId) {
-   *   setCurrentModelId(result.anchorId);
+   * if (result.modelId) {
+   *   setCurrentModelId(result.modelId);
    * }
    */
   const placeModel = useCallback(
@@ -480,16 +483,16 @@ export function useARCore(options = {}) {
   /**
    * Remove a placed model from the AR scene.
    *
-   * @param {string} anchorId - The ID of the model to remove
+   * @param {string} modelId - The ID of the model to remove
    * @returns {Promise<void>}
    *
    * @example
    * await removeModel(currentModelId);
    * setCurrentModelId(null);
    */
-  const removeModel = useCallback(async (anchorId) => {
+  const removeModel = useCallback(async (modelId) => {
     try {
-      await arCore.removeModel({ anchorId });
+      await arCore.removeModel({ modelId });
     } catch (err) {
       setError(err.message || "Unknown error");
     }
@@ -501,7 +504,7 @@ export function useARCore(options = {}) {
    * You can provide any combination of position, rotation, and scale.
    * Only the properties you provide will be updated.
    *
-   * @param {string} anchorId - The ID of the model to transform
+   * @param {string} modelId - The ID of the model to transform
    * @param {Object} transforms - Transform properties to apply
    * @param {number[]|Object} [transforms.position] - New position:
    *   [x, y, z] or {x, y, z}
@@ -522,10 +525,10 @@ export function useARCore(options = {}) {
    *   scale: { x: 1.5, y: 1.5, z: 1.5 }
    * });
    */
-  const transformModel = useCallback(async (anchorId, transforms) => {
+  const transformModel = useCallback(async (modelId, transforms) => {
     try {
       await arCore.transformModel({
-        anchorId,
+        modelId,
         ...transforms,
       });
     } catch (err) {
@@ -543,7 +546,7 @@ export function useARCore(options = {}) {
    * This applies a color tint to the model's materials.
    * Works best with models that have neutral base colors.
    *
-   * @param {string} anchorId - The ID of the model to color
+   * @param {string} modelId - The ID of the model to color
    * @param {string} color - CSS color value (hex, rgb, or named color)
    * @returns {Promise<void>}
    *
@@ -554,9 +557,9 @@ export function useARCore(options = {}) {
    * // Set model to red
    * await setModelColor(modelId, 'rgb(255, 0, 0)');
    */
-  const setModelColor = useCallback(async (anchorId, color) => {
+  const setModelColor = useCallback(async (modelId, color) => {
     try {
-      await arCore.setModelColor({ anchorId, color });
+      await arCore.setModelColor({ modelId, color });
     } catch (err) {
       setError(err.message || "Unknown error");
     }
@@ -568,7 +571,7 @@ export function useARCore(options = {}) {
    * Allows fine-grained control over material appearance including
    * metalness, roughness, and opacity for realistic rendering.
    *
-   * @param {string} anchorId - The ID of the model to modify
+   * @param {string} modelId - The ID of the model to modify
    * @param {Object} properties - Material properties to set
    * @param {number} [properties.metalness] - Metallic look (0-1)
    * @param {number} [properties.roughness] - Surface roughness (0-1)
@@ -589,9 +592,9 @@ export function useARCore(options = {}) {
    *   opacity: 0.7
    * });
    */
-  const setModelMaterial = useCallback(async (anchorId, properties) => {
+  const setModelMaterial = useCallback(async (modelId, properties) => {
     try {
-      await arCore.setModelMaterial({ anchorId, ...properties });
+      await arCore.setModelMaterial({ modelId, ...properties });
     } catch (err) {
       setError(err.message || "Unknown error");
     }
@@ -777,11 +780,11 @@ export function useARCore(options = {}) {
 
   /**
    * Show or hide shadow for a specific model.
-   * @param {string} anchorId - ID of the model
+   * @param {string} modelId - ID of the model
    * @param {boolean} visible - Whether shadow should be visible
    */
-  const setShadowVisible = useCallback((anchorId, visible) => {
-    arCore.setShadowVisible(anchorId, visible);
+  const setShadowVisible = useCallback((modelId, visible) => {
+    arCore.setShadowVisible(modelId, visible);
   }, []);
 
   // ============================================================

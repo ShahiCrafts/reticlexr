@@ -139,7 +139,7 @@ export interface HitTestResult {
 
 export interface PlaceModelOptions {
   modelUrl?: string;
-  /** Alias for `modelUrl`. */
+  /** Deprecated alias for `modelUrl` (API-01). */
   modelPath?: string;
   position?: Vector3Input;
   rotation?: RotationInput;
@@ -147,7 +147,10 @@ export interface PlaceModelOptions {
 }
 
 export interface TransformModelOptions {
-  anchorId: string;
+  /** Canonical model identifier (API-01). */
+  modelId?: string;
+  /** Deprecated alias for `modelId` — the same string. */
+  anchorId?: string;
   position?: Vector3Input;
   rotation?: RotationInput;
   scale?: ScaleInput;
@@ -225,23 +228,45 @@ export type EngineFrameEvent =
   | { type: 'surfaceLost'; hasSurface: false }
   | {
       type: 'modelPlaced';
+      /** Canonical identifier (API-01). */
+      modelId: string;
+      /** Deprecated alias for `modelId` — the same string. */
       anchorId: string;
       modelUrl: string;
       position: Vector3Array;
       rotation: QuaternionArray;
       scale: Vector3Array;
     }
-  | { type: 'modelRemoved'; anchorId: string }
+  | {
+      type: 'modelRemoved';
+      modelId: string;
+      /** Deprecated alias for `modelId`. */
+      anchorId: string;
+    }
   | {
       type: 'modelTransformed';
+      modelId: string;
+      /** Deprecated alias for `modelId`. */
       anchorId: string;
       modelUrl: string;
       position: Vector3Array;
       rotation: QuaternionArray;
       scale: Vector3Array;
     }
-  | { type: 'modelColorChanged'; anchorId: string; color: string }
-  | { type: 'modelSwitched'; anchorId: string; modelUrl: string }
+  | {
+      type: 'modelColorChanged';
+      modelId: string;
+      /** Deprecated alias for `modelId`. */
+      anchorId: string;
+      color: string;
+    }
+  | {
+      type: 'modelSwitched';
+      modelId: string;
+      /** Deprecated alias for `modelId`. */
+      anchorId: string;
+      modelUrl: string;
+    }
   | { type: 'sessionEnded' };
 
 /** Plane-listener events emitted by the WebXR engine (API-07). */
@@ -294,11 +319,23 @@ export declare class ARCoreWeb extends WebPlugin {
   setReticleVisible(visible: boolean): void;
 
   loadModel(modelUrl: string): Promise<THREE.Object3D>;
-  placeModel(options: PlaceModelOptions): Promise<{ anchorId: string }>;
-  removeModel(options: { anchorId: string }): Promise<void>;
+  /**
+   * Place a model. Resolves with the canonical `modelId` (API-01);
+   * `anchorId` is its deprecated alias — the same string.
+   */
+  placeModel(
+    options: PlaceModelOptions
+  ): Promise<{ modelId: string; anchorId: string }>;
+  removeModel(options: {
+    modelId?: string;
+    /** Deprecated alias for `modelId`. */
+    anchorId?: string;
+  }): Promise<void>;
   transformModel(options: TransformModelOptions): Promise<void>;
   switchModel(options: {
-    anchorId: string;
+    modelId?: string;
+    /** Deprecated alias for `modelId`. */
+    anchorId?: string;
     modelUrl: string;
     /**
      * Carry the old model's materials onto the new one (BUG-09):
@@ -308,20 +345,34 @@ export declare class ARCoreWeb extends WebPlugin {
      * counterpart keep their own look. Default true.
      */
     preserveMaterial?: boolean;
-  }): Promise<{ anchorId: string; modelUrl: string }>;
+  }): Promise<{ modelId: string; anchorId: string; modelUrl: string }>;
 
-  setModelColor(options: { anchorId: string; color: string }): Promise<void>;
+  setModelColor(options: {
+    modelId?: string;
+    /** Deprecated alias for `modelId`. */
+    anchorId?: string;
+    color: string;
+  }): Promise<void>;
   setModelMaterial(options: {
-    anchorId: string;
+    modelId?: string;
+    /** Deprecated alias for `modelId`. */
+    anchorId?: string;
     metalness?: number;
     roughness?: number;
     opacity?: number;
   }): Promise<void>;
   setModelTexture(options: {
-    anchorId: string;
+    modelId?: string;
+    /** Deprecated alias for `modelId`. */
+    anchorId?: string;
     textureUrl: string;
     materialName?: string;
-  }): Promise<{ success: boolean; anchorId: string; textureUrl: string }>;
+  }): Promise<{
+    success: boolean;
+    modelId: string;
+    anchorId: string;
+    textureUrl: string;
+  }>;
 
   /**
    * Capacitor-facade compatibility shim. Note the facade convention:
@@ -350,7 +401,7 @@ export declare class ARCoreWeb extends WebPlugin {
     y?: number;
   }): Promise<HitTestResult & { success?: boolean }>;
 
-  setShadowVisible(anchorId: string, visible: boolean): void;
+  setShadowVisible(modelId: string, visible: boolean): void;
   setShadowConfig(config?: Partial<ShadowConfig>): void;
   getShadowConfig(): ShadowConfig;
 

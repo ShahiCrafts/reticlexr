@@ -22,6 +22,9 @@ import {
 } from './web.js';
 
 export interface PlacedModel {
+  /** Canonical model identifier (API-01). */
+  modelId: string;
+  /** Deprecated alias for `modelId` — the same string. */
   anchorId: string;
   modelUrl: string;
   position: Vector3Array;
@@ -64,17 +67,17 @@ export interface UseARCoreReturn {
     position?: Vector3Input,
     rotation?: RotationInput,
     scale?: ScaleInput
-  ) => Promise<{ anchorId: string } | { error: string }>;
-  removeModel: (anchorId: string) => Promise<void>;
+  ) => Promise<{ modelId: string; anchorId: string } | { error: string }>;
+  removeModel: (modelId: string) => Promise<void>;
   transformModel: (
-    anchorId: string,
+    modelId: string,
     transforms: ModelTransforms
   ) => Promise<void>;
 
   // Customization
-  setModelColor: (anchorId: string, color: string) => Promise<void>;
+  setModelColor: (modelId: string, color: string) => Promise<void>;
   setModelMaterial: (
-    anchorId: string,
+    modelId: string,
     properties: {
       metalness?: number;
       roughness?: number;
@@ -89,7 +92,7 @@ export interface UseARCoreReturn {
   // Shadow controls
   setShadowConfig: (config: Partial<ShadowConfig>) => void;
   getShadowConfig: () => ShadowConfig;
-  setShadowVisible: (anchorId: string, visible: boolean) => void;
+  setShadowVisible: (modelId: string, visible: boolean) => void;
 
   // Plane detection & visualization
   getDetectedPlanes: () => DetectedPlaneInfo[];

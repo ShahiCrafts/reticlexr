@@ -58,6 +58,17 @@ the remediation programme and will be completed before release._
   and will be removed in the next major version — while the
   re-export lives in the root entry, that entry cannot drop its
   top-level React import.
+- **`anchorId` in favour of `modelId` (API-01).** There is now ONE
+  model identifier across all layers and runtimes: `modelId`. The
+  WebXR engine, `ARView` and the hook return and accept it
+  everywhere; its value is unchanged (it is the engine's anchor
+  id). `anchorId` keeps working as a deprecated alias on inputs,
+  results and event payloads until the next major version, and
+  using it as an input logs a one-time deprecation warning. The
+  facade's `placeModel` also accepts the engine's `modelUrl` name
+  alongside the native `modelPath` (the facade forwards both), so
+  one call shape works on Android and web. The engine's `modelPath`
+  option is likewise a deprecated alias for `modelUrl`.
 
 ## [1.0.0] - 2026-09-25
 

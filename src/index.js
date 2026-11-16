@@ -92,14 +92,27 @@ export const ARCore = {
   /**
    * Place a GLB model at a hit test location.
    *
+   * One option shape across runtimes (API-01): the native plugin
+   * reads `modelPath`; the WebXR engine's canonical field is
+   * `modelUrl`. The facade accepts either and forwards both, so the
+   * same call works on Android and on web.
+   *
    * @param {Object} options
    * @param {string} [options.modelPath] - Path to GLB model in assets (e.g., "models/chair.glb") (required by the plugin)
+   * @param {string} [options.modelUrl] - Alias for `modelPath` — a GLB URL/path
    * @param {string} [options.hitId] - Optional hit identifier
    * @returns {Promise<{modelId: string, anchorId: string}>}
    */
   placeModel: async (options = {}) => {
     try {
-      const result = await ARCoreNative.placeModel(options);
+      const normalized = { ...options };
+      if (normalized.modelUrl && !normalized.modelPath) {
+        normalized.modelPath = normalized.modelUrl;
+      }
+      if (normalized.modelPath && !normalized.modelUrl) {
+        normalized.modelUrl = normalized.modelPath;
+      }
+      const result = await ARCoreNative.placeModel(normalized);
       return result;
     } catch (e) {
       throw new Error('Failed to place model: ' + e.message);

@@ -52,7 +52,9 @@ export interface ARViewPlaceModelOptions {
 
 export interface ARViewPlaceResult {
   success: boolean;
+  /** Canonical model identifier (API-01). */
   modelId?: string;
+  /** Deprecated alias for `modelId` — the same string. */
   anchorId?: string;
   /** Present on `switchModel` results. */
   modelUrl?: string;
