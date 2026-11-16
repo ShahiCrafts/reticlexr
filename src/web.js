@@ -648,7 +648,34 @@ export class ARCoreWeb extends WebPlugin {
   }
 
   /**
-   * Create dots grid on a detected plane
+   * The shared dot geometry (PERF-01): one CircleGeometry per dot
+   * size, reused by every plane's InstancedMesh and registered as
+   * engine-shared, so plane teardown never disposes it — only
+   * engine.dispose() does (OWNERSHIP RULE).
+   */
+  _getDotGeometry() {
+    if (this._dotGeometry && this._dotGeometrySize === this.config.dotSize) {
+      return this._dotGeometry;
+    }
+    if (this._dotGeometry) {
+      this._sharedResources.delete(this._dotGeometry);
+      this._dotGeometry.dispose();
+    }
+    this._dotGeometry = new THREE.CircleGeometry(this.config.dotSize, 8);
+    this._dotGeometrySize = this.config.dotSize;
+    this._sharedResources.add(this._dotGeometry);
+    return this._dotGeometry;
+  }
+
+  /**
+   * Create dots grid on a detected plane.
+   *
+   * PERF-01: the dots are ONE InstancedMesh with a single shared
+   * material — the pre-fix design built one Mesh and one cloned
+   * material PER DOT (~460 draw calls for a 3 m × 3 m plane at the
+   * facade's default spacing, rebuilt on every plane change; that
+   * design was also LEAK-02's root cause). Dot positions, size,
+   * spacing and polygon clipping are unchanged.
    */
   createPlaneDots(plane, pose, orientation) {
     const polygon = plane.polygon;
@@ -669,9 +696,19 @@ export class ARCoreWeb extends WebPlugin {
       maxZ = Math.max(maxZ, point.z);
     }
 
-    // Create dots within the bounding box
-    const dotsGroup = new THREE.Group();
-    const dotGeometry = new THREE.CircleGeometry(this.config.dotSize, 8);
+    // Collect the dot positions inside the polygon (same grid and
+    // ray-cast clipping as before)
+    const spacing = this.config.dotSpacing;
+    const positions = [];
+
+    for (let x = minX; x <= maxX; x += spacing) {
+      for (let z = minZ; z <= maxZ; z += spacing) {
+        if (this.isPointInPolygon(x, z, polygon)) {
+          positions.push([x, z]);
+        }
+      }
+    }
+
     const dotMaterial = new THREE.MeshBasicMaterial({
       color: color,
       transparent: true,
@@ -680,30 +717,39 @@ export class ARCoreWeb extends WebPlugin {
       depthWrite: false,
     });
 
-    const spacing = this.config.dotSpacing;
+    const dots = new THREE.InstancedMesh(
+      this._getDotGeometry(),
+      dotMaterial,
+      positions.length
+    );
+    dots.count = positions.length;
 
-    for (let x = minX; x <= maxX; x += spacing) {
-      for (let z = minZ; z <= maxZ; z += spacing) {
-        // Check if point is inside polygon (simple ray casting)
-        if (this.isPointInPolygon(x, z, polygon)) {
-          const dot = new THREE.Mesh(dotGeometry, dotMaterial.clone());
-          dot.position.set(x, 0.001, z); // Slightly above plane
-          dot.rotation.x = -Math.PI / 2;
-          dotsGroup.add(dot);
-        }
-      }
-    }
+    // Each instance: the dot circle rotated flat (-90° about X, as
+    // the old per-dot Mesh rotation did) at (x, 0.001, z)
+    const instanceMatrix = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
+    positions.forEach(([x, z], i) => {
+      instanceMatrix.setPosition(x, 0.001, z);
+      dots.setMatrixAt(i, instanceMatrix);
+    });
+    dots.instanceMatrix.needsUpdate = true;
 
-    dotsGroup.matrixAutoUpdate = false;
+    // Frustum culling is disabled deliberately: the instances spread
+    // across the whole plane while the base geometry's bounds cover
+    // a single dot, and the plane pose moves every frame — a wrong
+    // cull would blank the whole visualisation. One draw call is
+    // cheap; a disappearing dot grid is not.
+    dots.frustumCulled = false;
+
+    dots.matrixAutoUpdate = false;
 
     // Apply the plane's pose
     if (pose) {
       const matrix = new THREE.Matrix4();
       matrix.fromArray(pose.transform.matrix);
-      dotsGroup.matrix.copy(matrix);
+      dots.matrix.copy(matrix);
     }
 
-    return dotsGroup;
+    return dots;
   }
 
   /**
