@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeSlug from 'rehype-slug';
 import rehypePrettyCode from 'rehype-pretty-code';
 import { getDocPage, getSearchIndex, editUrl } from '@/lib/content';
+import { terminalTheme } from '@/lib/terminal-theme';
 import { FLAT_PAGES, prevNext, sectionForSlug } from '@/lib/nav';
 import { DocsShell } from '@/components/TopBar';
 import { SidebarNav } from '@/components/Sidebar';
@@ -28,6 +29,18 @@ export async function generateMetadata({
   return { title: page.title, description: page.description };
 }
 
+/** 40px shaded gutter column for the docs grid (fill in globals.css
+    .gutter-strip). It stretches the full height of the docs row. Hidden
+    below lg, where the sidebar is hidden too. */
+function GutterStrip() {
+  return (
+    <div
+      aria-hidden="true"
+      className="gutter-strip hidden w-10 shrink-0 border-x border-slate-200 lg:block dark:border-white/10"
+    />
+  );
+}
+
 export default async function DocPage({ params }: { params: Promise<{ slug: string[] }> }) {
   const { slug } = await params;
   const slugStr = (slug ?? []).join('/');
@@ -40,26 +53,30 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
   const searchIndex = getSearchIndex();
 
   return (
-    <DocsShell currentSlug={slugStr} searchIndex={searchIndex} hatch wash>
-      <div className="flex gap-12 py-10 lg:py-12">
-        {/* Left sidebar — plain text nav, own scroll, sticky under the top bar */}
-        <aside className="sticky top-[60px] hidden max-h-[calc(100vh-60px)] w-60 shrink-0 overflow-y-auto py-2 pr-2 lg:block">
+    <DocsShell currentSlug={slugStr} searchIndex={searchIndex}>
+      <div className="flex">
+        {/* Left sidebar — plain text nav, own scroll (scrollbar hidden),
+            sticky under the top bar. 288px wide, 24px padding. */}
+        <aside className="no-scrollbar sticky top-[72px] hidden max-h-[calc(100vh-72px)] w-72 shrink-0 overflow-y-auto p-6 lg:block">
           <SidebarNav currentSlug={slugStr} />
         </aside>
 
+        {/* Gutter column between the sidebar and the content */}
+        <GutterStrip />
+
         {/* Content */}
-        <main className="min-w-0 flex-1">
+        <main className="min-w-0 flex-1 px-4 py-10 sm:px-6 lg:py-12">
           <div className="mx-auto max-w-3xl">
             {section && (
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">
+              <p className="font-mono text-xs font-medium uppercase tracking-[0.1em] text-[#4A5565] dark:text-slate-400">
                 {section.title}
               </p>
             )}
-            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 md:text-[2.75rem] md:leading-[1.15] dark:text-white">
+            <h1 className="mt-3 text-[30px] font-semibold leading-[36px] tracking-[-0.8px] text-[#030712] dark:text-white">
               {page.title}
             </h1>
             {page.description && (
-              <p className="mt-5 text-lg leading-relaxed text-slate-600 dark:text-slate-400">
+              <p className="mt-5 text-base leading-7 text-[#364153] dark:text-slate-300">
                 {page.description}
               </p>
             )}
@@ -77,7 +94,7 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
                     [
                       rehypePrettyCode,
                       {
-                        theme: 'github-dark',
+                        theme: terminalTheme,
                         keepBackground: false,
                       },
                     ],
@@ -94,26 +111,25 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
               href={editUrl(page.filePath)}
               target="_blank"
               rel="noreferrer"
-              className="text-[13px] text-slate-500 hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-blue-500 dark:text-slate-400 dark:hover:text-white"
+              className="text-sm text-slate-500 hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-blue-500 dark:text-slate-400 dark:hover:text-white"
             >
               Edit this page on GitHub →
             </a>
           </div>
 
-          {/* Prev / Next — plain text links behind a hairline */}
+          {/* Prev / Next — plain text links with small chevrons, no boxes,
+              borders or backgrounds (Tailwind-docs style) */}
           <nav
             aria-label="More documentation"
-            className="mx-auto mt-6 flex max-w-3xl items-start justify-between gap-6 border-t border-slate-200 pt-6 dark:border-white/10"
+            className="mx-auto mt-10 flex max-w-3xl items-center justify-between gap-6"
           >
             {prev ? (
               <Link
                 href={`/docs/${prev.slug}`}
-                className="group focus-visible:outline-2 focus-visible:outline-blue-500"
+                className="inline-flex items-baseline gap-2 text-sm leading-6 text-[#101828] hover:text-[#030712] focus-visible:outline-2 focus-visible:outline-blue-500 dark:text-slate-300 dark:hover:text-white"
               >
-                <span className="block text-xs text-slate-400 dark:text-slate-500">Previous</span>
-                <span className="mt-1 block text-[15px] font-medium text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">
-                  ← {prev.title}
-                </span>
+                <span aria-hidden="true">‹</span>
+                {prev.title}
               </Link>
             ) : (
               <span />
@@ -121,19 +137,17 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
             {next && (
               <Link
                 href={`/docs/${next.slug}`}
-                className="group text-right focus-visible:outline-2 focus-visible:outline-blue-500"
+                className="inline-flex items-baseline gap-2 text-sm leading-6 text-[#101828] hover:text-[#030712] focus-visible:outline-2 focus-visible:outline-blue-500 dark:text-slate-300 dark:hover:text-white"
               >
-                <span className="block text-xs text-slate-400 dark:text-slate-500">Next</span>
-                <span className="mt-1 block text-[15px] font-medium text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">
-                  {next.title} →
-                </span>
+                {next.title}
+                <span aria-hidden="true">›</span>
               </Link>
             )}
           </nav>
         </main>
 
         {/* Right TOC */}
-        <aside className="sticky top-[60px] hidden max-h-[calc(100vh-60px)] w-56 shrink-0 overflow-y-auto py-2 xl:block">
+        <aside className="no-scrollbar sticky top-14 hidden max-h-[calc(100vh-56px)] w-56 shrink-0 overflow-y-auto pt-12 pr-6 pb-2 lg:pt-14 xl:block">
           <Toc headings={page.headings} />
         </aside>
       </div>

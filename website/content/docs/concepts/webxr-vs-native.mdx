@@ -1,12 +1,12 @@
 ---
 title: WebXR vs native ARCore
-description: An honest feature-by-feature split of the package's two runtimes in v1.0.0 — what each one actually does, verified against the code.
+description: An honest feature-by-feature split of the package's two runtimes in 1.1.0 — what each one actually does, verified against the code.
 ---
 
 The package contains two AR runtimes that share a JS facade name and
 almost nothing else. Earlier README wording presented them as "two
 runtimes, one API" at feature parity. They are not — this page is the
-corrected, code-verified split.
+corrected, code-verified split, updated for 1.1.0.
 
 ## Feature by feature
 
@@ -14,16 +14,16 @@ corrected, code-verified split.
 | --- | --- | --- |
 | Session start/stop | Yes — `immersive-ar` XR session | Yes — ARCore `Session` via the plugin |
 | Plane detection | Yes — XR planes, dot/mesh visualisation | Yes — planes tracked, surface state events |
-| Hit testing | Yes — centre fast path (viewer space); other `x, y` points get a real ray-based hit test (since 1.1.0; v1.0.0 ignored the coordinates) | Yes — real per-coordinate hit test against the frame |
-| **Model rendering** | **Yes — GLB/GLTF via Three.js, anchored in the scene** | **No — `placeModel` records metadata (id, path, scale, rotation, color) and emits `modelPlaced`, but no renderable is ever created** |
-| Model transforms | Yes — position/rotation/scale on anchors | Registry values only; nothing visible changes |
-| `moveModel` | Hit-test based — moves to the hit at the given `x, y` (centre by default) | Resolves `{success: true}` without moving anything |
-| Colors / textures | Yes — materials are real and rendered | Stored in the registry only |
-| Anchors | Yes — XR anchors drive model poses per frame | No real anchors are created; every placement uses the hardcoded id `"anchor_center"` and the documented `hitId` is ignored |
-| Screenshots | Yes — camera + scene composite (needs camera access) | No |
+| Hit testing | Yes — centre reticle path; non-centre coordinates use a ray-based hit test | Yes — real per-coordinate hit test against the frame, served by the render loop |
+| **Model rendering** | **Yes — GLB/GLTF via Three.js, anchored in the scene** | **No — `placeModel` rejects with `NOT_IMPLEMENTED`; there is no native renderer (Option B, see below)** |
+| Model transforms | Yes — position/rotation/scale on placed models | `setTransform` / `setMaterial` reject with `NOT_IMPLEMENTED` |
+| `moveModel` | Hit-test based (centre or ray) | Rejects with `NOT_IMPLEMENTED` |
+| Colors / textures | Yes — materials are real and rendered | Via the WebXR runtime only |
+| Anchors | Yes — XR anchors drive model poses per frame | Hit tests create real ARCore anchors and return their `anchorId`; there are no native model placements to anchor |
+| Screenshots | Yes — camera + scene composite (needs the `enableScreenshots` opt-in) | No |
 | Gestures | Yes — Pointer Events controller over the DOM overlay | Via your web UI (the WebView stays on top) |
-| Support check | Real — feature detection against `navigator.xr` | Resolves `supported: true` unconditionally in v1.0.0 |
-| Pause/resume with the activity | Browser-managed | Not wired — the plugin overrides no Capacitor lifecycle hooks, so the session/render loop are not paused with the activity |
+| Support check | Real — feature detection against `navigator.xr`, with an `INSECURE_CONTEXT` code outside secure contexts | Real — `ArCoreApk.checkAvailability()`; unsupported devices and missing ARCore are reported honestly |
+| Pause/resume with the activity | Browser-managed | Wired — the plugin forwards Capacitor's pause/resume/destroy to the session and render loop |
 
 ## Which runtime am I on?
 
@@ -39,18 +39,22 @@ corrected, code-verified split.
   (`createARView`). It is the only runtime that renders models, and it
   runs on ARCore-capable Android devices through Chrome or the Capacitor
   web view.
-- **Planning on the native path:** treat it as session + hit-test +
-  surface events. Native model rendering (gltfio) is described in the
-  native code itself as future integration; it is the top item on the
-  [roadmap](/docs/known-issues#roadmap), either to implement or to
-  formally scope out.
-- **Support gating:** don't gate an "AR available" UI on the native
-  facade's `checkSupport()` — it always says yes. Use the WebXR check,
-  and treat native `startSession` failure as the real signal.
+- **Planning on the native path:** it is **session + hit-test +
+  surface events**, by decision (audit Option B): the model methods
+  reject with `NOT_IMPLEMENTED` rather than reporting success for
+  work that never happened. Native model rendering (Option A) remains
+  an owner decision, not a roadmap promise.
+- **Support gating:** either runtime's `checkSupport()` is a real
+  check in 1.1.0 — the WebXR one feature-detects `navigator.xr` (and
+  reports `INSECURE_CONTEXT` outside secure contexts), the native one
+  asks ARCore itself. Still handle `startSession` failure: support
+  can change between the check and the session (installs, updates,
+  permissions).
 
 <Note>
 None of this makes the native layer useless: availability handling,
-install flow, session configuration, plane tracking and the render loop
-for the camera background are real, working code. The gap is specific —
-models — and it is documented here rather than discovered by users.
+install flow, session configuration, plane tracking, real hit-test
+anchors and the render loop for the camera background are real,
+working code. The gap is specific — model rendering — and it is
+documented here rather than discovered by users.
 </Note>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import FlexSearch from 'flexsearch';
+import { LuSearch } from 'react-icons/lu';
 import type { SearchEntry } from '@/lib/content';
 
 interface Result {
@@ -91,10 +92,7 @@ export function Search({ index }: { index: SearchEntry[] }) {
         aria-label="Search documentation (Command K)"
         className="flex w-40 items-center gap-2 rounded-full bg-slate-100 py-2 pl-3.5 pr-3 text-sm text-slate-500 hover:bg-slate-200/70 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-blue-500 sm:w-52 dark:bg-white/10 dark:text-slate-400 dark:hover:bg-white/15 dark:hover:text-slate-200"
       >
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-          <circle cx="11" cy="11" r="7" />
-          <path d="m21 21-4.3-4.3" />
-        </svg>
+        <LuSearch size={15} strokeWidth={2} aria-hidden />
         <span className="flex-1 text-left">Search docs…</span>
         <kbd className="hidden font-sans text-xs text-slate-400 lg:inline dark:text-slate-500">
           ⌘ K

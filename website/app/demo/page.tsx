@@ -14,7 +14,7 @@ export default function DemoPage() {
   const searchIndex = getSearchIndex();
   return (
     <DocsShell searchIndex={searchIndex}>
-      <div className="mx-auto max-w-4xl py-10">
+      <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
         <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Live demo</h1>
         <p className="mt-3 leading-relaxed text-slate-600 dark:text-slate-300">
           This is the repository&rsquo;s example playground, running as a page on this site against

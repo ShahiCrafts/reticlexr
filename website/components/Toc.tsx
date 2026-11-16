@@ -29,8 +29,8 @@ export function Toc({ headings }: { headings: Heading[] }) {
   if (headings.length === 0) return null;
 
   return (
-    <nav aria-label="On this page" className="text-[13px]">
-      <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+    <nav aria-label="On this page" className="text-sm">
+      <h2 className="mb-3 font-mono text-xs font-medium uppercase tracking-[0.1em] text-[#6A7282] dark:text-slate-400">
         On this page
       </h2>
       <ul className="border-l border-slate-200 dark:border-white/10">
@@ -39,7 +39,7 @@ export function Toc({ headings }: { headings: Heading[] }) {
             <a
               href={`#${h.id}`}
               aria-current={activeId === h.id ? 'true' : undefined}
-              className={`-ml-px block border-l-2 py-1 leading-snug focus-visible:outline-2 focus-visible:outline-blue-500 ${
+              className={`-ml-px block border-l-2 py-1 leading-6 focus-visible:outline-2 focus-visible:outline-blue-500 ${
                 h.depth === 3 ? 'pl-7' : 'pl-4'
               } ${
                 activeId === h.id

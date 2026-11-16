@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { LuCheck, LuCopy } from 'react-icons/lu';
 
 const MANAGERS = ['npm', 'pnpm', 'yarn'] as const;
 type Manager = (typeof MANAGERS)[number];
@@ -14,25 +15,6 @@ function command(manager: Manager, pkg: string): string {
     case 'yarn':
       return `yarn add ${pkg}`;
   }
-}
-
-function CopyIcon() {
-  return (
-    <svg
-      width="15"
-      height="15"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="9" y="9" width="12" height="12" rx="2" />
-      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-    </svg>
-  );
 }
 
 function useCopy(text: string): [boolean, () => void] {
@@ -50,67 +32,64 @@ function useCopy(text: string): [boolean, () => void] {
 }
 
 /**
- * Install-command tabs (npm / pnpm / yarn): a light tab bar with a Copy
- * button at its right end, above a separate dark Terminal panel that shows
- * the selected manager's command.
+ * Install-command tabs (npm / pnpm / yarn): a plain text tab bar —
+ * Tailwind-docs style, no fill or pills; the active tab is near-black
+ * with a 2px underline bar sitting on the row's hairline — above a
+ * separate dark Terminal panel that shows the selected manager's command
+ * (the panel carries the copy button).
  */
 export function InstallTabs({ pkg = 'reticlexr' }: { pkg?: string }) {
   const [active, setActive] = useState<Manager>('npm');
-  const [copiedBar, copyBar] = useCopy(command(active, pkg));
   const [copiedPanel, copyPanel] = useCopy(command(active, pkg));
   const cmd = command(active, pkg);
   const [verb, ...rest] = cmd.split(' ');
 
-  const copyBtn =
-    'inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-blue-500';
-
   return (
     <div className="my-6">
       {/* Tab bar */}
-      <div className="flex items-center justify-between rounded-xl bg-slate-50 py-1.5 pl-2 pr-2 dark:bg-white/5">
-        <div role="tablist" aria-label="Package manager" className="flex gap-1">
+      <div className="border-b border-slate-200 dark:border-white/10">
+        <div role="tablist" aria-label="Package manager" className="flex gap-7">
           {MANAGERS.map((m) => (
             <button
               key={m}
               role="tab"
               aria-selected={active === m}
               onClick={() => setActive(m)}
-              className={`relative px-3 py-1.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-blue-500 ${
+              className={`relative -mb-px border-b-2 pb-2.5 pt-1 text-sm leading-6 focus-visible:outline-2 focus-visible:outline-blue-500 ${
                 active === m
-                  ? 'text-blue-600 after:absolute after:inset-x-3 after:-bottom-[7px] after:h-0.5 after:bg-blue-600 dark:text-blue-400 dark:after:bg-blue-400'
-                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                  ? 'border-[#030712] font-medium text-[#030712] dark:border-white dark:text-white'
+                  : 'border-transparent text-[#4A5565] hover:text-[#030712] dark:text-slate-400 dark:hover:text-white'
               }`}
             >
               {m}
             </button>
           ))}
         </div>
-        <button
-          onClick={copyBar}
-          aria-label="Copy install command"
-          className={`${copyBtn} text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white`}
-        >
-          {copiedBar ? 'Copied' : 'Copy'}
-          <CopyIcon />
-        </button>
       </div>
 
-      {/* Terminal panel */}
-      <div className="mt-3 overflow-hidden rounded-xl border border-slate-800 bg-[#020617]">
-        <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
-          <span className="font-mono text-xs text-slate-400">Terminal</span>
+      {/* Terminal panel — Tailwind-docs look: near-black outer panel, plain
+          header row with an icon-only copy button, code in an inset inner
+          panel. Token colours match the site's terminal Shiki theme
+          (lib/terminal-theme.ts): verb pink, arguments sky. */}
+      <div className="mt-3 overflow-hidden rounded-xl border border-slate-800 bg-[#05070d]">
+        <div className="flex items-center justify-between px-3 pb-1.5 pt-0.5">
+          <span className="text-xs leading-5 text-[#99A1AF]">Terminal</span>
           <button
             onClick={copyPanel}
             aria-label="Copy install command"
-            className={`${copyBtn} text-slate-400 hover:text-white`}
+            className="inline-flex h-5 w-5 items-center justify-center rounded-md text-slate-400 hover:bg-white/10 hover:text-slate-100 focus-visible:outline-2 focus-visible:outline-blue-400"
           >
-            {copiedPanel ? 'Copied' : 'Copy'}
-            <CopyIcon />
+            {copiedPanel ? (
+              <LuCheck size={15} strokeWidth={2.2} aria-hidden />
+            ) : (
+              <LuCopy size={15} strokeWidth={1.8} aria-hidden />
+            )}
           </button>
         </div>
-        <pre className="overflow-x-auto px-4 py-3.5 font-mono text-sm text-slate-100">
+        <pre className="m-1 overflow-x-auto rounded-lg border border-[#2f3542] bg-[#1d2029] px-5 py-5 font-mono text-sm leading-5">
           <code>
-            <span className="text-pink-400">{verb}</span> {rest.join(' ')}
+            <span className="text-[#f97583]">{verb}</span>{' '}
+            <span className="text-[#74d4ff]">{rest.join(' ')}</span>
           </code>
         </pre>
       </div>

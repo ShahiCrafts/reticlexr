@@ -29,10 +29,14 @@
   /* Near-black page background in dark mode (reference-style slate-950). */
   --color-slate-950: #05070d;
 
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", monospace;
+  /* Inter (variable) + IBM Plex Mono, loaded via next/font/google in
+     app/layout.tsx and exposed as --font-inter / --font-plex-mono.
+     Inter is the sans for the whole site; Plex Mono covers code and the
+     small-caps mono labels. Matches the Tailwind CSS v4 docs. */
+  --font-sans: var(--font-inter), "Inter", ui-sans-serif, system-ui,
+    -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace,
+    SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
 html {
@@ -40,19 +44,27 @@ html {
 }
 
 body {
+  font-family: var(--font-sans);
   text-rendering: optimizeLegibility;
 }
 
 /* ---------- Shiki / rehype-pretty-code ----------
-   Code panels are dark in BOTH themes (single github-dark Shiki theme). */
+   Code panels are dark in BOTH themes (single Shiki theme:
+   lib/terminal-theme.ts — github-dark with the shell grammar recoloured).
+   Tailwind-docs terminal look: a near-black outer panel (12px radius);
+   a plain header row (filename or "Terminal", muted slate, icon-only
+   clipboard copy button) padded 2px 12px 6px so the row totals 28px;
+   the code sits in an inner panel inset by 4px on all sides — a visibly
+   lighter blue-gray with its own hairline border and 8px corners.
+   Flat only: hairline borders, no shadows. */
 
 figure[data-rehype-pretty-code-figure] {
   position: relative;
   margin: 1.5rem 0;
   overflow: hidden;
-  border-radius: 0.75rem;
+  border-radius: 0.75rem; /* 12px */
   border: 1px solid rgb(30 41 59); /* slate-800 */
-  background: #020617; /* slate-950 */
+  background: #05070d;
 }
 
 figure[data-rehype-pretty-code-figure] figcaption[data-rehype-pretty-code-title] {
@@ -60,11 +72,10 @@ figure[data-rehype-pretty-code-figure] figcaption[data-rehype-pretty-code-title]
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.55rem 0.75rem 0.55rem 1rem;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: rgb(148 163 184); /* slate-400 */
-  border-bottom: 1px solid rgb(30 41 59);
+  padding: 0.125rem 0.75rem 0.375rem; /* 2px 12px 6px */
+  font-size: 0.75rem; /* 12px */
+  line-height: 1.25rem; /* 20px */
+  color: #99a1af;
 }
 
 /* Header row injected by CopyEnhancer for terminal/bash blocks (and any
@@ -74,21 +85,23 @@ figure[data-rehype-pretty-code-figure] figcaption[data-rehype-pretty-code-title]
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.55rem 0.75rem 0.55rem 1rem;
-  font-size: 0.75rem;
-  color: rgb(148 163 184); /* slate-400 */
-  border-bottom: 1px solid rgb(30 41 59);
+  padding: 0.125rem 0.75rem 0.375rem; /* 2px 12px 6px */
+  font-size: 0.75rem; /* 12px */
+  line-height: 1.25rem; /* 20px */
+  color: #99a1af;
 }
 
+/* Icon-only clipboard copy button (swaps to a check icon when copied).
+   20px tall so the header row totals 28px (2px + 20px + 6px). */
 .code-copy-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
   border: 0;
   border-radius: 0.375rem;
-  padding: 0.25rem 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 500;
+  padding: 0;
   color: rgb(148 163 184);
   background: transparent;
   cursor: pointer;
@@ -99,12 +112,23 @@ figure[data-rehype-pretty-code-figure] figcaption[data-rehype-pretty-code-title]
   color: rgb(226 232 240);
 }
 
+.code-copy-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Inner code panel: inset 4px inside the outer figure. IBM Plex Mono
+   14px / 20px, 20px padding on all sides, as measured on the reference
+   terminal. */
 figure[data-rehype-pretty-code-figure] pre {
   overflow-x: auto;
-  padding: 1rem 0;
-  font-size: 0.875rem;
-  line-height: 1.7;
-  background: transparent !important;
+  margin: 0.25rem; /* 4px */
+  padding: 1.25rem 0; /* 20px vertical; horizontal comes from [data-line] */
+  font-size: 0.875rem; /* 14px */
+  line-height: 1.25rem; /* 20px */
+  background: #1d2029;
+  border: 1px solid #2f3542;
+  border-radius: 0.5rem; /* 8px */
 }
 
 figure[data-rehype-pretty-code-figure] code {
@@ -114,7 +138,7 @@ figure[data-rehype-pretty-code-figure] code {
 }
 
 figure[data-rehype-pretty-code-figure] [data-line] {
-  padding: 0 1rem;
+  padding: 0 1.25rem; /* 20px */
   border-left: 2px solid transparent;
 }
 
@@ -127,6 +151,7 @@ figure[data-rehype-pretty-code-figure] [data-highlighted-line] {
 .prose :where(code):not(:where(pre code)) {
   border-radius: 0.375rem;
   padding: 0.125em 0.375em;
+  font-family: var(--font-mono);
   font-weight: 500;
   background: rgb(241 245 249); /* slate-100 */
 }
@@ -140,21 +165,77 @@ figure[data-rehype-pretty-code-figure] [data-highlighted-line] {
   content: none;
 }
 
-/* ---------- Docs prose tuning (plainer, reference-like) ---------- */
+/* ---------- Docs prose tuning — type scale measured from the
+   Tailwind CSS v4 docs (Inter, gray-950 headings on gray-700 body) --- */
+
+.prose {
+  --tw-prose-body: #364153;
+  --tw-prose-headings: #030712;
+  --tw-prose-lead: #364153;
+  --tw-prose-bold: #030712;
+  --tw-prose-counters: #4a5565;
+  --tw-prose-bullets: #d1d5dc;
+  --tw-prose-captions: #4a5565;
+  font-size: 1rem; /* 16px */
+  line-height: 1.75rem; /* 28px */
+  color: #364153;
+}
+
+.dark .prose {
+  --tw-prose-body: #cbd5e1; /* slate-300 */
+  --tw-prose-headings: #f8fafc; /* slate-50 */
+  --tw-prose-lead: #cbd5e1;
+  --tw-prose-bold: #f8fafc;
+  --tw-prose-counters: #94a3b8; /* slate-400 */
+  --tw-prose-bullets: #475569; /* slate-600 */
+  --tw-prose-captions: #94a3b8;
+  color: #cbd5e1;
+}
 
 .prose h2 {
+  font-size: 1.125rem; /* 18px */
+  line-height: 1.75rem; /* 28px */
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.5px;
+  color: #030712;
   margin-top: 3rem;
 }
 
 .prose h3 {
+  font-size: 1rem; /* 16px */
+  line-height: 1.5rem; /* 24px */
   font-weight: 600;
+  letter-spacing: -0.25px;
+  color: #030712;
   margin-top: 2.25rem;
 }
 
 .prose h4 {
   font-weight: 600;
+  color: #030712;
+}
+
+.prose strong {
+  color: #030712;
+  font-weight: 600;
+}
+
+.dark .prose h2,
+.dark .prose h3,
+.dark .prose h4,
+.dark .prose strong {
+  color: #f8fafc;
+}
+
+/* Small / meta text and tables: 14px / 24px */
+.prose small {
+  font-size: 0.875rem;
+  line-height: 1.5rem;
+}
+
+.prose table {
+  font-size: 0.875rem;
+  line-height: 1.5rem;
 }
 
 .prose a {
@@ -193,7 +274,7 @@ figure[data-rehype-pretty-code-figure] [data-highlighted-line] {
 
 .prose thead th {
   font-weight: 600;
-  color: rgb(15 23 42); /* slate-900 */
+  color: #030712;
   padding: 0.625rem 0.875rem;
 }
 
@@ -219,41 +300,31 @@ figure[data-rehype-pretty-code-figure] [data-highlighted-line] {
   border-top-color: rgb(255 255 255 / 0.06);
 }
 
-/* ---------- Header wash (docs pages only) ----------
-   The single permitted gradient on the site: a soft pale-blue wash in the
-   top-right of the docs header zone, behind the top bar and page title,
-   fading out downward/leftward. Swoosh strokes are an inline SVG layered
-   on top of this element (see DocsShell in components/TopBar.tsx). */
+/* ---------- Shaded gutter column (docs layout) ----------
+   40px-wide full-height column between the sidebar and the content in
+   the docs grid, filled with a flat light-grey shade (the owner replaced
+   the earlier dot grid with a plain shade). Border and layout live on
+   the column element in the docs page. */
 
-.header-wash {
-  background: radial-gradient(
-    58rem 32rem at 88% -8rem,
-    rgb(147 197 253 / 0.55),
-    rgb(191 219 254 / 0.28) 42%,
-    rgb(219 234 254 / 0.08) 62%,
-    transparent 75%
-  );
+.gutter-strip {
+  background-color: #f8fafc;
 }
 
-.dark .header-wash {
-  background: radial-gradient(
-    58rem 32rem at 88% -8rem,
-    rgb(30 64 175 / 0.38),
-    rgb(30 58 138 / 0.18) 42%,
-    transparent 72%
-  );
+.dark .gutter-strip {
+  background-color: rgb(255 255 255 / 0.04);
 }
 
-/* ---------- Hatch gutters (docs shell, very wide screens) ----------
-   Diagonal line pattern via SVG data-URI — a pattern, not a gradient. */
+/* ---------- Hidden-scrollbar rails ----------
+   The sidebar nav and TOC rails stay scrollable but show no scrollbar
+   (the Tailwind v4 docs sidebar behaves the same way). The main page
+   scrollbar and code-block scrollbars are untouched. */
 
-.hatch-strip {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Cpath d='M-2.5 7.5 L7.5 -2.5 M2.5 12.5 L12.5 2.5' fill='none' stroke='%23e2e8f0' stroke-width='1'/%3E%3C/svg%3E");
-  background-repeat: repeat;
+.no-scrollbar {
+  scrollbar-width: none;
 }
 
-.dark .hatch-strip {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Cpath d='M-2.5 7.5 L7.5 -2.5 M2.5 12.5 L12.5 2.5' fill='none' stroke='%23ffffff' stroke-opacity='0.07' stroke-width='1'/%3E%3C/svg%3E");
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* Visible keyboard focus everywhere */

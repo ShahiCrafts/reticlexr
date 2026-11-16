@@ -1,5 +1,8 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { LuAtom, LuCheck, LuChevronRight, LuCirclePlay, LuPackage, LuZap } from 'react-icons/lu';
+import { FaAndroid, FaGithub } from 'react-icons/fa6';
+import { SiCapacitor } from 'react-icons/si';
 import { TopBar, SiteFooter } from '@/components/TopBar';
 import { PhoneVisual } from '@/components/PhoneVisual';
 import { QuickStartCode } from '@/components/QuickStartCode';
@@ -10,10 +13,12 @@ const GITHUB_URL = 'https://github.com/ShahiCrafts/reticlexr';
 function CheckItem({ label }: { label: string }) {
   return (
     <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
-      <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="12" cy="12" r="10" fill="#2563eb" />
-        <path d="m8 12.5 2.5 2.5L16 9.5" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
+      <span
+        className="flex h-5 w-5 items-center justify-center rounded-full bg-[#2563eb]"
+        aria-hidden="true"
+      >
+        <LuCheck size={11} strokeWidth={3} color="#ffffff" />
+      </span>
       {label}
     </span>
   );
@@ -24,14 +29,6 @@ function CardIcon({ children }: { children: ReactNode }) {
     <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
       {children}
     </span>
-  );
-}
-
-function LineIcon({ children }: { children: ReactNode }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      {children}
-    </svg>
   );
 }
 
@@ -46,66 +43,31 @@ const FEATURE_CARDS: Array<{
     title: 'WebXR Powered',
     body: 'Leverage ARCore on Android with ease.',
     href: '/docs/concepts/webxr-vs-native',
-    icon: (
-      <LineIcon>
-        <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
-        <path d="m3.3 7 8.7 5 8.7-5" />
-        <path d="M12 22V12" />
-      </LineIcon>
-    ),
+    icon: <LuPackage size={22} strokeWidth={1.8} aria-hidden />,
   },
   {
     title: 'Simple API',
     body: 'A clean and intuitive API for AR experiences.',
     href: '/docs/api',
-    icon: (
-      <LineIcon>
-        <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
-      </LineIcon>
-    ),
+    icon: <LuZap size={22} strokeWidth={1.8} aria-hidden />,
   },
   {
     title: 'React Ready',
     body: 'Built for modern React applications.',
     href: '/docs/guides/react-integration',
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-        <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
-        <ellipse cx="12" cy="12" rx="10" ry="4.2" />
-        <ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(60 12 12)" />
-        <ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(120 12 12)" />
-      </svg>
-    ),
+    icon: <LuAtom size={22} strokeWidth={1.5} aria-hidden />,
   },
   {
     title: 'Open Source',
     body: 'Contribute and grow with us.',
     href: GITHUB_URL,
     external: true,
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.55v-2.15c-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.75 2.69 1.25 3.34.95.1-.74.4-1.25.72-1.53-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.78 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.38-5.25 1.27.41 2.62.41 1.08 0 2.18-.01 2.41 0 .17.11.37.53.77 1.58 4.57-1.52 7.86-5.83 7.86-10.91C23.5 5.65 18.35.5 12 .5z" />
-      </svg>
-    ),
+    icon: <FaGithub size={22} aria-hidden />,
   },
 ];
 
 function AndroidIcon() {
-  return (
-    <svg width="34" height="34" viewBox="0 0 24 24" aria-hidden="true">
-      <g fill="#3ddc84">
-        <path d="M5 10.2C5 6.9 8.1 4.6 12 4.6s7 2.3 7 5.6z" />
-        <rect x="5" y="10.8" width="14" height="7.6" rx="1.4" />
-        <rect x="2.7" y="11.4" width="1.9" height="6" rx="0.95" />
-        <rect x="19.4" y="11.4" width="1.9" height="6" rx="0.95" />
-        <rect x="8.4" y="18.6" width="2.3" height="3.2" rx="1.1" />
-        <rect x="13.3" y="18.6" width="2.3" height="3.2" rx="1.1" />
-        <path d="M7.6 4.2 6.2 2M16.4 4.2 17.8 2" stroke="#3ddc84" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-      </g>
-      <circle cx="9.4" cy="8" r="1" fill="#ffffff" />
-      <circle cx="14.6" cy="8" r="1" fill="#ffffff" />
-    </svg>
-  );
+  return <FaAndroid size={34} color="#3ddc84" aria-hidden />;
 }
 
 function ArCoreIcon() {
@@ -128,7 +90,7 @@ export default function LandingPage() {
           {/* Hero */}
           <section className="grid items-center gap-14 lg:grid-cols-[1.05fr_0.95fr]">
             <div>
-              <p className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-700 dark:border-blue-500/30 dark:bg-transparent dark:text-blue-300">
+              <p className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white px-3 py-1.5 font-mono text-xs font-medium uppercase tracking-[0.1em] text-blue-700 dark:border-blue-500/30 dark:bg-transparent dark:text-blue-300">
                 <span className="flex h-5 w-5 items-center justify-center rounded-md bg-blue-600 text-[9px] font-bold normal-case tracking-normal text-white" aria-hidden="true">
                   AR
                 </span>
@@ -154,10 +116,7 @@ export default function LandingPage() {
                   href="/demo"
                   className="inline-flex items-center gap-2 rounded-full border border-slate-300 px-6 py-3 text-sm font-semibold text-slate-700 hover:border-blue-300 hover:text-blue-700 focus-visible:outline-2 focus-visible:outline-blue-500 dark:border-slate-700 dark:text-slate-200 dark:hover:border-blue-500 dark:hover:text-blue-300"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-                    <circle cx="12" cy="12" r="9.2" />
-                    <path d="M10 8.5v7l6-3.5z" fill="currentColor" stroke="none" />
-                  </svg>
+                  <LuCirclePlay size={16} strokeWidth={1.8} aria-hidden />
                   Open Live Demo
                 </Link>
               </div>
@@ -180,9 +139,7 @@ export default function LandingPage() {
                     <div className="flex items-start justify-between">
                       <CardIcon>{card.icon}</CardIcon>
                       <span className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-400 transition-colors group-hover:border-blue-200 group-hover:text-blue-600 dark:border-slate-700 dark:group-hover:border-blue-500/40 dark:group-hover:text-blue-400">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <path d="m9 6 6 6-6 6" />
-                        </svg>
+                        <LuChevronRight size={14} strokeWidth={2} aria-hidden />
                       </span>
                     </div>
                     <h3 className="mt-4 font-semibold text-slate-900 dark:text-white">{card.title}</h3>
@@ -207,7 +164,7 @@ export default function LandingPage() {
           {/* Quick start */}
           <section className="mt-24 grid items-start gap-10 lg:grid-cols-[0.85fr_1.45fr_1fr]" aria-label="Quick start">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">
+              <p className="font-mono text-xs font-medium uppercase tracking-[0.1em] text-blue-600 dark:text-blue-400">
                 — Quick Start
               </p>
               <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
@@ -236,9 +193,12 @@ export default function LandingPage() {
                   <AndroidIcon />
                   <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Android</span>
                 </div>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-slate-300 dark:text-slate-600" aria-hidden="true">
-                  <path d="m9 6 6 6-6 6" />
-                </svg>
+                <LuChevronRight
+                  size={16}
+                  strokeWidth={2}
+                  aria-hidden
+                  className="text-slate-300 dark:text-slate-600"
+                />
                 <div className="flex flex-1 flex-col items-center gap-1.5 text-center">
                   <ArCoreIcon />
                   <span className="text-sm font-medium text-slate-700 dark:text-slate-200">ARCore</span>
@@ -246,26 +206,21 @@ export default function LandingPage() {
               </div>
               <div className="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
                 <p className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="#2563eb" aria-hidden="true">
-                    <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
-                  </svg>
+                  <LuZap size={15} fill="#2563eb" color="#2563eb" aria-hidden />
                   Built with
                 </p>
                 <div className="mt-3 flex items-center gap-5 text-sm font-medium text-slate-700 dark:text-slate-200">
                   <span className="inline-flex items-center gap-1.5">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.5" aria-hidden="true" className="dark:stroke-blue-400">
-                      <circle cx="12" cy="12" r="1.6" fill="#2563eb" stroke="none" />
-                      <ellipse cx="12" cy="12" rx="10" ry="4.2" />
-                      <ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(60 12 12)" />
-                      <ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(120 12 12)" />
-                    </svg>
+                    <LuAtom
+                      size={18}
+                      strokeWidth={1.5}
+                      aria-hidden
+                      className="text-[#2563eb] dark:text-blue-400"
+                    />
                     React
                   </span>
                   <span className="inline-flex items-center gap-1.5">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.6" aria-hidden="true" className="dark:stroke-blue-400">
-                      <rect x="3" y="3" width="18" height="18" rx="5" />
-                      <path d="M13 6 8.5 13H11l-1 5 4.5-7H12z" fill="#2563eb" stroke="none" />
-                    </svg>
+                    <SiCapacitor size={18} aria-hidden className="text-[#2563eb] dark:text-blue-400" />
                     Capacitor
                   </span>
                 </div>

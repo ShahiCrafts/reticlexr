@@ -4,8 +4,9 @@ description: Two independent AR runtimes behind three JS API layers — the modu
 ---
 
 The package is a Capacitor plugin with **two independent AR runtimes**
-behind **three JS API layers**. There is no build step and no TypeScript:
-the published entry is the raw ESM source.
+behind **three JS API layers**. There is no build step: the published
+entry is the raw ESM source, with hand-written TypeScript declarations
+(`src/*.d.ts`) alongside it.
 
 <svg viewBox="0 0 760 470" role="img" aria-label="Architecture diagram: your app calls the ARCore facade or the ARView, hook and gesture layers. The facade crosses the Capacitor bridge to the native Android ARCore and Filament plugin. The high-level layers drive the ARCoreWeb engine, which renders through Three.js over WebXR." className="my-8 w-full">
   <defs>
@@ -111,7 +112,8 @@ create() ─► setConfig() + startSession({ domOverlay })
                        'light-estimation'?,
                        'camera-access'? (only with enableScreenshots),
                        'dom-overlay'? (with overlay)] })
-  renderer.xr.setSession(); hit-test source from the viewer space
+  renderer.xr.setSession(); hit-test source from the viewer space;
+  reference space: local-floor → local → viewer fallback chain
 
 Per frame: viewer hit test → reticle pose + surface state
   (frame listeners notified on change, at most 10 Hz)

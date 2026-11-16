@@ -119,25 +119,22 @@ The hook returns state (`isSupported`, `isSessionActive`, `placedModels`,
 engine — the full list is in the [API reference](/docs/api#usearcore).
 
 <Warning>
-Two hook caveats, both verified in the audit:
+Two hook facts to design around:
 
-- **Shared engine.** All `useARCore()` consumers share one module-level
-  engine instance. When any one consumer unmounts, its cleanup stops the
-  session for all of them. Mount the hook in exactly one place in your
-  tree (or lift it into a provider you control).
-- **Transform argument shapes.** The hook's `placeModel(modelUrl,
-  position, rotation, scale)` expects the engine's **array** shapes
-  (`[x, y, z]`, quaternion `[x, y, z, w]`, `[sx, sy, sz]`) — despite older
-  JSDoc describing `{x, y, z}` objects. Passing objects produces `NaN`
-  transforms and the model never appears.
+- **Shared engine by default.** All `useARCore()` consumers share one
+  lazily-constructed engine instance. When any one consumer unmounts,
+  its cleanup stops the session for all of them. Mount the hook in
+  exactly one place in your tree (or lift it into a provider you
+  control) — or pass a dedicated engine per view:
+  `useARCore({ engine })` with a `new ARCoreWeb()` from
+  `reticlexr/web`.
+- **Transform argument shapes are normalised.** The hook's
+  `placeModel(modelUrl, position, rotation, scale)` accepts arrays
+  (`[x, y, z]`, quaternion `[x, y, z, w]`, `[sx, sy, sz]`) **or**
+  `{x, y, z}` objects, and Euler-radian rotations; scales clamp to
+  [0.1, 5]. (In v1.0.0, objects produced `NaN` transforms — fixed
+  in 1.1.0.)
 </Warning>
-
-<Note>
-`detectedPlanes` in the hook currently always reads zero — the hook reads
-array fields the engine doesn't emit (it emits counts as numbers). Until
-that fix lands, read plane counts from the engine's plane listener via
-`ARView.onPlanes()` instead. See [Known issues](/docs/known-issues).
-</Note>
 
 ## Overlays and SSR
 
@@ -147,10 +144,14 @@ DOM overlay. Styling, routing and state inside it are entirely yours —
 see [Overlays](/docs/guides/overlays).
 
 <Todo>
-SSR safety is unverified: the package entry runs an event-bridge setup at
-import time and the hook module constructs an engine at module scope.
-Neither obviously touches `window`/`document` at import, but no SSR
-render was exercised during the audit. Until verified, load AR components
-client-side only (e.g. Next.js `dynamic(..., { ssr: false })`) — which is
-what this site's own [demo](/demo) does.
+SSR: import-time side effects were removed in 1.1.0 (the event
+bridge installs lazily on first subscription; the shared hook
+engine is constructed lazily), and all five entry points pass
+DOM-less import checks — importing them touches no
+`window`/`document`, and the hook renders to string. A full
+framework prerender (e.g. Next.js) has **not** been exercised yet,
+so that remains TODO: until it is verified, loading AR components
+client-side only (e.g. Next.js `dynamic(..., { ssr: false })`) is
+the safe default — which is what this site's own [demo](/demo)
+does.
 </Todo>

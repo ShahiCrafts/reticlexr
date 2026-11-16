@@ -7,64 +7,50 @@ description: Install reticlexr, wire it into a Capacitor app, and place your fir
 This guide will help you get up and running with reticlexr in just a few minutes.
 </Info>
 
-## Install the package
+## Installation
+
+Install the package from npm with your package manager:
 
 <InstallTabs />
 
 The package ships as plain ESM source — there is no build step and no
-transpilation. Its runtime requirements are **peer dependencies** — your
-app provides the single shared copy:
+transpilation. Its renderer/bridge dependencies are **peer
+dependencies** your app provides:
 
 | Package | Version (from `package.json`) | Why |
 | --- | --- | --- |
-| `@capacitor/core` | `^8.5.2` | The Capacitor bridge the native facade registers with |
+| `@capacitor/core` | `^8.5.2` | The Capacitor bridge the native facade registers with — any Capacitor 8 app already has it |
 | `three` | `^0.180.0` | The WebXR runtime's renderer, scene and GLTF loader |
-| `react` | `>=16.8.0` | Only for the [`useARCore` hook](/docs/api#usearcore) |
+
+`react` (`>=16.8.0`) is a peer dependency for the
+[`useARCore` hook](/docs/api#usearcore), which lives at
+`reticlexr/react`.
 
 <Note>
-Import the hook from the **`reticlexr/react`** subpath. The package root
-still re-exports it for backward compatibility, but that re-export is
-deprecated (it keeps React in the root entry's module graph) and will be
-removed in the next major version.
+The package root still re-exports `useARCore` as a **deprecated
+alias**, so importing the root entry still pulls React in 1.x.
+Framework-agnostic code can import the subpaths instead
+(`reticlexr/ar-view`, `reticlexr/web`, `reticlexr/gestures`), which
+never touch React.
 </Note>
 
-Hand-written TypeScript declarations ship with the package, and the
-JSDoc in the sources is type-checked in the repo (`npm run check-types`),
-so TypeScript projects get checking out of the box.
+Hand-written TypeScript declarations ship with the package
+(`src/*.d.ts`), so TypeScript projects get full checking.
 
-## Capacitor setup
+<Step number="01" title="Capacitor setup" id="capacitor-setup">
+<div>
 
 For a Capacitor app, install the package and sync:
 
-```bash title="Terminal"
-npm install reticlexr
-npx cap sync
-```
-
-<Warning title="Capacitor discovery caveat (PKG-01)">
-The package's `package.json` does not yet contain the
-`"capacitor": { "android": { "src": "android" } }` metadata pointer, so
-automatic plugin discovery by `cap sync` is **not backed by package
-metadata** and has not been verified end-to-end in a clean consumer app.
-The repository's own example works because its
-`example/android/settings.gradle` includes the plugin by hand:
-
-```groovy title="example/android/settings.gradle"
-include ':reticlexr'
-project(':reticlexr').projectDir = new File(rootDir, '../../android')
-```
-
-If `cap sync` does not pick the plugin up in your app, add the equivalent
-include for your project layout, pointing at
-`node_modules/reticlexr/android`.
-</Warning>
-
-<Todo>
-Verify the clean consumer flow — fresh Capacitor app, `npm install
-reticlexr`, `npx cap sync`, build, run — and update this page with
-the confirmed result. Until then, treat the settings.gradle include above
-as the known-good path.
-</Todo>
+<Note>
+The package's `package.json` carries the
+`"capacitor": { "android": { "src": "android" } }` metadata key, so
+`cap sync` discovers and registers the Android plugin automatically
+(`ARCorePlugin` in the generated `capacitor.plugins.json`, a
+`:reticlexr` project in the generated settings). No manual
+`settings.gradle` edit is needed — the clean consumer flow is
+verified in a scratch Capacitor app.
+</Note>
 
 The native Android side, once wired, provides session management, hit
 testing and surface events through ARCore. Be aware of what it does
@@ -73,10 +59,39 @@ in the WebXR runtime. Read
 [WebXR vs native ARCore](/docs/concepts/webxr-vs-native) before planning
 an Android-native-only experience.
 
-## Your first AR view
+</div>
+<div>
+
+```bash title="Terminal"
+npm install reticlexr
+npx cap sync
+```
+
+</div>
+</Step>
+
+<Step number="02" title="Your first AR view" id="your-first-ar-view">
+<div>
 
 The high-level API is `createARView()`. It needs a DOM element to use as
 the immersive session's overlay — your buttons and product UI live there.
+
+What happens next is covered by the guides:
+[React integration](/docs/guides/react-integration) for component-shaped
+usage, [Gestures](/docs/guides/gestures) for tap/pinch/twist, and
+[Model preloading & switching](/docs/guides/model-preloading-and-switching)
+for product catalogues.
+
+<Note>
+`create()` asks the browser for an `immersive-ar` session with the
+`hit-test` feature required. `local-floor` is requested when
+available, with `local` and `viewer` reference-space fallbacks, so
+a device/browser without `local-floor` degrades instead of failing
+session creation.
+</Note>
+
+</div>
+<div>
 
 ```js title="first-ar.js"
 import { createARView } from 'reticlexr';
@@ -101,7 +116,6 @@ await ar.preloadModels(['/models/sofa.glb', '/models/chair.glb']);
 const result = await ar.placeModel('/models/sofa.glb');
 if (!result.success) {
   // result.code === 'NO_SURFACE' when no surface is in view yet
-  // (result.reason is a deprecated alias of result.code)
   console.log('Keep scanning:', result.code);
 }
 ```
@@ -114,27 +128,17 @@ if (!result.success) {
 </div>
 ```
 
-What happens next is covered by the guides:
-[React integration](/docs/guides/react-integration) for component-shaped
-usage, [Gestures](/docs/guides/gestures) for tap/pinch/twist, and
-[Model preloading & switching](/docs/guides/model-preloading-and-switching)
-for product catalogues.
+</div>
+</Step>
 
-<Note>
-`create()` asks the browser for an `immersive-ar` session with the
-`hit-test` feature required and `local-floor` requested. A
-device/browser without `local-floor` degrades to the `local` or
-`viewer` reference space instead of failing — see
-[Known issues](/docs/known-issues).
-</Note>
-
-## HTTPS and phone testing
+<Step number="03" title="HTTPS and phone testing" id="https-and-phone-testing">
+<div>
 
 WebXR immersive AR only runs in a **secure context**: HTTPS, or
 `localhost`. A page served over plain HTTP on a LAN address will load, but
-session creation will fail — and `checkSupport()` does not currently
-distinguish "insecure origin" from "not supported", so check the URL
-scheme first when AR refuses to start.
+session creation will fail — `checkSupport()` reports
+`{ supported: false, code: 'INSECURE_CONTEXT' }` in that case, so check
+the `code` (and the URL scheme) first when AR refuses to start.
 
 ### Zero-setup option
 
@@ -150,13 +154,6 @@ Requirements (from the repository's phone-testing guide):
 - Phone and development computer on the same Wi-Fi
 
 The example app ships LAN HTTPS tooling with a self-signed development CA:
-
-```bash title="Terminal"
-cd example
-npm install
-npm run cert        # generates a private dev CA + server cert for your LAN IP
-npm run dev:https   # serves https://<LAN-IP>:5173
-```
 
 Then:
 
@@ -188,3 +185,16 @@ these keys in production.
 iOS Safari does not expose the immersive-ar WebXR flow this SDK's browser
 runtime is built on. The WebXR path is an Android Chrome path; plan a
 separate implementation for iOS if you need it.
+
+</div>
+<div>
+
+```bash title="Terminal"
+cd example
+npm install
+npm run cert        # generates a private dev CA + server cert for your LAN IP
+npm run dev:https   # serves https://<LAN-IP>:5173
+```
+
+</div>
+</Step>
