@@ -30,16 +30,14 @@ export function QuickStartCode() {
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-800 bg-[#0b1220]">
-      <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
-        <span className="h-3 w-3 rounded-full bg-[#ff5f57]" aria-hidden="true" />
-        <span className="h-3 w-3 rounded-full bg-[#febc2e]" aria-hidden="true" />
-        <span className="h-3 w-3 rounded-full bg-[#28c840]" aria-hidden="true" />
+    <div className="overflow-hidden rounded-xl border border-slate-800 bg-[#020617]">
+      <div className="flex items-center justify-between border-b border-slate-800 px-4 py-2.5">
+        <span className="text-xs text-slate-400">Terminal</span>
         <button
           type="button"
           onClick={copy}
           aria-live="polite"
-          className="ml-auto inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-blue-400"
+          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-slate-400 hover:bg-white/10 hover:text-slate-100 focus-visible:outline-2 focus-visible:outline-blue-400"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <rect x="9" y="9" width="13" height="13" rx="2" />

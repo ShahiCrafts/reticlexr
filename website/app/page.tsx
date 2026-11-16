@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { TopBar, SiteFooter } from '@/components/TopBar';
-import { HomeSidebar } from '@/components/HomeSidebar';
 import { PhoneVisual } from '@/components/PhoneVisual';
 import { QuickStartCode } from '@/components/QuickStartCode';
 import { getSearchIndex } from '@/lib/content';
@@ -124,12 +123,8 @@ export default function LandingPage() {
     <div className="flex min-h-screen flex-col bg-white text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
       <TopBar searchIndex={searchIndex} />
 
-      <div className="mx-auto flex w-full max-w-[90rem] flex-1">
-        <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-72 shrink-0 overflow-y-auto border-r border-slate-200 px-5 py-8 lg:block dark:border-slate-800">
-          <HomeSidebar />
-        </aside>
-
-        <main className="min-w-0 flex-1 px-4 pb-20 pt-10 sm:px-8 lg:px-12">
+      <div className="mx-auto w-full max-w-7xl flex-1 px-4 sm:px-8">
+        <main className="min-w-0 pb-20 pt-10">
           {/* Hero */}
           <section className="grid items-center gap-14 lg:grid-cols-[1.05fr_0.95fr]">
             <div>

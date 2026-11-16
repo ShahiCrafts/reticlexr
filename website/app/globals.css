@@ -26,6 +26,9 @@
   --color-blue-700: #1d4ed8;
   --color-blue-800: #1e40af;
 
+  /* Near-black page background in dark mode (reference-style slate-950). */
+  --color-slate-950: #05070d;
+
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
@@ -40,23 +43,60 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* ---------- Shiki / rehype-pretty-code ---------- */
+/* ---------- Shiki / rehype-pretty-code ----------
+   Code panels are dark in BOTH themes (single github-dark Shiki theme). */
 
 figure[data-rehype-pretty-code-figure] {
+  position: relative;
   margin: 1.5rem 0;
   overflow: hidden;
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
   border: 1px solid rgb(30 41 59); /* slate-800 */
-  background: #0d1526;
+  background: #020617; /* slate-950 */
 }
 
 figure[data-rehype-pretty-code-figure] figcaption[data-rehype-pretty-code-title] {
-  padding: 0.5rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 0.75rem 0.55rem 1rem;
   font-family: var(--font-mono);
-  font-size: 0.8rem;
-  color: rgb(148 163 184);
+  font-size: 0.75rem;
+  color: rgb(148 163 184); /* slate-400 */
   border-bottom: 1px solid rgb(30 41 59);
-  background: rgb(15 23 42);
+}
+
+/* Header row injected by CopyEnhancer for terminal/bash blocks (and any
+   block without a filename). */
+.code-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 0.75rem 0.55rem 1rem;
+  font-size: 0.75rem;
+  color: rgb(148 163 184); /* slate-400 */
+  border-bottom: 1px solid rgb(30 41 59);
+}
+
+.code-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border: 0;
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgb(148 163 184);
+  background: transparent;
+  cursor: pointer;
+}
+
+.code-copy-btn:hover {
+  background: rgb(255 255 255 / 0.08);
+  color: rgb(226 232 240);
 }
 
 figure[data-rehype-pretty-code-figure] pre {
@@ -83,27 +123,16 @@ figure[data-rehype-pretty-code-figure] [data-highlighted-line] {
   border-left-color: rgb(37 99 235);
 }
 
-/* Dual-theme tokens: rehype-pretty-code emits --shiki-light / --shiki-dark */
-code[data-theme*=" "],
-code[data-theme*=" "] span {
-  color: var(--shiki-light);
-}
-
-.dark code[data-theme*=" "],
-.dark code[data-theme*=" "] span {
-  color: var(--shiki-dark);
-}
-
-/* Inline code inside prose */
+/* Inline code inside prose: plain slate chip, no colour tint */
 .prose :where(code):not(:where(pre code)) {
   border-radius: 0.375rem;
-  padding: 0.15em 0.35em;
+  padding: 0.125em 0.375em;
   font-weight: 500;
-  background: rgb(241 245 249);
+  background: rgb(241 245 249); /* slate-100 */
 }
 
 .dark .prose :where(code):not(:where(pre code)) {
-  background: rgb(30 41 59);
+  background: rgb(255 255 255 / 0.1);
 }
 
 .prose :where(code):not(:where(pre code))::before,
@@ -111,9 +140,120 @@ code[data-theme*=" "] span {
   content: none;
 }
 
+/* ---------- Docs prose tuning (plainer, reference-like) ---------- */
+
+.prose h2 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-top: 3rem;
+}
+
+.prose h3 {
+  font-weight: 600;
+  margin-top: 2.25rem;
+}
+
+.prose h4 {
+  font-weight: 600;
+}
+
+.prose a {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.prose hr {
+  border-color: rgb(226 232 240); /* slate-200 */
+}
+
+/* No shadows anywhere — neutralise the typography plugin's kbd shadow. */
+.prose kbd {
+  box-shadow: none;
+}
+
+.dark .prose hr {
+  border-color: rgb(255 255 255 / 0.1);
+}
+
 /* Heading anchor offset for the sticky top bar */
 .prose :where(h2, h3) {
   scroll-margin-top: 5.5rem;
+}
+
+/* ---------- Docs tables: light header row, hairline row borders ---------- */
+
+.prose table {
+  max-width: 100%;
+}
+
+.prose thead {
+  background: rgb(248 250 252); /* slate-50 */
+  border-bottom: 1px solid rgb(226 232 240); /* slate-200 */
+}
+
+.prose thead th {
+  font-weight: 600;
+  color: rgb(15 23 42); /* slate-900 */
+  padding: 0.625rem 0.875rem;
+}
+
+.prose tbody td {
+  padding: 0.625rem 0.875rem;
+  border-top: 1px solid rgb(241 245 249); /* slate-100 */
+}
+
+.prose tbody tr {
+  border-top: 0;
+}
+
+.dark .prose thead {
+  background: rgb(255 255 255 / 0.04);
+  border-bottom-color: rgb(255 255 255 / 0.1);
+}
+
+.dark .prose thead th {
+  color: rgb(255 255 255);
+}
+
+.dark .prose tbody td {
+  border-top-color: rgb(255 255 255 / 0.06);
+}
+
+/* ---------- Header wash (docs pages only) ----------
+   The single permitted gradient on the site: a soft pale-blue wash in the
+   top-right of the docs header zone, behind the top bar and page title,
+   fading out downward/leftward. Swoosh strokes are an inline SVG layered
+   on top of this element (see DocsShell in components/TopBar.tsx). */
+
+.header-wash {
+  background: radial-gradient(
+    58rem 32rem at 88% -8rem,
+    rgb(147 197 253 / 0.55),
+    rgb(191 219 254 / 0.28) 42%,
+    rgb(219 234 254 / 0.08) 62%,
+    transparent 75%
+  );
+}
+
+.dark .header-wash {
+  background: radial-gradient(
+    58rem 32rem at 88% -8rem,
+    rgb(30 64 175 / 0.38),
+    rgb(30 58 138 / 0.18) 42%,
+    transparent 72%
+  );
+}
+
+/* ---------- Hatch gutters (docs shell, very wide screens) ----------
+   Diagonal line pattern via SVG data-URI — a pattern, not a gradient. */
+
+.hatch-strip {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Cpath d='M-2.5 7.5 L7.5 -2.5 M2.5 12.5 L12.5 2.5' fill='none' stroke='%23e2e8f0' stroke-width='1'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+}
+
+.dark .hatch-strip {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Cpath d='M-2.5 7.5 L7.5 -2.5 M2.5 12.5 L12.5 2.5' fill='none' stroke='%23ffffff' stroke-opacity='0.07' stroke-width='1'/%3E%3C/svg%3E");
 }
 
 /* Visible keyboard focus everywhere */
