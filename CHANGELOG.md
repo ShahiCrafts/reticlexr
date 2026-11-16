@@ -31,6 +31,13 @@ the remediation programme and will be completed before release._
   subpaths. `sideEffects` is declared accurately: only the root
   entry (plugin registration) and the hook module (shared-engine
   construction) have import-time effects.
+- **`three` and `@capacitor/core` are peer dependencies (PKG-04).**
+  They moved out of `dependencies` (and remain `devDependencies`
+  for local development and tests). Host apps now provide the one
+  shared copy: a duplicate `three` breaks class identity across
+  the GLTF pipeline, and `@capacitor/core` is a singleton bridge by
+  design. Required ranges: `@capacitor/core ^8.5.2`,
+  `three ^0.180.0`; `react >=16.8.0` is unchanged.
 
 ### Added
 

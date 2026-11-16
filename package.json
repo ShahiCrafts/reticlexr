@@ -69,10 +69,8 @@
     "threejs"
   ],
   "peerDependencies": {
-    "react": ">=16.8.0"
-  },
-  "dependencies": {
     "@capacitor/core": "^8.5.2",
+    "react": ">=16.8.0",
     "three": "^0.180.0"
   },
   "bugs": {
@@ -80,6 +78,10 @@
   },
   "homepage": "https://reticlexr.vercel.app",
   "devDependencies": {
+    "@capacitor/core": "^8.5.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "three": "^0.180.0",
     "typescript": "^5.9.3"
   }
 }
