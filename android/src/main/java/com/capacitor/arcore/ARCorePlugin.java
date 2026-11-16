@@ -138,14 +138,45 @@ public class ARCorePlugin extends Plugin {
 
   /**
    * Check if ARCore is supported.
+   *
+   * NAT-06: delegates to the same ArCoreApk availability check that
+   * session creation uses — never a hardcoded answer. NAT-12: with
+   * ARCore absent this resolves {supported:false} instead of throwing.
    */
   @PluginMethod
   public void checkSupport(PluginCall call) {
-    // Delegate to sessionManager (already handles this)
-    // For now, simple check
     JSObject result = new JSObject();
-    result.put("supported", true);
-    result.put("reason", "ARCore supported");
+    try {
+      com.google.ar.core.ArCoreApk.Availability availability =
+          sessionManager.checkAvailability();
+      switch (availability) {
+        case SUPPORTED_INSTALLED:
+          result.put("supported", true);
+          result.put("reason", "ARCore supported");
+          break;
+        case SUPPORTED_NOT_INSTALLED:
+          result.put("supported", false);
+          result.put("reason", "ARCore is not installed on this device");
+          break;
+        case SUPPORTED_APK_TOO_OLD:
+          result.put("supported", false);
+          result.put("reason", "ARCore is too old; an update is required");
+          break;
+        case UNSUPPORTED_DEVICE_NOT_CAPABLE:
+          result.put("supported", false);
+          result.put("reason", "This device does not support ARCore");
+          break;
+        default:
+          // UNKNOWN_ERROR / UNKNOWN_CHECKING / UNKNOWN_TIMED_OUT
+          result.put("supported", false);
+          result.put("reason", "ARCore availability could not be determined");
+          break;
+      }
+    } catch (Exception e) {
+      Log.e(TAG, "Availability check failed", e);
+      result.put("supported", false);
+      result.put("reason", "ARCore is not available on this device");
+    }
     call.resolve(result);
   }
 
@@ -166,8 +197,20 @@ public class ARCorePlugin extends Plugin {
       boolean planeDetection = call.getBoolean("planeDetection", true);
       boolean lightEstimation = call.getBoolean("lightEstimation", true);
 
+      // NAT-03: session creation needs the foreground Activity (the
+      // ARCore install flow cannot run from the application Context).
+      // A null Activity is a coded rejection, never an NPE/cast crash.
+      Activity activity = getActivity();
+      if (activity == null) {
+        call.reject(
+            "Cannot start AR session: no foreground Activity",
+            "ACTIVITY_UNAVAILABLE");
+        return;
+      }
+
       // Create ARCore session
       sessionManager.createSession(
+          activity,
           planeDetection,
           lightEstimation,
           new ARSessionManager.ARSessionCallback() {
@@ -194,7 +237,15 @@ public class ARCorePlugin extends Plugin {
    * Setup AR rendering after session created.
    */
   private void setupARRendering(PluginCall call) {
-    getActivity().runOnUiThread(() -> {
+    // NAT-03: never dereference a null Activity.
+    Activity activity = getActivity();
+    if (activity == null) {
+      call.reject(
+          "Cannot set up AR rendering: no foreground Activity",
+          "ACTIVITY_UNAVAILABLE");
+      return;
+    }
+    activity.runOnUiThread(() -> {
       try {
         // Initialize model manager (needs Filament engine from renderer)
         if (modelManager == null) {
@@ -244,7 +295,16 @@ public class ARCorePlugin extends Plugin {
    */
   @PluginMethod
   public void stopSession(PluginCall call) {
-    getActivity().runOnUiThread(() -> {
+    // NAT-03: never dereference a null Activity. Teardown still happens
+    // via handleOnDestroy if the Activity is already gone.
+    Activity activity = getActivity();
+    if (activity == null) {
+      call.reject(
+          "Cannot stop AR session: no foreground Activity",
+          "ACTIVITY_UNAVAILABLE");
+      return;
+    }
+    activity.runOnUiThread(() -> {
       try {
         // Cleanup models and anchors
         if (modelManager != null) {

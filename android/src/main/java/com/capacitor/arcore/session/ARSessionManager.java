@@ -40,6 +40,20 @@ public class ARSessionManager {
   private boolean isPaused = false;
   private Context context;
 
+  // NAT-09: transient-availability retry is bounded and cancellable.
+  // The retry runnable is stored so closeSession() can cancel it, and a
+  // generation counter guarantees a retry posted before stopSession can
+  // never create a session afterwards: closeSession() (and every new
+  // createSession()) increments the generation, and a retry only runs
+  // while its captured generation is still current.
+  private static final int MAX_AVAILABILITY_RETRIES = 25; // ≈5 s at 200 ms
+  private static final long AVAILABILITY_RETRY_DELAY_MS = 200;
+  private final android.os.Handler retryHandler =
+      new android.os.Handler(android.os.Looper.getMainLooper());
+  private Runnable pendingRetry;
+  private int availabilityRetries = 0;
+  private int sessionGeneration = 0;
+
   // Callback for session events
   public interface ARSessionCallback {
     void onSessionReady();
@@ -57,26 +71,65 @@ public class ARSessionManager {
    *
    * Called on UI thread.
    *
+   * @param activity foreground Activity, used for the ARCore install
+   *                 flow (NAT-03: requestInstall requires an Activity,
+   *                 never the application Context)
    * @param planeDetection whether to detect horizontal and vertical planes
    * @param lightEstimation whether to estimate environmental lighting
    * @param callback callback for session events
    */
   public void createSession(
+      android.app.Activity activity,
       boolean planeDetection,
       boolean lightEstimation,
       ARSessionCallback callback) {
 
     this.callback = callback;
 
+    // NAT-09: a new create supersedes any pending retry, and bumping the
+    // generation invalidates every previously posted retry runnable.
+    cancelPendingRetry();
+    availabilityRetries = 0;
+    final int generation = ++sessionGeneration;
+
+    attemptCreateSession(activity, planeDetection, lightEstimation, callback, generation);
+  }
+
+  /**
+   * One session-creation attempt. Transient availability re-enters this
+   * method through the bounded, cancellable retry (NAT-09).
+   */
+  private void attemptCreateSession(
+      android.app.Activity activity,
+      boolean planeDetection,
+      boolean lightEstimation,
+      ARSessionCallback callback,
+      final int generation) {
+
     try {
       // Check ARCore availability
       ArCoreApk.Availability availability = ArCoreApk.getInstance().checkAvailability(context);
 
       if (availability.isTransient()) {
-        // Transient condition, retry after delay
-        new android.os.Handler().postDelayed(() -> {
-          createSession(planeDetection, lightEstimation, callback);
-        }, 200);
+        // Transient condition: retry after a delay, but bounded (NAT-09)
+        // and cancellable via closeSession()/generation change.
+        if (availabilityRetries >= MAX_AVAILABILITY_RETRIES) {
+          callback.onSessionError(
+              "ARCORE_AVAILABILITY_TIMEOUT",
+              "ARCore availability still transient after "
+                  + MAX_AVAILABILITY_RETRIES + " retries");
+          return;
+        }
+        availabilityRetries++;
+        pendingRetry = () -> {
+          pendingRetry = null;
+          if (generation != sessionGeneration) {
+            Log.d(TAG, "Availability retry dropped: session generation changed");
+            return;
+          }
+          attemptCreateSession(activity, planeDetection, lightEstimation, callback, generation);
+        };
+        retryHandler.postDelayed(pendingRetry, AVAILABILITY_RETRY_DELAY_MS);
         return;
       }
 
@@ -85,10 +138,11 @@ public class ARSessionManager {
         return;
       }
 
-      // Install/update ARCore if needed
+      // Install/update ARCore if needed. NAT-03: this must be the
+      // foreground Activity supplied by the plugin — casting the
+      // application Context to Activity throws ClassCastException.
       ArCoreApk.InstallStatus installStatus =
-          ArCoreApk.getInstance().requestInstall(
-              (android.app.Activity) context, true);
+          ArCoreApk.getInstance().requestInstall(activity, true);
 
       if (installStatus != ArCoreApk.InstallStatus.INSTALLED) {
         callback.onSessionError("ARCORE_INSTALL_FAILED", "ARCore installation required");
@@ -223,6 +277,12 @@ public class ARSessionManager {
    * After this, the session is destroyed and cannot be reused.
    */
   public synchronized void closeSession() {
+    // NAT-09: cancel any pending availability retry first, and bump the
+    // generation so a retry runnable already queued can never create a
+    // session after this stop.
+    cancelPendingRetry();
+    sessionGeneration++;
+
     if (arSession != null) {
       try {
         arSession.close();
@@ -234,6 +294,28 @@ public class ARSessionManager {
         Log.e(TAG, "Session close failed", e);
       }
     }
+  }
+
+  /**
+   * Cancel the pending transient-availability retry, if any (NAT-09).
+   */
+  private void cancelPendingRetry() {
+    if (pendingRetry != null) {
+      retryHandler.removeCallbacks(pendingRetry);
+      pendingRetry = null;
+    }
+  }
+
+  /**
+   * The device's current ARCore availability (NAT-06).
+   *
+   * This is the same check session creation performs, exposed so the
+   * plugin's checkSupport can report it instead of a hardcoded answer.
+   * Safe to call when ARCore is absent (NAT-12): it returns an
+   * UNSUPPORTED_* / SUPPORTED_NOT_INSTALLED value rather than throwing.
+   */
+  public ArCoreApk.Availability checkAvailability() {
+    return ArCoreApk.getInstance().checkAvailability(context);
   }
 
   /**
