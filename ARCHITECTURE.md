@@ -30,10 +30,11 @@ There is **no TypeScript and no build step**: `package.json` `main` and
 
 | File | Size | Responsibility |
 |---|---|---|
-| `src/index.js` | 7,558 B | Package entry. Registers the Capacitor plugin as `ARCore` (`registerPlugin('ARCore', …)`, line 35), exposes the native facade object `ARCore` (session/hit-test/model methods + local event bus `on()`), bridges native events into that bus at import time (`setupEventBridge()`, line 260), and re-exports `useARCore`, `createARGestureController`, and the `ar-view.js` API. |
+| `src/index.js` | 12,704 B | Package entry. Registers the Capacitor plugin as `ARCore` (`registerPlugin('ARCore', …)`), exposes the native facade object `ARCore` (session/hit-test/model methods + local event bus `on()`), bridges native events into that bus **lazily** — `setupEventBridge()` runs on the first `ARCore.on()` call and is idempotent (a `WeakSet` of bridged plugins) — and re-exports `useARCore` (deprecated at the root), `ARError`/`codedError`, `createARGestureController`, and the `ar-view.js` API. |
 | `src/web.js` | 54,261 B | `ARCoreWeb extends WebPlugin` — the entire WebXR runtime: Three.js renderer/scene setup, XR session lifecycle, hit-test source, plane detection + dot/mesh visualisation, placement reticle, GLB loading/caching, model anchors/transforms/materials/textures, screenshots via `XRWebGLBinding.getCameraImage`, shadow blob planes. |
-| `src/ar-view.js` | 6,395 B | `ARView` class + `createARView()` factory + functional helpers. A framework-agnostic facade over one `ARCoreWeb` instance: single "active model" state, transform state (`{scale, rotationY}`), texture registry, gesture wiring via `enableCustomization()`. |
-| `src/hooks.js` | 24,222 B | `useARCore()` React hook. Wraps a **module-level singleton** `ARCoreWeb` (line 41) and mirrors engine events into React state (support, session, placed models, planes, per-frame surface state, errors). |
+| `src/ar-view.js` | 9,822 B | `ARView` class + `createARView()` factory + functional helpers. A framework-agnostic facade over one `ARCoreWeb` instance: single "active model" state plus a per-view registry of every placement (backing `getPlacedModels()`/`clearModels()`), transform state (`{scale, rotationY}`), texture registry, gesture wiring via `enableCustomization()`. |
+| `src/react.js` | 626 B | The `reticlexr/react` subpath entry: re-exports `useARCore` (and its option types) so React consumers don't pull the facade/engine graph through the package root. |
+| `src/hooks.js` | 27,713 B | `useARCore(options?)` React hook. Wraps a caller-supplied `options.engine` (fixed at mount) or a **lazily constructed shared default** engine, and mirrors engine events into React state (support, session, placed models, planes, per-frame surface state, errors). |
 | `src/gestures.js` | 3,255 B | `createARGestureController()` — framework-agnostic Pointer Events controller: 1-finger tap/drag, 2-finger pinch + twist, with `data-ui` ignore zones. Returns `{ destroy() }`. |
 
 ### Android (`android/src/main/java/com/capacitor/arcore/`, 2,363 lines of Java)
@@ -72,35 +73,47 @@ chair 3,096 B — valid glTF binary, minimal geometry).
 Default export `ARCore`, plus named exports:
 
 ```js
-export { ARCore }                       // default export too (index.js:262)
-export { useARCore }                    // from hooks.js
+export { ARCore }                       // default export too
+export { useARCore }                    // from hooks.js — DEPRECATED at the root;
+                                        // canonical entry: reticlexr/react
+export { ARError, codedError }          // from web.js (the coded-error convention)
+export { setupEventBridge }             // lazy, idempotent native-event bridge
 export { createARGestureController }    // from gestures.js
 export { ARView, createARView, takeScreenshot, enableCustomization,
          addTextures, switchModel, placeModel }   // from ar-view.js
 ```
 
+Subpath entries (package `exports` map): `reticlexr/react` (the hook),
+`reticlexr/web` (`ARCoreWeb` + `ARError`/`codedError`), `reticlexr/ar-view`,
+`reticlexr/gestures`, `reticlexr/package.json`.
+
 ### 2.2 Native facade `ARCore` (index.js:46–225)
 
 All methods delegate to the Capacitor plugin registered as `'ARCore'`
-(web platform → `ARCoreWeb`). Errors are rethrown wrapped as
-`Error('Failed to …: ' + e.message)` except `checkSupport`, which swallows
-errors into `{supported:false, reason}`.
+(web platform → `ARCoreWeb`). Errors reject with an `Error` carrying a
+stable `code` — the runtime error's own code when present, otherwise a
+per-method `*_FAILED` fallback; the message keeps the
+`'Failed to …: '` prefix. `checkSupport` resolves
+`{supported:false, reason, code?}` instead of rejecting.
 
 | Method | Signature | Returns |
 |---|---|---|
 | `startSession` | `(options?: { planeDetection?: boolean = true, lightEstimation?: boolean = true })` | `Promise<{success: boolean}>` |
 | `stopSession` | `()` | `Promise<void>` |
 | `hitTest` | `(options: { x: number [0,1], y: number [0,1] })` | `Promise<Object>` — native shape: `{hit, position?, rotation?, planeType?, error?}` |
-| `placeModel` | `(options: { modelPath: string, hitId?: string })` | `Promise<{modelId: string, anchorId: string}>` |
+| `placeModel` | `(options: { modelPath: string, hitId?: string })` — `modelUrl` accepted as an alias for `modelPath`; the facade forwards **both** keys (native reads `modelPath`, the web engine prefers `modelUrl`) | `Promise<{modelId: string, anchorId: string}>` |
+| `getPlacedModels` | `()` | `Promise<Array>` — web: the engine's list; Android: plugin method lands in the native phase |
+| `clearModels` | `()` | `Promise<void>` — same Android caveat |
 | `setTransform` | `(options: { modelId: string, rotation?: {x,y,z} degrees, scale?: number })` | `Promise<void>` |
 | `setMaterial` | `(options: { modelId: string, color: string /* hex */ })` | `Promise<void>` |
 | `moveModel` | `(options: { modelId: string, x: number, y: number })` | `Promise<Object>` |
 | `removeModel` | `(options: { modelId: string })` | `Promise<void>` |
-| `checkSupport` | `()` | `Promise<{supported: boolean, reason: string}>` |
+| `checkSupport` | `()` | `Promise<{supported: boolean, reason: string, code?: string}>` |
 | `on` | `(eventType: string, callback: (data) => void)` | unsubscribe `() => void` |
 | `addListener` | `(eventType, callback)` | Capacitor plugin listener handle (marked `@internal`) |
 
-Event types wired by the import-time bridge (index.js:228–258):
+Event types wired by the event bridge (installed lazily on the first
+`ARCore.on()` call, idempotently):
 `sessionStarted`, `trackingChanged`, `surfaceDetected`, `surfaceLost`,
 `surfaceUpdated`, `sessionStopped`, `modelPlaced`, `modelRemoved`,
 `modelTransformed`, `modelMaterialChanged`, `modelMoved`, `error`.
@@ -113,10 +126,12 @@ Event types wired by the import-time bridge (index.js:228–258):
 > `trackingChanged`, `sessionStarted`, `sessionStopped`,
 > `modelMaterialChanged`, `modelMoved` are native-only.
 
-> Note the identifier split: the native facade identifies models by
-> **`modelId`**, the WebXR engine by **`anchorId`**. `ARCoreWeb` contains a
-> compatibility shim (`setTransform`/`setMaterial`/`moveModel` in web.js)
-> that accepts either.
+> Identifiers are unified on **`modelId`** (API-01): the value is the
+> engine's anchor id, unchanged. The engine still accepts `anchorId` as
+> a deprecated alias (one-time warning) and includes it in results and
+> event payloads. `ARCoreWeb`'s compatibility shims
+> (`setTransform`/`setMaterial`/`moveModel` in web.js) resolve either
+> key silently and forward `modelId`.
 
 ### 2.3 `ARView` / `createARView` (ar-view.js)
 
@@ -134,14 +149,15 @@ overlay?: HTMLElement }`.
 | `getPlanes()` | `[{orientation, polygon: [{x,y,z}]}]` |
 | `setReticleVisible(v)` / `setSurfaceDotsVisible(v)` | Visibility toggles |
 | `preloadModels(urls)` | `Promise.all` of `engine.loadModel(url)` (populates the model cache) |
-| `placeModel(modelUrl, options?)` | `options: { position?, rotation?, x = 0.5, y = 0.5, scale? }`. Hit-tests centre (or `x,y`) unless `position` given. Returns `{success:true, modelId, anchorId, …}` or `{success:false, reason:'NO_SURFACE'}`. Sets `activeModelId`/`activeModelUrl`. |
+| `placeModel(modelUrl, options?)` | `options: { position?, rotation?, x = 0.5, y = 0.5, scale? }`. Hit-tests centre (or `x,y`) unless `position` given. Returns `{success:true, modelId, anchorId, …}` or `{success:false, code:'NO_SURFACE', reason:'NO_SURFACE'}` (`reason` = deprecated alias of `code`). Sets `activeModelId`/`activeModelUrl` and registers the placement. |
+| `getPlacedModels()` / `clearModels()` | This view's placements (engine list filtered to the view's registry) / remove them all through the ownership-rule disposal path |
 | `switchModel(modelUrl, options?)` | `options: { preserveMaterial = true }`. Falls back to `placeModel` when nothing is placed. Preserves placement/transform. |
 | `removeModel()` | Removes the active model; clears active id/url. No-op if none. |
 | `setScale(scale)` | Clamped to **[0.1, 5]** — the one scale range shared by every layer/runtime (`SCALE_MIN`/`SCALE_MAX` in web.js, enforced by the engine in `placeModel`/`transformModel`; Android `ARModelManager` uses the same range) (API-08), applied as uniform `[s,s,s]` |
 | `rotateBy(radians)` | Accumulates `transform.rotationY`, applies Y-quaternion |
 | `setColor(color)` | Engine `setModelColor` on the active model |
 | `addTextures({name: url})` | Registers named texture URLs; returns `this` (chainable) |
-| `applyTexture(nameOrUrl, options?)` | `options: { materialName? }`. Throws if no model placed. |
+| `applyTexture(nameOrUrl, options?)` | `options: { materialName? }`. Throws a coded error (`NO_ACTIVE_MODEL`) if no model placed. |
 | `enableCustomization(options?)` | Requires an overlay (throws otherwise). `options: { modelUrl: () => string, onTap?, onScale?, onRotate? }` — note `modelUrl` is **invoked as a function** (ar-view.js:120). Returns a cleanup function. |
 | `takeScreenshot(options?)` | Delegates to engine (see 2.4) |
 | Public fields | `activeModelId`, `activeModelUrl`, `transform {scale: 1, rotationY: 0}`, `textures: Map` |
@@ -164,16 +180,22 @@ Default `config` (web.js:80–97): `showReticle: true`, `showPlanes: false`,
 `shadowOpacity: 0.4`, `shadowSize: 1.2`, `dotSize: 0.02`, `dotSpacing: 0.1`.
 
 Models: `loadModel(url)` → cached `gltf.scene.clone()`;
-`placeModel({modelUrl|modelPath, position?, rotation = [0,0,0,1], scale = [1,1,1]})` → `{anchorId}`
-(transform inputs are normalised at the engine boundary — position accepts
-`[x,y,z]` or `{x,y,z}`, rotation a quaternion array/object or Euler-radians
-`{x,y,z}`, scale a number, `[x,y,z]` or `{x,y,z}` — BUG-01);
-`removeModel({anchorId})`; `transformModel({anchorId, position?, rotation?, scale?})`;
-`switchModel({anchorId, modelUrl, preserveMaterial = true})`;
-`setModelColor({anchorId, color})`;
-`setModelMaterial({anchorId, metalness?, roughness?, opacity?})`;
-`setModelTexture({anchorId, textureUrl, materialName?})`;
+`placeModel({modelUrl, position?, rotation = [0,0,0,1], scale = [1,1,1]})` → `{modelId, anchorId}`
+(`modelPath` is a deprecated alias for `modelUrl`; transform inputs are
+normalised at the engine boundary — position accepts `[x,y,z]` or
+`{x,y,z}`, rotation a quaternion array/object or Euler-radians `{x,y,z}`,
+scale a number, `[x,y,z]` or `{x,y,z}` — BUG-01);
+`removeModel({modelId})`; `transformModel({modelId, position?, rotation?, scale?})`;
+`switchModel({modelId, modelUrl, preserveMaterial = true})`;
+`setModelColor({modelId, color})`;
+`setModelMaterial({modelId, metalness?, roughness?, opacity?})`;
+`setModelTexture({modelId, textureUrl, materialName?})`
+(all accept `{anchorId}` as a deprecated alias for `{modelId}`);
+`getPlacedModels()` / `clearModels()`;
 facade shims `setTransform(options)`, `setMaterial(options)`, `moveModel(options)`.
+Failures reject with coded `ARError`s (`MODEL_URL_REQUIRED`,
+`MODEL_NOT_FOUND`, `MODEL_LOAD_FAILED`, `NO_SURFACE`, …); error messages
+are unchanged from v1.0.0.
 
 Queries/events: `hitTest({x, y})` → `{hit, position?, rotation?, planeType?}`
 (the centre point uses the cached viewer-ray hit; any other point runs a
@@ -183,7 +205,7 @@ BUG-03); `getSurfaceState()`,
 `getSurfaceDetectionState()`, `getDetectedPlanes()`,
 `addFrameListener(cb)` / `addPlaneListener(cb)` (both return unsubscribe),
 `setReticleVisible(v)`, `setPlaneVisualization(v)` / `isPlaneVisualizationEnabled()`,
-`setShadowVisible(anchorId, v)`, `setShadowConfig({enabled?, opacity?, size?})` /
+`setShadowVisible(modelId, v)`, `setShadowConfig({enabled?, opacity?, size?})` /
 `getShadowConfig()`.
 
 Screenshot: `takeScreenshot({format?: 'png'|'jpeg' = 'png', quality = 0.92,
@@ -197,20 +219,25 @@ Frame-listener event payloads emitted by the engine: `surfaceDetected`
 plus plane-listener payloads `planeAdded`, `planesUpdated`
 (`{type, total, horizontal, vertical}` — counts as **numbers**).
 
-### 2.5 `useARCore()` hook (hooks.js)
+### 2.5 `useARCore(options?)` hook (hooks.js; entry `reticlexr/react`)
 
-Returns state: `isSupported: boolean|null`, `isSessionActive: boolean`,
-`placedModels: Array<{anchorId, modelUrl, position, rotation, scale}>`,
+`options.engine` selects an instance-scoped engine (captured once at
+mount); with no options, all consumers share one lazily constructed
+default engine. Returns state: `isSupported: boolean|null`,
+`isSessionActive: boolean`,
+`placedModels: Array<{modelId, anchorId, modelUrl, position, rotation, scale}>`
+(`anchorId` = deprecated alias of `modelId`),
 `error: string|null`, `detectedPlanes: {horizontal, vertical, total}`,
 `surfaceState: {hasSurface, position, rotation, planeType, confidence}`.
 
 Methods (all `useCallback`): `startSession(options)` → `Promise<boolean>`
 (options passed straight to the engine, e.g. `{domOverlay}`),
 `stopSession()`, `hitTest(x, y)`, `placeModel(modelUrl, position, rotation, scale)`,
-`removeModel(anchorId)`, `transformModel(anchorId, transforms)`,
-`setModelColor(anchorId, color)`, `setModelMaterial(anchorId, properties)`,
+`removeModel(modelId)`, `getPlacedModels()`, `clearModels()`,
+`transformModel(modelId, transforms)`,
+`setModelColor(modelId, color)`, `setModelMaterial(modelId, properties)`,
 `setConfig/getConfig`, `setShadowConfig/getShadowConfig`,
-`setShadowVisible(anchorId, v)`, `getDetectedPlanes()`, `setReticleVisible(v)`,
+`setShadowVisible(modelId, v)`, `getDetectedPlanes()`, `setReticleVisible(v)`,
 `setPlaneVisualization(v)`, `clearError()`, `getRenderer/getScene/getCamera`,
 `takeScreenshot(options)`.
 
@@ -281,9 +308,9 @@ ARView.create() ─► engine.setConfig() + engine.startSession({domOverlay})
     ACES tone mapping), Scene, PerspectiveCamera(70°, 0.01–100),
     4 lights, GLTFLoader, plane groups, reticle
   navigator.xr.requestSession('immersive-ar', {
-    requiredFeatures: ['local-floor', 'hit-test'],
+    requiredFeatures: ['hit-test'],
     optionalFeatures: ['plane-detection'?, 'light-estimation'?,
-                       'camera-access'? (with light estimation), 'dom-overlay'?] })
+                       'camera-access'? (only with enableScreenshots), 'local-floor'?, 'dom-overlay'?] })
   renderer.xr.setSession(); reference spaces 'local-floor' + 'viewer';
   hitTestSource from viewer space
 Render loop: renderer.setAnimationLoop((t, frame) => …)
@@ -317,9 +344,10 @@ Gestures: DOM Pointer Events on overlay ─► ARView callbacks ─► engine
   removes the canvas from the DOM. The renderer/scene/camera themselves are
   never disposed.
 - **React:** `useARCore` checks support on mount; on unmount it calls
-  `arCore.stopSession()` if its `sessionRef` is set and runs listener
-  cleanups. Because the engine is a module singleton, unmounting one
-  consumer stops the session for all consumers (AUDIT API-04).
+  `engine.stopSession()` if its `sessionRef` is set and runs listener
+  cleanups. Consumers of the shared default engine still stop each
+  other's session on unmount; `useARCore({ engine })` consumers are
+  instance-scoped and unaffected (API-04).
   The example's `ARPlayground` instead creates one `ARView` per mount and
   destroys it in the effect cleanup.
 
@@ -341,19 +369,21 @@ Gestures: DOM Pointer Events on overlay ─► ARView callbacks ─► engine
 
 ## 5. Dependencies and build tooling (exact, from package.json)
 
-No lockfile exists in the repo (root or example), so installed versions
-resolve from the ranges below. **TODO:** pin/verify resolved versions with
-`npm install && npm ls` before publishing docs that quote transitive versions.
+A root `package-lock.json` is committed (SEC-02), so the library's own
+install is reproducible; the example resolves from its own ranges.
 
-### Library (`package.json`, name `capacitor-arcore`, version `1.0.0`)
+### Library (`package.json`, name `reticlexr`, version `1.0.0`)
 
 | Kind | Package | Version |
 |---|---|---|
-| dependency | `@capacitor/core` | `^8.5.2` |
-| dependency | `three` | `^0.180.0` |
+| peerDependency | `@capacitor/core` | `^8.5.2` |
+| peerDependency | `three` | `^0.180.0` |
 | peerDependency | `react` | `>=16.8.0` |
-| scripts | — | **none** (no build/test/lint scripts at all) |
-| entry | `main` / `module` | both `src/index.js`; no `exports` map, no `types`, no `type: module` |
+| devDependency | `@capacitor/core`, `three`, `react`, `react-dom` | for local development + hook verification |
+| dependencies | — | **none** (peers only — the host app owns the single copies) |
+| scripts | — | `check-types` (`tsc --checkJs` over the JSDoc); `test` → `node --test` |
+| entry | `main` / `module` | both `src/index.js`; `type: module`; `exports` map with `types` per entry; `sideEffects: ["./src/index.js"]` |
+| `capacitor` | | `{ "android": { "src": "android" } }` — Capacitor discovers the Android plugin (verified via scratch `cap sync`) |
 | `files` | | `["android/", "src/"]` |
 
 ### Android (`android/build.gradle`)
