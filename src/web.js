@@ -678,6 +678,11 @@ export class ARCoreWeb extends WebPlugin {
     const {
       planeDetection = true,
       lightEstimation = true,
+      // Screenshots need raw camera access, which is a materially larger
+      // permission than the rest of the session. It is opt-in via
+      // enableScreenshots and is NOT implied by lightEstimation (SEC-04).
+      // Without it, takeScreenshot() returns CAMERA_CAPTURE_UNAVAILABLE.
+      enableScreenshots = false,
       domOverlay = null,
     } = options;
 
@@ -707,10 +712,16 @@ export class ARCoreWeb extends WebPlugin {
     }
 
     if (lightEstimation) {
+      // Light estimation only — it must not silently widen the permission
+      // surface with raw camera access (SEC-04)
       sessionOptions.optionalFeatures.push("light-estimation");
-      // Raw camera access lets takeScreenshot() capture the real-world passthrough
-      // instead of only Three.js' transparent WebGL layer. It is optional so AR
-      // still starts on browsers that do not implement the module.
+    }
+
+    if (enableScreenshots) {
+      // Raw camera access lets takeScreenshot() capture the real-world
+      // passthrough instead of only Three.js' transparent WebGL layer. It
+      // is optional so AR still starts on browsers that do not implement
+      // the module.
       sessionOptions.optionalFeatures.push("camera-access");
     }
 

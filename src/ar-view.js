@@ -30,6 +30,8 @@ export class ARView {
       domOverlay: this.overlay,
       planeDetection: options.planeDetection !== false,
       lightEstimation: options.lightEstimation !== false,
+      // Opt-in: requests WebXR camera-access for takeScreenshot (SEC-04)
+      enableScreenshots: options.enableScreenshots === true,
     });
     // Ensure groups reflect config immediately even if created before setConfig.
     if (this.engine.planesMeshGroup) this.engine.planesMeshGroup.visible = false;
