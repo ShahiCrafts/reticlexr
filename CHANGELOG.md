@@ -19,6 +19,24 @@ the remediation programme and will be completed before release._
   `{ success: false, code: 'CAMERA_CAPTURE_UNAVAILABLE' }`. The engine
   logs a one-time console warning explaining the opt-in the first time
   a screenshot fails for this reason.
+- **The native event bridge installs lazily (API-02).** Importing
+  the package no longer registers twelve native listeners as a side
+  effect; the bridge installs on the first `ARCore.on()`
+  subscription and is idempotent. No behaviour change for listeners.
+
+### Added
+
+- **`reticlexr/react` subpath (API-02).** React applications can
+  import `useARCore` from `reticlexr/react`, the supported React
+  entry point.
+
+### Deprecated
+
+- **Importing `useARCore` from the package root.** It keeps working
+  throughout 1.x but is deprecated in favour of `reticlexr/react`
+  and will be removed in the next major version — while the
+  re-export lives in the root entry, that entry cannot drop its
+  top-level React import.
 
 ## [1.0.0] - 2026-09-25
 

@@ -181,7 +181,8 @@ export const ARCore = {
    *              'modelMaterialChanged', 'modelMoved', 'error'
    *
    * Events are PER RUNTIME (API-07): this list is the native Android
-   * plugin's event set, bridged at import time. The WebXR engine emits
+   * plugin's event set, bridged lazily on the first subscription
+   * (API-02). The WebXR engine emits
    * a different set through its own channels and never through
    * `ARCore.on` — on web, subscribe via `ARView.onFrame`/`onPlanes`
    * (engine frame events: surfaceDetected, surfaceLost, modelPlaced,
@@ -197,6 +198,8 @@ export const ARCore = {
    * @returns {Function} Unsubscribe function
    */
   on: (eventType, callback) => {
+    // First subscription installs the native → local bridge (API-02)
+    setupEventBridge();
     if (!eventListeners[eventType]) {
       eventListeners[eventType] = [];
     }
@@ -235,9 +238,37 @@ export const ARCore = {
 };
 
 /**
- * Setup native event routing
+ * Plugins the event bridge has already been installed on (API-02).
+ * WeakSet so test doubles and re-registrations can be garbage
+ * collected; the registered plugin proxy lives for the page anyway.
  */
-function setupEventBridge() {
+const bridgedPlugins = new WeakSet();
+
+/**
+ * Install the native → local event bridge (API-02).
+ *
+ * The bridge subscribes to the native plugin's events and re-emits
+ * them to `ARCore.on()` listeners. It used to run at import time —
+ * twelve native listeners registered as a module side effect, which
+ * is hostile to SSR, tests and tree-shaking. It now installs lazily
+ * on the first `ARCore.on()` subscription — the earliest moment a
+ * bridged event can have a listener — and it is idempotent:
+ * installing twice on the same plugin is a no-op, so an event can
+ * never be delivered twice through duplicate bridge listeners.
+ *
+ * Exported for verification; application code never needs to call
+ * this directly.
+ *
+ * @param {Object} [plugin] - Plugin to subscribe to (defaults to the
+ *   registered ARCore plugin; injectable for tests)
+ * @param {Object} [bus] - Local listener registry to dispatch into
+ *   (defaults to the facade's registry; injectable for tests)
+ * @returns {boolean} True when this call installed the bridge
+ */
+export function setupEventBridge(plugin = ARCoreNative, bus = eventListeners) {
+  if (bridgedPlugins.has(plugin)) return false;
+  bridgedPlugins.add(plugin);
+
   const eventTypes = [
     'sessionStarted',
     'trackingChanged',
@@ -254,9 +285,9 @@ function setupEventBridge() {
   ];
 
   eventTypes.forEach((eventType) => {
-    ARCoreNative.addListener(eventType, (data) => {
-      if (eventListeners[eventType]) {
-        eventListeners[eventType].forEach((callback) => {
+    plugin.addListener(eventType, (data) => {
+      if (bus[eventType]) {
+        bus[eventType].forEach((callback) => {
           try {
             callback(data);
           } catch (e) {
@@ -266,15 +297,20 @@ function setupEventBridge() {
       }
     });
   });
-}
 
-// Setup bridge when plugin loads
-setupEventBridge();
+  return true;
+}
 
 export default ARCore;
 
-// React integration. Kept as a separate module internally, exported here as the
-// supported high-level API for React applications.
+// React integration. The supported entry for React applications is
+// the `reticlexr/react` subpath (src/react.js, API-02).
+/**
+ * @deprecated Import `useARCore` from `reticlexr/react` instead. The
+ * root re-export keeps working in 1.x but will be removed in the
+ * next major version — while it lives here, the root entry cannot
+ * drop its top-level React import.
+ */
 export { useARCore } from './hooks.js';
 
 export { createARGestureController } from './gestures.js';

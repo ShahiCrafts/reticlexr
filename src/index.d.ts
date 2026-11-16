@@ -7,7 +7,9 @@
  *   to the WebXR engine (`ARCoreWeb`, see web.d.ts).
  * - `ARView` / `createARView` + functional helpers: the high-level
  *   WebXR facade (see ar-view.d.ts).
- * - `useARCore`: the React hook (see hooks.d.ts).
+ * - `useARCore`: the React hook — supported via the `reticlexr/react`
+ *   subpath (see react.d.ts); the root re-export is deprecated
+ *   (API-02).
  * - `createARGestureController`: the gesture controller (see
  *   gestures.d.ts).
  */
@@ -72,8 +74,9 @@ export interface ARCoreSupportResult {
 
 /**
  * The native facade's event types (API-07). Events are PER RUNTIME:
- * this is the Android plugin's set, bridged at import time. The WebXR
- * engine emits a different set through its own listener channels
+ * this is the Android plugin's set, bridged lazily on the first
+ * `ARCore.on` subscription (API-02). The WebXR engine emits a
+ * different set through its own listener channels
  * (see `EngineFrameEvent` / `EnginePlaneEvent` in web.d.ts) and never
  * through `ARCore.on`. `surfaceUpdated`, `trackingChanged`,
  * `sessionStarted`, `sessionStopped`, `modelMaterialChanged` and
@@ -130,6 +133,19 @@ export interface ARCoreFacade {
 export declare const ARCore: ARCoreFacade;
 export default ARCore;
 
+/**
+ * Install the native → local event bridge (API-02). Runs
+ * automatically on the first `ARCore.on()` subscription; idempotent
+ * — repeat calls on the same plugin are no-ops. Application code
+ * never needs to call this directly.
+ *
+ * @internal Exported for verification.
+ */
+export declare function setupEventBridge(
+  plugin?: unknown,
+  bus?: Record<string, Array<(data: unknown) => void>>
+): boolean;
+
 // The WebXR engine's types, re-exported at the root: ARView and the
 // hook expose engine types in their signatures, and the engine itself
 // (ARCHITECTURE.md §2.4) is part of the verified surface. Until the
@@ -162,6 +178,11 @@ export type {
   Vector3Object,
 } from './web.js';
 
+/**
+ * @deprecated Import `useARCore` from `reticlexr/react` instead
+ * (API-02). This root re-export keeps working in 1.x and will be
+ * removed in the next major version.
+ */
 export { useARCore } from './hooks.js';
 export type { PlacedModel, PlaneCounts, UseARCoreReturn } from './hooks.js';
 export { createARGestureController } from './gestures.js';
