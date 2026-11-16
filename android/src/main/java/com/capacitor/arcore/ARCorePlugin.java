@@ -92,6 +92,10 @@ public class ARCorePlugin extends Plugin {
     renderer.setSessionManager(sessionManager);
     renderer.setSurfaceManager(surfaceManager);
     renderer.setEventEmitter(eventEmitter);
+    // NAT-07: the render loop serves plugin hit tests from its queue;
+    // NAT-04: it creates real anchors from those hits.
+    renderer.setCoordinateMapper(coordinateMapper);
+    renderer.setAnchorManager(anchorManager);
 
     coordinateMapper.initialize(this.getContext());
 
@@ -103,6 +107,63 @@ public class ARCorePlugin extends Plugin {
     setupEventBridge();
 
     Log.d(TAG, "ARCore plugin initialized");
+  }
+
+  /**
+   * NAT-02: forward Activity pause to the AR session and the renderer.
+   *
+   * ARCore requires Session.pause() while the app is backgrounded;
+   * without this hook the camera and the render loop kept running and
+   * resume behaviour was undefined. The managers guard their own null
+   * state, so forwarding is unconditional.
+   */
+  @Override
+  protected void handleOnPause() {
+    sessionManager.pauseSession();
+    renderer.onActivityPaused();
+  }
+
+  /**
+   * NAT-02: forward Activity resume to the AR session and the renderer.
+   */
+  @Override
+  protected void handleOnResume() {
+    sessionManager.resumeSession();
+    renderer.onActivityResumed();
+  }
+
+  /**
+   * LEAK-05: full teardown when the plugin is destroyed.
+   *
+   * Removes the AR view, clears models/anchors, then destroys the
+   * renderer — which stops and joins the render loop and destroys all
+   * Filament resources in dependency order — and closes the session.
+   * Previously nothing was destroyed and the Filament engine leaked
+   * for the process lifetime.
+   */
+  @Override
+  protected void handleOnDestroy() {
+    try {
+      if (viewManager != null) {
+        viewManager.removeARView();
+      }
+    } catch (Exception e) {
+      Log.e(TAG, "Error removing AR view during destroy", e);
+    }
+    if (modelManager != null) {
+      modelManager.clearAllModels();
+    }
+    if (anchorManager != null) {
+      anchorManager.clearAllAnchors();
+    }
+    if (renderer != null) {
+      renderer.destroy();
+    }
+    if (sessionManager != null) {
+      sessionManager.closeSession();
+    }
+    isSessionActive = false;
+    super.handleOnDestroy();
   }
 
   /**
@@ -138,14 +199,45 @@ public class ARCorePlugin extends Plugin {
 
   /**
    * Check if ARCore is supported.
+   *
+   * NAT-06: delegates to the same ArCoreApk availability check that
+   * session creation uses — never a hardcoded answer. NAT-12: with
+   * ARCore absent this resolves {supported:false} instead of throwing.
    */
   @PluginMethod
   public void checkSupport(PluginCall call) {
-    // Delegate to sessionManager (already handles this)
-    // For now, simple check
     JSObject result = new JSObject();
-    result.put("supported", true);
-    result.put("reason", "ARCore supported");
+    try {
+      com.google.ar.core.ArCoreApk.Availability availability =
+          sessionManager.checkAvailability();
+      switch (availability) {
+        case SUPPORTED_INSTALLED:
+          result.put("supported", true);
+          result.put("reason", "ARCore supported");
+          break;
+        case SUPPORTED_NOT_INSTALLED:
+          result.put("supported", false);
+          result.put("reason", "ARCore is not installed on this device");
+          break;
+        case SUPPORTED_APK_TOO_OLD:
+          result.put("supported", false);
+          result.put("reason", "ARCore is too old; an update is required");
+          break;
+        case UNSUPPORTED_DEVICE_NOT_CAPABLE:
+          result.put("supported", false);
+          result.put("reason", "This device does not support ARCore");
+          break;
+        default:
+          // UNKNOWN_ERROR / UNKNOWN_CHECKING / UNKNOWN_TIMED_OUT
+          result.put("supported", false);
+          result.put("reason", "ARCore availability could not be determined");
+          break;
+      }
+    } catch (Exception e) {
+      Log.e(TAG, "Availability check failed", e);
+      result.put("supported", false);
+      result.put("reason", "ARCore is not available on this device");
+    }
     call.resolve(result);
   }
 
@@ -166,8 +258,20 @@ public class ARCorePlugin extends Plugin {
       boolean planeDetection = call.getBoolean("planeDetection", true);
       boolean lightEstimation = call.getBoolean("lightEstimation", true);
 
+      // NAT-03: session creation needs the foreground Activity (the
+      // ARCore install flow cannot run from the application Context).
+      // A null Activity is a coded rejection, never an NPE/cast crash.
+      Activity activity = getActivity();
+      if (activity == null) {
+        call.reject(
+            "Cannot start AR session: no foreground Activity",
+            "ACTIVITY_UNAVAILABLE");
+        return;
+      }
+
       // Create ARCore session
       sessionManager.createSession(
+          activity,
           planeDetection,
           lightEstimation,
           new ARSessionManager.ARSessionCallback() {
@@ -194,8 +298,26 @@ public class ARCorePlugin extends Plugin {
    * Setup AR rendering after session created.
    */
   private void setupARRendering(PluginCall call) {
-    getActivity().runOnUiThread(() -> {
+    // NAT-03: never dereference a null Activity.
+    Activity activity = getActivity();
+    if (activity == null) {
+      call.reject(
+          "Cannot set up AR rendering: no foreground Activity",
+          "ACTIVITY_UNAVAILABLE");
+      return;
+    }
+    activity.runOnUiThread(() -> {
       try {
+        // NAT-10: Filament initializes lazily — fail this call cleanly
+        // when the engine is unavailable instead of passing a null
+        // engine into ARModelManager and crashing later.
+        if (!renderer.ensureFilamentInitialized()
+            || renderer.getFilamentEngine() == null
+            || renderer.getFilamentScene() == null) {
+          call.reject("Filament engine unavailable", "FILAMENT_UNAVAILABLE");
+          return;
+        }
+
         // Initialize model manager (needs Filament engine from renderer)
         if (modelManager == null) {
           modelManager = new ARModelManager(
@@ -244,7 +366,16 @@ public class ARCorePlugin extends Plugin {
    */
   @PluginMethod
   public void stopSession(PluginCall call) {
-    getActivity().runOnUiThread(() -> {
+    // NAT-03: never dereference a null Activity. Teardown still happens
+    // via handleOnDestroy if the Activity is already gone.
+    Activity activity = getActivity();
+    if (activity == null) {
+      call.reject(
+          "Cannot stop AR session: no foreground Activity",
+          "ACTIVITY_UNAVAILABLE");
+      return;
+    }
+    activity.runOnUiThread(() -> {
       try {
         // Cleanup models and anchors
         if (modelManager != null) {
@@ -281,6 +412,13 @@ public class ARCorePlugin extends Plugin {
   /**
    * Perform hit test at normalized screen coordinates.
    *
+   * NAT-07: the hit test is queued to the render loop, which serves it
+   * against the frame it just acquired (Session.update() runs only on
+   * the render thread; a Frame is never handed to the bridge thread).
+   * The call is resolved from the render thread when the queue drains.
+   * NAT-04: a successful hit creates a real ARCore Anchor (on the
+   * render thread) and returns its registered anchorId.
+   *
    * @param call contains: x (float 0-1), y (float 0-1)
    */
   @PluginMethod
@@ -293,46 +431,34 @@ public class ARCorePlugin extends Plugin {
       return;
     }
 
-    try {
-      float x = call.getFloat("x", 0.5f);
-      float y = call.getFloat("y", 0.5f);
+    float x = call.getFloat("x", 0.5f);
+    float y = call.getFloat("y", 0.5f);
 
-      // Get latest frame through session manager
-      com.google.ar.core.Frame frame = sessionManager.acquireLatestFrame();
-
-      if (frame == null) {
-        JSObject result = new JSObject();
-        result.put("hit", false);
-        result.put("error", "No frame available");
-        call.resolve(result);
-        return;
-      }
-
-      // Perform hit test via coordinate mapper
-      ARCoordinateMapper.HitTestResult hit =
-          coordinateMapper.screenToWorldHitTest(x, y, frame);
-
+    boolean submitted = renderer.submitHitTest(x, y, (hit, anchorId, error) -> {
       JSObject result = new JSObject();
-
-      if (hit != null) {
+      if (error != null) {
+        result.put("hit", false);
+        result.put("error", error);
+      } else if (hit != null) {
         result.put("hit", true);
         result.put("position", floatArrayToJSArray(hit.position));
         result.put("rotation", floatArrayToJSArray(hit.rotation));
         result.put("planeType", hit.planeType);
+        if (anchorId != null) {
+          result.put("anchorId", anchorId);
+        }
       } else {
         result.put("hit", false);
       }
-
-      // Note: Frame lifecycle is managed by ARCore Session
-      // No explicit release needed in Filament 1.52.0
-
       call.resolve(result);
+    });
 
-    } catch (Exception e) {
-      Log.e(TAG, "Hit test error", e);
+    if (!submitted) {
+      // Render loop is not running (e.g. Activity paused): resolve
+      // immediately rather than queueing into a stopped loop.
       JSObject result = new JSObject();
       result.put("hit", false);
-      result.put("error", e.getMessage());
+      result.put("error", "Render loop not running");
       call.resolve(result);
     }
   }
@@ -352,52 +478,22 @@ public class ARCorePlugin extends Plugin {
   /**
    * Place a GLB model at a hit test result.
    *
+   * NAT-01 (Option B): native model rendering is NOT implemented. The
+   * Android runtime is scoped to session + hit-testing; the previous
+   * implementation registered model metadata and resolved success for a
+   * model that was never rendered. This method now rejects honestly
+   * with a coded NOT_IMPLEMENTED. Model rendering is provided by the
+   * WebXR runtime.
+   *
    * @param call contains: modelPath (path to GLB), hitId (from previous hitTest)
    */
   @PluginMethod
   public void placeModel(PluginCall call) {
-    if (!isSessionActive || modelManager == null || anchorManager == null) {
-      call.reject("Session not active or model manager not ready");
-      return;
-    }
-
-    try {
-      String modelPath = call.getString("modelPath");
-      String hitId = call.getString("hitId");
-
-      if (modelPath == null || modelPath.isEmpty()) {
-        call.reject("modelPath is required");
-        return;
-      }
-
-      // Use center anchor ID
-      String anchorId = "anchor_center";
-
-      // Place model
-      String modelId = modelManager.placeModel(modelPath, anchorId, null);
-
-      if (modelId == null) {
-        call.reject("Failed to place model");
-        return;
-      }
-
-      JSObject result = new JSObject();
-      result.put("modelId", modelId);
-      result.put("anchorId", anchorId);
-      call.resolve(result);
-
-      // Emit event
-      JSObject eventData = new JSObject();
-      eventData.put("modelId", modelId);
-      eventData.put("anchorId", anchorId);
-      eventEmitter.emit("modelPlaced", eventData);
-
-      Log.d(TAG, "Model placed: " + modelId + " at anchor " + anchorId);
-
-    } catch (Exception e) {
-      Log.e(TAG, "Error placing model", e);
-      call.reject("Failed to place model: " + e.getMessage());
-    }
+    call.reject(
+        "placeModel is not implemented in the native Android runtime: "
+            + "native is scoped to session + hit-testing (Option B); "
+            + "model rendering is provided by the WebXR runtime",
+        "NOT_IMPLEMENTED");
   }
 
   /**
@@ -510,62 +606,20 @@ public class ARCorePlugin extends Plugin {
   /**
    * Move model to new screen position (hit test and reposition).
    *
+   * NAT-05 (Option B): NOT implemented natively — the previous
+   * implementation hit-tested, resolved {success:true} and emitted
+   * modelMoved without moving anything. Since native places no models
+   * (NAT-01), there is nothing to move; this rejects NOT_IMPLEMENTED
+   * instead of reporting a fictional success.
+   *
    * @param call contains: modelId, x, y (normalized screen coords)
    */
   @PluginMethod
   public void moveModel(PluginCall call) {
-    if (!isSessionActive || modelManager == null || anchorManager == null) {
-      call.reject("Session not active or model manager not ready");
-      return;
-    }
-
-    try {
-      String modelId = call.getString("modelId");
-      float x = call.getFloat("x", 0.5f);
-      float y = call.getFloat("y", 0.5f);
-
-      if (modelId == null) {
-        call.reject("modelId is required");
-        return;
-      }
-
-      // Perform hit test at new position
-      com.google.ar.core.Frame frame = sessionManager.acquireLatestFrame();
-      if (frame == null) {
-        call.reject("No frame available");
-        return;
-      }
-
-      ARCoordinateMapper.HitTestResult hit = coordinateMapper.screenToWorldHitTest(x, y, frame);
-      if (hit == null) {
-        call.reject("No surface at target position");
-        return;
-      }
-
-      // For now, we'll note this - proper implementation would:
-      // 1. Track which anchor is associated with this model
-      // 2. Create new anchor at hit position
-      // 3. Update model's anchor association
-      // 4. Apply new anchor pose to model
-
-      JSObject result = new JSObject();
-      result.put("success", true);
-      result.put("position", floatArrayToJSArray(hit.position));
-      call.resolve(result);
-
-      // Emit event
-      JSObject eventData = new JSObject();
-      eventData.put("modelId", modelId);
-      eventData.put("x", x);
-      eventData.put("y", y);
-      eventEmitter.emit("modelMoved", eventData);
-
-      Log.d(TAG, "Model moved: " + modelId + " to (" + x + ", " + y + ")");
-
-    } catch (Exception e) {
-      Log.e(TAG, "Error moving model", e);
-      call.reject("Failed to move model: " + e.getMessage());
-    }
+    call.reject(
+        "moveModel is not implemented in the native Android runtime: "
+            + "native is scoped to session + hit-testing (Option B) and places no models",
+        "NOT_IMPLEMENTED");
   }
 
   /**
@@ -602,6 +656,36 @@ public class ARCorePlugin extends Plugin {
       Log.e(TAG, "Error removing model", e);
       call.reject("Failed to remove model: " + e.getMessage());
     }
+  }
+
+  /**
+   * Enumerate placed models.
+   *
+   * The facade gained this method in Phase 4 (API-03). NAT-01
+   * (Option B): the native runtime renders and places no models, so
+   * there is nothing to enumerate — this rejects with a coded
+   * NOT_IMPLEMENTED rather than returning a fictional list.
+   */
+  @PluginMethod
+  public void getPlacedModels(PluginCall call) {
+    call.reject(
+        "getPlacedModels is not implemented in the native Android runtime: "
+            + "native is scoped to session + hit-testing (Option B) and places no models",
+        "NOT_IMPLEMENTED");
+  }
+
+  /**
+   * Clear all placed models.
+   *
+   * See getPlacedModels — NAT-01 (Option B): no native models exist to
+   * clear, so this rejects with a coded NOT_IMPLEMENTED.
+   */
+  @PluginMethod
+  public void clearModels(PluginCall call) {
+    call.reject(
+        "clearModels is not implemented in the native Android runtime: "
+            + "native is scoped to session + hit-testing (Option B) and places no models",
+        "NOT_IMPLEMENTED");
   }
 
   /**

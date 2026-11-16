@@ -9,8 +9,43 @@ The project follows [Semantic Versioning](https://semver.org/).
 _In progress — audit remediation. This entry is being built up during
 the remediation programme and will be completed before release._
 
+### Package rename
+
+- **The package was renamed from `capacitor-arcore` to `reticlexr`**
+  on 2026-11-16, before its first publish. `capacitor-arcore` was
+  never published to npm and is deprecated as a name — `reticlexr`
+  is the only package name. Install with `npm install reticlexr`.
+  The GitHub repository moved from `ShahiCrafts/arcore-react` to
+  `ShahiCrafts/reticlexr` (the old URL redirects). Native identifiers
+  are unchanged: the Java package `com.capacitor.arcore`, the
+  `ARCore*` class names and the Capacitor plugin name `ARCore` name
+  Google's ARCore technology, not this package.
+
 ### Behavior changes
 
+- **Native Android is explicitly scoped to session + hit-testing
+  (NAT-01/NAT-05, Option B).** The native plugin never rendered placed
+  models — `placeModel` registered metadata and resolved success, and
+  `moveModel` resolved `{success: true}` without moving anything. Both
+  now reject with a coded `NOT_IMPLEMENTED` error, as do the native
+  `getPlacedModels` and `clearModels` methods. Model rendering and
+  placement are provided by the WebXR runtime. Native `hitTest` now
+  creates a real ARCore anchor for a successful hit and returns its
+  `anchorId`.
+- **Native lifecycle is wired (NAT-02/NAT-08, LEAK-05, NAT-10).**
+  Activity pause/resume now pause/resume the ARCore session and the
+  render loop (previously the camera kept running while the app was
+  backgrounded); the render loop restarts reliably for a second
+  session; plugin destroy stops and joins the render thread and
+  destroys all Filament resources in dependency order; the Filament
+  engine is created lazily on first use instead of at plugin load.
+- **The Android library manifest no longer forces AR-required onto
+  host apps (NAT-12).** `android.hardware.camera.ar` is now
+  `required="false"` and the `com.google.ar.core` meta-data is
+  `optional`; on devices without ARCore, `checkSupport()` reports
+  unsupported and session entry points fail with coded errors. Hosts
+  that want AR-required can opt in from their own manifest (see
+  docs/INSTALLATION.md).
 - **Screenshots now require an explicit opt-in (SEC-04).**
   `lightEstimation: true` no longer also requests the WebXR
   `camera-access` feature. To use `takeScreenshot()`, start the
