@@ -6,9 +6,6 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [1.1.0] - Unreleased
 
-_In progress — audit remediation. This entry is being built up during
-the remediation programme and will be completed before release._
-
 ### Package rename
 
 - **The package was renamed from `capacitor-arcore` to `reticlexr`**
@@ -87,6 +84,17 @@ the remediation programme and will be completed before release._
   the GLTF pipeline, and `@capacitor/core` is a singleton bridge by
   design. Required ranges: `@capacitor/core ^8.5.2`,
   `three ^0.180.0`; `react >=16.8.0` is unchanged.
+- **One model identifier everywhere (API-01).** `modelId` is now
+  the canonical id across the engine, `ARView`, the facade and the
+  hook (previously the engine/hook spoke `anchorId` while the
+  facade spoke `modelId`, with different `placeModel` shapes per
+  layer). `anchorId` remains as a deprecated alias — see
+  Deprecations.
+- **One coded-error convention (API-05).** Public failures now
+  carry stable machine-readable codes (rejecting with `ARError`,
+  or resolving result objects with a `code` field) instead of the
+  four per-layer conventions 1.0.0 shipped. Error messages are
+  unchanged — see Added.
 
 ### Added
 
@@ -105,9 +113,10 @@ the remediation programme and will be completed before release._
   tracks every model placed through it (previously only the active
   model was reachable and repeat placements became orphans).
   Clearing routes each removal through `removeModel`, so disposal
-  follows the ownership rule. The Android plugin methods land with
-  the native remediation phase; the facade methods reject on
-  Android until then.
+  follows the ownership rule. On Android the native
+  `getPlacedModels`/`clearModels` methods exist and reject with
+  `NOT_IMPLEMENTED` (Option B: native places no models), and the
+  facade surfaces that code.
 - **One coded-error convention (API-05).** Every public failure
   now carries a stable, machine-readable `code`. Async methods
   reject with `ARError` (an `Error` subclass, exported from the
@@ -121,6 +130,69 @@ the remediation programme and will be completed before release._
   *messages* are unchanged, and the facade preserves runtime codes
   (falling back to a per-method `*_FAILED` code). The hook's
   failure results (`{ error }`) now also carry `code`.
+
+### Fixed
+
+- **WebXR engine correctness (BUG-01…BUG-12).** Hook/engine
+  transform shapes are normalised at the engine boundary (objects
+  no longer produce `NaN` transforms); hook plane counts read the
+  engine's numeric counts; `hitTest({x, y})` with non-centre
+  coordinates performs a real ray-based hit test; the reticle
+  visibility setting is honoured instead of being forced back on;
+  tap-to-place errors reach the `onError` handler instead of
+  throwing; repeated `startSession` no longer duplicates listeners;
+  a failed session start no longer leaks the live XR session; the
+  fallback hit test always settles; `switchModel` material
+  carry-over matches materials by name, then order, instead of
+  flattening multi-material models; `pointercancel` no longer
+  counts as a tap; `ARView` transform state commits only after the
+  engine accepts a change; explicit-position placement no longer
+  inherits the previous hit's rotation.
+- **Memory and rendering cost (LEAK-01…04, LEAK-07, PERF-01/02/04/06).**
+  Removed and switched models are disposed under a documented
+  ownership rule (per-instance clones on remove/switch; shared
+  geometry/textures only on cache eviction, `clearModelCache()` or
+  `engine.dispose()`); the model cache is LRU-capped
+  (`config.modelCacheLimit`, default 20); plane dots render as one
+  `InstancedMesh` per plane instead of one mesh per dot; surface
+  notifications fire on change at ≤10 Hz; plane pose updates reuse
+  a scratch `Matrix4`; engine logging is gated behind
+  `config.debug`. (PERF-05 was investigated and deliberately kept:
+  the per-pixel screenshot loop is not byte-identical to a
+  `drawImage` composite — evidence in AUDIT-STATUS.md.)
+  `engine.dispose()` performs a full teardown and `ARView.destroy()`
+  calls it.
+- **Native Android correctness (NAT-03/04/06/07/09/11/13, LEAK-06).**
+  `checkSupport` returns the real `ArCoreApk.checkAvailability()`
+  result (it was hardcoded `true`); session creation receives the
+  foreground Activity (a null activity fails with
+  `ACTIVITY_UNAVAILABLE` instead of an NPE); hit tests are served
+  by the render loop — the sole `Session.update()` caller — and a
+  successful hit creates a real ARCore anchor whose id is returned
+  (the fictional `anchor_center` is gone); the availability retry
+  is bounded (25 attempts ≈ 5 s, then
+  `ARCORE_AVAILABILITY_TIMEOUT`) and can never create a session
+  after `stopSession`; stopped/subsumed planes are pruned from the
+  registry; WebView state capture stores the real background;
+  hit-test pixel mapping uses per-call display metrics.
+- **Compatibility (COMPAT-01/02/05).** Session creation falls back
+  `local-floor` → `local` → `viewer` instead of hard-requiring
+  `local-floor`; `checkSupport` reports a distinct
+  `INSECURE_CONTEXT` code outside secure contexts; the example
+  wires its `BrowserUnsupported` component as the
+  `supported === false` fallback.
+- **Example bundle (PERF-03).** The example lazy-loads the SDK
+  (a `navigator.xr` probe at mount, `import('reticlexr')` on
+  Start, `three` split into its own chunk): the initial JS dropped
+  from 784.25 kB min / 213.66 kB gzip to a 160.51 / 52.54 kB entry
+  chunk.
+- **Supply chain and tests (SEC-02, TEST-01/02/03).** Lockfiles
+  are committed for the root and the example and CI installs with
+  `npm ci`; the stub harnesses are now a Vitest suite (24 files,
+  25 tests, 280 assertions) run by `npm test`; the vestigial
+  `example/tsconfig.json` is removed; a CI workflow (type-check,
+  tests, example build, Gradle `:reticlexr:assembleDebug`) is in
+  the repo.
 
 ### Deprecated
 
@@ -152,3 +224,11 @@ the remediation programme and will be completed before release._
 - Runtime material, color, and texture customization.
 - AR screenshot API and React DOM overlay support.
 - React/Vite example application with LAN HTTPS development tooling.
+
+> **Correction (1.1.0):** the 1.0.0 line "WebXR and Android ARCore
+> integration layers" overstated the native runtime. As shipped,
+> the native Android plugin provided session management, hit
+> testing and events only — it never rendered a placed model, and
+> several methods reported success without doing the work. 1.1.0
+> scopes native explicitly (Option B, see Behavior changes above);
+> model rendering is and was a WebXR-runtime feature.
