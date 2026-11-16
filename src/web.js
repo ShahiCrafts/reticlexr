@@ -101,6 +101,18 @@ export class ARCoreWeb extends WebPlugin {
   }
 
   async checkSupport() {
+    // WebXR is only exposed in secure contexts. Report that distinctly —
+    // on an insecure origin navigator.xr is simply absent, and the generic
+    // "not available" reason sends developers down the wrong path
+    // (COMPAT-02).
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      return {
+        supported: false,
+        reason: "WebXR requires a secure context (HTTPS or localhost)",
+        code: "INSECURE_CONTEXT",
+      };
+    }
+
     if (typeof navigator === "undefined" || !navigator.xr) {
       return { supported: false, reason: "WebXR not available" };
     }
@@ -666,6 +678,11 @@ export class ARCoreWeb extends WebPlugin {
     const {
       planeDetection = true,
       lightEstimation = true,
+      // Screenshots need raw camera access, which is a materially larger
+      // permission than the rest of the session. It is opt-in via
+      // enableScreenshots and is NOT implied by lightEstimation (SEC-04).
+      // Without it, takeScreenshot() returns CAMERA_CAPTURE_UNAVAILABLE.
+      enableScreenshots = false,
       domOverlay = null,
     } = options;
 
@@ -683,8 +700,10 @@ export class ARCoreWeb extends WebPlugin {
     }
 
     const sessionOptions = {
-      requiredFeatures: ["local-floor", "hit-test"],
-      optionalFeatures: [],
+      requiredFeatures: ["hit-test"],
+      // local-floor is optional: devices/browsers without floor-level
+      // tracking degrade to local/viewer reference spaces (COMPAT-01)
+      optionalFeatures: ["local-floor"],
     };
 
     // Add plane-detection as optional feature
@@ -693,10 +712,16 @@ export class ARCoreWeb extends WebPlugin {
     }
 
     if (lightEstimation) {
+      // Light estimation only — it must not silently widen the permission
+      // surface with raw camera access (SEC-04)
       sessionOptions.optionalFeatures.push("light-estimation");
-      // Raw camera access lets takeScreenshot() capture the real-world passthrough
-      // instead of only Three.js' transparent WebGL layer. It is optional so AR
-      // still starts on browsers that do not implement the module.
+    }
+
+    if (enableScreenshots) {
+      // Raw camera access lets takeScreenshot() capture the real-world
+      // passthrough instead of only Three.js' transparent WebGL layer. It
+      // is optional so AR still starts on browsers that do not implement
+      // the module.
       sessionOptions.optionalFeatures.push("camera-access");
     }
 
@@ -721,9 +746,19 @@ export class ARCoreWeb extends WebPlugin {
         this.xrGlBinding = null;
       }
 
-      this.referenceSpace = await this.session.requestReferenceSpace(
-        "local-floor"
-      );
+      // Reference space fallback chain matching the optional local-floor
+      // feature above: local-floor, then local, then viewer (COMPAT-01)
+      for (const spaceType of ["local-floor", "local", "viewer"]) {
+        try {
+          this.referenceSpace = await this.session.requestReferenceSpace(spaceType);
+          break;
+        } catch (_) {
+          // Space not granted — try the next, less capable one
+        }
+      }
+      if (!this.referenceSpace) {
+        throw new Error("No reference space available (local-floor, local, viewer all rejected)");
+      }
       this.viewerSpace = await this.session.requestReferenceSpace("viewer");
 
       // Request hit test source for instant positioning
@@ -744,10 +779,10 @@ export class ARCoreWeb extends WebPlugin {
         this.viewerSpace = null;
       });
 
-      // Reset state
+      // Reset transient state (config.showReticle is the user preference
+      // and must survive session restarts — BUG-04)
       this.modelPlaced = false;
       this.reticleVisible = false;
-      this.config.showReticle = true;
 
       console.log("[ARCore] Session started - showReticle:", this.config.showReticle, "planeDetection:", this.planeDetectionSupported);
 
@@ -755,6 +790,16 @@ export class ARCoreWeb extends WebPlugin {
 
       return { success: true, hasOverlay: !!domOverlay, planeDetection: this.planeDetectionSupported };
     } catch (error) {
+      // If requestSession succeeded but a later step (reference space,
+      // hit-test source) failed, end the live session — otherwise it keeps
+      // running while the caller believes startup failed (BUG-07).
+      if (this.session) {
+        await this.session.end().catch(() => {});
+        this.session = null;
+        this.hitTestSource = null;
+        this.referenceSpace = null;
+        this.viewerSpace = null;
+      }
       throw new Error(
         `Failed to start AR session: ${error.message || "Unknown error"}`
       );
@@ -1063,6 +1108,19 @@ export class ARCoreWeb extends WebPlugin {
     }
 
     return new Promise((resolve) => {
+      const session = this.session;
+      let settled = false;
+      const settle = (result) => {
+        if (settled) return;
+        settled = true;
+        session.removeEventListener("end", onSessionEnd);
+        resolve(result);
+      };
+      const onSessionEnd = () => {
+        // The session ended before the frame callback fired — settle
+        // instead of leaving the caller awaiting forever (BUG-08).
+        settle({ hit: false, error: "SESSION_ENDED" });
+      };
       const onFrame = (time, frame) => {
         const hitTestResults = frame.getHitTestResults(this.hitTestSource);
 
@@ -1086,7 +1144,7 @@ export class ARCoreWeb extends WebPlugin {
               }
             }
 
-            resolve({
+            settle({
               hit: true,
               position: [
                 pose.transform.position.x,
@@ -1105,10 +1163,11 @@ export class ARCoreWeb extends WebPlugin {
           }
         }
 
-        resolve({ hit: false });
+        settle({ hit: false });
       };
 
-      this.session.requestAnimationFrame(onFrame);
+      session.addEventListener("end", onSessionEnd);
+      session.requestAnimationFrame(onFrame);
     });
   }
 
@@ -1180,7 +1239,9 @@ export class ARCoreWeb extends WebPlugin {
   }) {
     modelUrl = modelUrl || modelPath;
     position = position || this.lastHitPosition;
-    rotation = rotation || this.lastHitRotation || [0, 0, 0, 1];
+    // No hit was involved in an explicit placement: a missing/null rotation
+    // means identity, never an unrelated earlier hit's rotation (BUG-12)
+    rotation = rotation || [0, 0, 0, 1];
     if (!modelUrl) throw new Error("modelUrl/modelPath is required");
     if (!position) throw new Error("No surface hit available. Scan a surface before placing a model.");
     const anchorId = `anchor_${Date.now()}_${Math.random()
@@ -1223,7 +1284,6 @@ export class ARCoreWeb extends WebPlugin {
       // Keep surface feedback active after placement. This lets users see where
       // another object could be placed and avoids losing spatial context.
       this.modelPlaced = true;
-      this.config.showReticle = true;
 
       this.frameListeners.forEach((cb) =>
         cb({
@@ -1265,7 +1325,6 @@ export class ARCoreWeb extends WebPlugin {
     this.anchors.delete(anchorId);
 
     this.modelPlaced = this.loadedModels.size > 0;
-    this.config.showReticle = true;
 
     this.frameListeners.forEach((cb) => cb({ type: "modelRemoved", anchorId }));
   }

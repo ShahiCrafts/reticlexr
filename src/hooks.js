@@ -153,6 +153,12 @@ export function useARCore() {
    */
   const cleanupRef = useRef([]);
 
+  /**
+   * True while a startSession call is in flight.
+   * Guards against duplicate session starts and listener registrations.
+   */
+  const startingRef = useRef(false);
+
   // ============================================================
   // Support Check (runs once on mount)
   // ============================================================
@@ -205,6 +211,13 @@ export function useARCore() {
    * };
    */
   const startSession = useCallback(async (options = {}) => {
+    // Guard re-entry: a second call while a session is starting or active
+    // would race a duplicate requestSession() on the shared engine and
+    // register a duplicate pair of listeners (BUG-06). With this guard the
+    // listeners below are registered exactly once per session, and
+    // stopSession removes exactly that pair.
+    if (sessionRef.current || startingRef.current) return true;
+    startingRef.current = true;
     try {
       setError(null);
       await arCore.startSession(options);
@@ -276,10 +289,11 @@ export function useARCore() {
       // Set up plane listener for real-time plane detection feedback
       const removePlaneListener = arCore.addPlaneListener((data) => {
         if (data.type === "planesUpdated") {
+          // Engine emits counts as numbers: { total, horizontal, vertical }
           setDetectedPlanes({
-            horizontal: data.horizontalPlanes?.length || 0,
-            vertical: data.verticalPlanes?.length || 0,
-            total: data.planes?.length || 0,
+            horizontal: data.horizontal || 0,
+            vertical: data.vertical || 0,
+            total: data.total || 0,
           });
         }
       });
@@ -293,6 +307,8 @@ export function useARCore() {
       setError(err.message || "Unknown error");
       setIsSessionActive(false);
       return false;
+    } finally {
+      startingRef.current = false;
     }
   }, []);
 
