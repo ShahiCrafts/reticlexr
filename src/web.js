@@ -755,6 +755,16 @@ export class ARCoreWeb extends WebPlugin {
 
       return { success: true, hasOverlay: !!domOverlay, planeDetection: this.planeDetectionSupported };
     } catch (error) {
+      // If requestSession succeeded but a later step (reference space,
+      // hit-test source) failed, end the live session — otherwise it keeps
+      // running while the caller believes startup failed (BUG-07).
+      if (this.session) {
+        await this.session.end().catch(() => {});
+        this.session = null;
+        this.hitTestSource = null;
+        this.referenceSpace = null;
+        this.viewerSpace = null;
+      }
       throw new Error(
         `Failed to start AR session: ${error.message || "Unknown error"}`
       );
