@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import type { Heading } from '@/lib/content';
 
-/** Right-hand "On this page" table of contents with IntersectionObserver scroll-spy. */
+/** Right-hand "On this page" table of contents with IntersectionObserver scroll-spy.
+    Plain text list behind a hairline left rule; the active link is blue. */
 export function Toc({ headings }: { headings: Heading[] }) {
   const [activeId, setActiveId] = useState<string>('');
 
@@ -28,22 +29,22 @@ export function Toc({ headings }: { headings: Heading[] }) {
   if (headings.length === 0) return null;
 
   return (
-    <nav aria-label="On this page" className="text-sm">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+    <nav aria-label="On this page" className="text-[13px]">
+      <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
         On this page
       </h2>
-      <ul className="space-y-1.5 border-l border-slate-200 dark:border-slate-800">
+      <ul className="border-l border-slate-200 dark:border-white/10">
         {headings.map((h) => (
-          <li key={h.id} className={h.depth === 3 ? 'pl-5' : 'pl-3'}>
+          <li key={h.id}>
             <a
               href={`#${h.id}`}
               aria-current={activeId === h.id ? 'true' : undefined}
-              className={`-ml-px block border-l-2 py-0.5 focus-visible:outline-2 focus-visible:outline-blue-500 ${
-                h.depth === 3 ? 'pl-3' : 'pl-2.5'
+              className={`-ml-px block border-l-2 py-1 leading-snug focus-visible:outline-2 focus-visible:outline-blue-500 ${
+                h.depth === 3 ? 'pl-7' : 'pl-4'
               } ${
                 activeId === h.id
-                  ? 'border-blue-500 font-medium text-blue-700 dark:text-blue-300'
-                  : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
+                  ? 'border-blue-600 font-medium text-blue-700 dark:border-blue-400 dark:text-blue-300'
+                  : 'border-transparent text-slate-500 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white'
               }`}
             >
               {h.text}

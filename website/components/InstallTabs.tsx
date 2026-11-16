@@ -33,7 +33,7 @@ export function InstallTabs({ pkg = 'reticlexr' }: { pkg?: string }) {
   }
 
   return (
-    <div className="my-6 overflow-hidden rounded-lg border border-slate-200 bg-slate-950 dark:border-slate-800">
+    <div className="my-6 overflow-hidden rounded-xl border border-slate-800 bg-[#020617]">
       <div className="flex items-center justify-between border-b border-white/10 px-2 pt-2">
         <div role="tablist" aria-label="Package manager" className="flex gap-1">
           {MANAGERS.map((m) => (

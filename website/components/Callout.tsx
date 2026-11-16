@@ -2,30 +2,24 @@ import type { ReactNode } from 'react';
 
 type Kind = 'note' | 'warning' | 'tip';
 
-const STYLES: Record<Kind, { box: string; label: string; title: string }> = {
-  note: {
-    box: 'border-sky-300 bg-sky-50 dark:border-sky-500/40 dark:bg-sky-500/10',
-    label: 'Note',
-    title: 'text-sky-900 dark:text-sky-200',
-  },
-  warning: {
-    box: 'border-amber-300 bg-amber-50 dark:border-amber-500/40 dark:bg-amber-500/10',
-    label: 'Warning',
-    title: 'text-amber-900 dark:text-amber-200',
-  },
-  tip: {
-    box: 'border-emerald-300 bg-emerald-50 dark:border-emerald-500/40 dark:bg-emerald-500/10',
-    label: 'Tip',
-    title: 'text-emerald-900 dark:text-emerald-200',
-  },
+const STYLES: Record<Kind, { label: string; labelClass: string }> = {
+  note: { label: 'Note', labelClass: 'text-blue-600 dark:text-blue-400' },
+  warning: { label: 'Warning', labelClass: 'text-amber-600 dark:text-amber-400' },
+  tip: { label: 'Tip', labelClass: 'text-emerald-600 dark:text-emerald-400' },
 };
 
+/** Flat callout: white (dark: white/5) panel, hairline border, small-caps
+    label in the semantic colour. No fills, no shadows. */
 export function Callout({ kind = 'note', title, children }: { kind?: Kind; title?: string; children: ReactNode }) {
   const s = STYLES[kind];
   return (
-    <div className={`my-6 rounded-lg border px-4 py-3 text-[0.95rem] leading-relaxed ${s.box}`} role="note">
-      <p className={`mb-1 font-semibold ${s.title}`}>{title ?? s.label}</p>
-      <div className="[&>p]:my-1 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0">{children}</div>
+    <div
+      className="my-6 rounded-xl border border-slate-200 bg-white px-5 py-4 text-[0.95rem] leading-relaxed dark:border-white/10 dark:bg-white/5"
+      role="note"
+    >
+      <p className={`text-xs font-semibold uppercase tracking-[0.12em] ${s.labelClass}`}>{s.label}</p>
+      {title && <p className="mt-1.5 font-semibold text-slate-900 dark:text-white">{title}</p>}
+      <div className="mt-1.5 [&>p]:my-1 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0">{children}</div>
     </div>
   );
 }
@@ -45,9 +39,14 @@ export function Tip({ children, title }: { children: ReactNode; title?: string }
 /** Visible placeholder for facts that could not be verified against source. */
 export function Todo({ children }: { children: ReactNode }) {
   return (
-    <div className="my-6 rounded-lg border-2 border-dashed border-amber-400 bg-amber-50 px-4 py-3 dark:border-amber-500/60 dark:bg-amber-500/10" role="note">
-      <p className="mb-1 font-semibold text-amber-900 dark:text-amber-200">TODO — unverified</p>
-      <div className="[&>p]:my-1">{children}</div>
+    <div
+      className="my-6 rounded-xl border border-dashed border-amber-400/70 bg-white px-5 py-4 dark:border-amber-400/40 dark:bg-white/5"
+      role="note"
+    >
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-600 dark:text-amber-400">
+        TODO — unverified
+      </p>
+      <div className="mt-1.5 [&>p]:my-1 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0">{children}</div>
     </div>
   );
 }

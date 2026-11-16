@@ -50,6 +50,11 @@ export const NAV: NavSection[] = [
 
 export const FLAT_PAGES: NavPage[] = NAV.flatMap((s) => s.pages);
 
+/** The nav section a page belongs to (used for the eyebrow above the H1). */
+export function sectionForSlug(slug: string): NavSection | undefined {
+  return NAV.find((s) => s.pages.some((p) => p.slug === slug));
+}
+
 export function prevNext(slug: string): { prev?: NavPage; next?: NavPage } {
   const i = FLAT_PAGES.findIndex((p) => p.slug === slug);
   if (i === -1) return {};
