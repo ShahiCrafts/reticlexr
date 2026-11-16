@@ -2248,9 +2248,21 @@ export class ARCoreWeb extends WebPlugin {
     texture.flipY = false;
     model.traverse(child => {
       if (!child.isMesh || !child.material) return;
-      const mats = Array.isArray(child.material) ? child.material : [child.material];
-      mats.forEach(mat => {
-        if (!materialName || mat.name === materialName) { mat.map = texture; mat.needsUpdate = true; }
+      const slots = Array.isArray(child.material) ? child.material : [child.material];
+      slots.forEach((mat, index) => {
+        if (materialName && mat.name !== materialName) return;
+        // Clone on write (LEAK-01), then dispose the texture being
+        // replaced (LEAK-04) — unless it is cache-owned (the model's
+        // original map), whose lifetime the cache manages, or the
+        // very texture being applied.
+        const owned = this._ownMaterial(mat);
+        if (Array.isArray(child.material)) child.material[index] = owned;
+        else child.material = owned;
+        if (owned.map && owned.map !== texture && !this._sharedResources.has(owned.map)) {
+          owned.map.dispose();
+        }
+        owned.map = texture;
+        owned.needsUpdate = true;
       });
     });
     return { success:true, anchorId, textureUrl };
