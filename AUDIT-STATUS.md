@@ -505,3 +505,41 @@ Phase 4 harness suite (23/23) is unaffected.
   need the Phase 5 fixed markers and the native
   NOT_IMPLEMENTED / session + hit-test scope wording that root docs
   (docs/API.md, CHANGELOG) already carry.
+
+## Phase 6 notes
+
+- **Stage A — NOT_IMPLEMENTED consistency (owner decision 1;
+  commits f516377 + 5a2a015):** native `setTransform` /
+  `setMaterial` / `removeModel` now reject with coded
+  `NOT_IMPLEMENTED`, like the other five model methods; the
+  ARModelManager class is kept with a comment noting Option A would
+  reuse it. docs/API.md's unimplemented list and the facade JSDoc
+  (src/index.js + src/index.d.ts) document all seven methods.
+  Harness `tests/harness/nat-notimplemented.mjs` (12 checks) stubs
+  the native side at Capacitor's PluginHeader / nativePromise seam
+  and verifies the facade routes each call natively and surfaces
+  the code unchanged. Verification: **code-verified, device TODO**
+  for the Java change (the CI workflow has not yet been pushed by
+  the owner, so no compile verification exists yet); the harness is
+  tested (runs green).
+- **Stage B — camera feature (owner decision 2; NAT-12
+  extension):** the library manifest's `android.hardware.camera`
+  is now `required="false"` (was `required="true"`). Verified with
+  a REAL manifest merge: the standalone Android manifest merger
+  (AGP's own `com.android.manifmerger.Merger` 31.7.0, run under a
+  portable JRE in /tmp) merged the scratch Capacitor app's manifest
+  (`/tmp/pkg01`, whose `:reticlexr` project points at this repo)
+  with the library + capacitor-android manifests. The merged
+  manifest carries `android.hardware.camera.ar` and
+  `android.hardware.camera` as `required="false"` and
+  `com.google.ar.core` as `optional`; a second merge with the
+  documented host opt-in (`tools:replace`) flips both features to
+  `required="true"` and the meta-data to `required`. (The merger
+  was fed copies of the manifests with the `package` attribute and
+  `${applicationId}` value that Gradle injects from each module's
+  `namespace`/`applicationId` — the only substitutions made; the
+  CI Gradle assemble, once the owner pushes the workflow, remains
+  the authoritative full-build merge.) The opt-in is documented in
+  docs/INSTALLATION.md and a "Behavior changes" line was added to
+  the CHANGELOG 1.1.0 entry. NAT-12's row above stays as the Phase
+  5 record; this extension is recorded here.

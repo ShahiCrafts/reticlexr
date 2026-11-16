@@ -6,9 +6,14 @@
     <!-- AR features. NAT-12: the library must not force AR-required
          onto every host app — ARCore is optional, so apps stay
          installable on non-AR devices; hosts that want AR-required
-         opt in from their own manifest (see docs/INSTALLATION.md). -->
+         opt in from their own manifest (see docs/INSTALLATION.md).
+         The plain camera feature is likewise required="false"
+         (NAT-12 extension): the CAMERA permission below is still
+         declared (it is requested at runtime when AR is used), but
+         Play must not filter out camera-less devices for a library
+         whose AR is optional. -->
     <uses-feature android:name="android.hardware.camera.ar" android:required="false" />
-    <uses-feature android:name="android.hardware.camera" android:required="true" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application>
         <!-- ARCore metadata - ARCore is optional for host apps (NAT-12) -->
