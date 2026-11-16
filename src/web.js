@@ -124,6 +124,28 @@ export function normalizeScale(value, fallback = undefined) {
   return fallback;
 }
 
+// ============================================================
+// Scale limits (API-08)
+// ============================================================
+// One documented scale range across every layer and runtime. The
+// engine is the single enforcement point on the web: placeModel and
+// transformModel clamp every scale they apply. ARView's setScale and
+// the Android runtime (ARModelManager.setTransform) use the same
+// range, so a pinch gesture behaves identically everywhere.
+export const SCALE_MIN = 0.1;
+export const SCALE_MAX = 5;
+
+/**
+ * Clamp a normalised [x, y, z] scale into [SCALE_MIN, SCALE_MAX]
+ * per axis.
+ *
+ * @param {number[]} scale
+ * @returns {number[]}
+ */
+export function clampScale(scale) {
+  return scale.map((v) => Math.min(SCALE_MAX, Math.max(SCALE_MIN, v)));
+}
+
 export class ARCoreWeb extends WebPlugin {
   constructor() {
     super();
@@ -1357,7 +1379,8 @@ export class ARCoreWeb extends WebPlugin {
    * @param {number[]|Object} [options.rotation] - Rotation (see above);
    *   defaults to identity
    * @param {number|number[]|{x:number,y:number,z:number}} [options.scale] -
-   *   Scale; defaults to [1, 1, 1]
+   *   Scale; defaults to [1, 1, 1]. Clamped to [0.1, 5] per axis — the
+   *   one scale range shared by every layer and runtime (API-08)
    * @returns {Promise<{anchorId: string}>}
    */
   async placeModel({
@@ -1372,7 +1395,7 @@ export class ARCoreWeb extends WebPlugin {
     // No hit was involved in an explicit placement: a missing/null rotation
     // means identity, never an unrelated earlier hit's rotation (BUG-12)
     rotation = normalizeQuaternion(rotation, [0, 0, 0, 1]);
-    scale = normalizeScale(scale, [1, 1, 1]);
+    scale = clampScale(normalizeScale(scale, [1, 1, 1]));
     if (!modelUrl) throw new Error("modelUrl/modelPath is required");
     if (!position) throw new Error("No surface hit available. Scan a surface before placing a model.");
     const anchorId = `anchor_${Date.now()}_${Math.random()
@@ -1469,7 +1492,8 @@ export class ARCoreWeb extends WebPlugin {
    * @param {string} options.anchorId
    * @param {number[]|{x:number,y:number,z:number}} [options.position]
    * @param {number[]|Object} [options.rotation]
-   * @param {number|number[]|{x:number,y:number,z:number}} [options.scale]
+   * @param {number|number[]|{x:number,y:number,z:number}} [options.scale] -
+   *   Clamped to [0.1, 5] per axis (API-08)
    */
   async transformModel({ anchorId, position, rotation, scale }) {
     const anchor = this.anchors.get(anchorId);
@@ -1480,6 +1504,7 @@ export class ARCoreWeb extends WebPlugin {
     position = position === undefined ? undefined : normalizeVector3(position, undefined);
     rotation = rotation === undefined ? undefined : normalizeQuaternion(rotation, undefined);
     scale = scale === undefined ? undefined : normalizeScale(scale, undefined);
+    if (scale) scale = clampScale(scale);
 
     if (position) anchor.position = position;
     if (rotation) anchor.rotation = rotation;

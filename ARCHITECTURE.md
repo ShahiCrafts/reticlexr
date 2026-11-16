@@ -129,7 +129,7 @@ overlay?: HTMLElement }`.
 | `placeModel(modelUrl, options?)` | `options: { position?, rotation?, x = 0.5, y = 0.5, scale? }`. Hit-tests centre (or `x,y`) unless `position` given. Returns `{success:true, modelId, anchorId, …}` or `{success:false, reason:'NO_SURFACE'}`. Sets `activeModelId`/`activeModelUrl`. |
 | `switchModel(modelUrl, options?)` | `options: { preserveMaterial = true }`. Falls back to `placeModel` when nothing is placed. Preserves placement/transform. |
 | `removeModel()` | Removes the active model; clears active id/url. No-op if none. |
-| `setScale(scale)` | Clamped to **[0.1, 5]** in `ARView.transform.scale`, applied as uniform `[s,s,s]` |
+| `setScale(scale)` | Clamped to **[0.1, 5]** — the one scale range shared by every layer/runtime (`SCALE_MIN`/`SCALE_MAX` in web.js, enforced by the engine in `placeModel`/`transformModel`; Android `ARModelManager` uses the same range) (API-08), applied as uniform `[s,s,s]` |
 | `rotateBy(radians)` | Accumulates `transform.rotationY`, applies Y-quaternion |
 | `setColor(color)` | Engine `setModelColor` on the active model |
 | `addTextures({name: url})` | Registers named texture URLs; returns `this` (chainable) |

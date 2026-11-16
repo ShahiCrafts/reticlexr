@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ARCoreWeb } from './web.js';
+import { ARCoreWeb, SCALE_MIN, SCALE_MAX } from './web.js';
 import { createARGestureController } from './gestures.js';
 
 /** High-level, framework-agnostic AR facade. React/Vue/plain DOM can all use this. */
@@ -90,9 +90,14 @@ export class ARView {
     this.activeModelUrl = null;
   }
 
+  /**
+   * Set the active model's uniform scale. Clamped to [SCALE_MIN,
+   * SCALE_MAX] = [0.1, 5] — the one scale range shared by every layer
+   * and runtime, defined in web.js (API-08).
+   */
   async setScale(scale) {
     if (!this.activeModelId) return;
-    const s = Math.max(.1, Math.min(5, scale));
+    const s = Math.max(SCALE_MIN, Math.min(SCALE_MAX, scale));
     await this.engine.transformModel({ anchorId: this.activeModelId, scale: [s,s,s] });
     // Commit local state only after the engine accepts it, so a failed
     // call cannot leave the facade's transform ahead of the scene (BUG-11)

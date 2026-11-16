@@ -111,7 +111,9 @@ public class ARModelManager {
         return;
       }
 
-      scale = Math.max(0.25f, Math.min(3.0f, scale));
+      // One scale range across every layer and runtime (API-08):
+      // [0.1, 5], matching SCALE_MIN/SCALE_MAX in src/web.js.
+      scale = Math.max(0.1f, Math.min(5.0f, scale));
       instance.scale = scale;
 
       if (rotationEuler != null) {
