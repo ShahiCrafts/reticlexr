@@ -1,5 +1,12 @@
 # Audit — capacitor-arcore (arcore-react) v1.0.0
 
+> **Rename note (2026-11-16):** this audit was written when the
+> package was named `capacitor-arcore` (repository `arcore-react`).
+> The package has since been renamed to **reticlexr** — before its
+> first publish; `capacitor-arcore` was never published and is
+> deprecated as a name (see CHANGELOG.md). The findings below keep
+> the original name: they record the code as it was audited.
+
 > Scope: `src/`, `android/`, `example/` (JS side), `docs/`, `package.json`,
 > CI, README/CHANGELOG/CONTRIBUTING. Branch `docs/vercel-site`, head
 > `c6241b3`. Library source was **not** modified. Every finding is grounded

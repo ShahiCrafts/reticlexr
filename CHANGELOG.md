@@ -9,6 +9,18 @@ The project follows [Semantic Versioning](https://semver.org/).
 _In progress — audit remediation. This entry is being built up during
 the remediation programme and will be completed before release._
 
+### Package rename
+
+- **The package was renamed from `capacitor-arcore` to `reticlexr`**
+  on 2026-11-16, before its first publish. `capacitor-arcore` was
+  never published to npm and is deprecated as a name — `reticlexr`
+  is the only package name. Install with `npm install reticlexr`.
+  The GitHub repository moved from `ShahiCrafts/arcore-react` to
+  `ShahiCrafts/reticlexr` (the old URL redirects). Native identifiers
+  are unchanged: the Java package `com.capacitor.arcore`, the
+  `ARCore*` class names and the Capacitor plugin name `ARCore` name
+  Google's ARCore technology, not this package.
+
 ### Behavior changes
 
 - **Screenshots now require an explicit opt-in (SEC-04).**
