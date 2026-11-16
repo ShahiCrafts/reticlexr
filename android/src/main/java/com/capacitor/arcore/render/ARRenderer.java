@@ -20,8 +20,13 @@ import com.google.android.filament.EntityManager;
 import com.capacitor.arcore.session.ARSessionManager;
 import com.capacitor.arcore.surface.ARSurfaceManager;
 import com.capacitor.arcore.events.AREventEmitter;
+import com.capacitor.arcore.interaction.ARCoordinateMapper;
+import com.capacitor.arcore.anchor.ARAnchorManager;
 import com.capacitor.arcore.view.ARNativeView;
 import com.getcapacitor.JSObject;
+
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * ARRenderer
@@ -68,6 +73,17 @@ public class ARRenderer implements ARNativeView.ARViewRenderer {
   private ARSessionManager sessionManager;
   private ARSurfaceManager surfaceManager;
   private AREventEmitter eventEmitter;
+  private ARCoordinateMapper coordinateMapper;
+  private ARAnchorManager anchorManager;
+
+  // NAT-07: plugin hit tests are queued here and drained by the render
+  // loop against the frame it just acquired. Session.update() therefore
+  // runs only on the render thread, a Frame is never handed to another
+  // thread, and every queued request is completed on the render thread
+  // (including anchor creation — NAT-04).
+  private final Queue<HitTestRequest> hitTestQueue = new ConcurrentLinkedQueue<>();
+  private final Object hitTestLock = new Object();
+  private volatile boolean isLoopRunning = false;
 
   // Display
   private int viewportWidth = 0;
@@ -148,6 +164,107 @@ public class ARRenderer implements ARNativeView.ARViewRenderer {
 
   public void setEventEmitter(AREventEmitter emitter) {
     this.eventEmitter = emitter;
+  }
+
+  public void setCoordinateMapper(ARCoordinateMapper mapper) {
+    this.coordinateMapper = mapper;
+  }
+
+  public void setAnchorManager(ARAnchorManager manager) {
+    this.anchorManager = manager;
+  }
+
+  // ========== Hit-test request queue (NAT-07) ==========
+
+  /**
+   * Completion for a queued hit test. Always invoked on the render
+   * thread: either from the per-frame drain, or from the loop-exit
+   * drain with a non-null error.
+   */
+  public interface HitTestCallback {
+    /**
+     * @param hit the hit result, or null when nothing was hit / on error
+     * @param anchorId real ARCore anchor id created from the hit
+     *                 (NAT-04), or null when no hit / no anchor manager
+     * @param error non-null when the request could not be served
+     */
+    void onHitTestComplete(
+        ARCoordinateMapper.HitTestResult hit, String anchorId, String error);
+  }
+
+  private static class HitTestRequest {
+    final float x; // normalized [0, 1]
+    final float y; // normalized [0, 1]
+    final HitTestCallback callback;
+
+    HitTestRequest(float x, float y, HitTestCallback callback) {
+      this.x = x;
+      this.y = y;
+      this.callback = callback;
+    }
+  }
+
+  /**
+   * Queue a hit test for the render loop (NAT-07).
+   *
+   * Any thread. The request is served by the render loop against the
+   * frame it owns; the callback fires on the render thread.
+   *
+   * @return false when the render loop is not running — the caller must
+   *         complete the request itself instead of queueing it into a
+   *         void (the promise must never hang)
+   */
+  public boolean submitHitTest(float x, float y, HitTestCallback callback) {
+    // Check-and-enqueue under one lock with the loop-exit path, so a
+    // request can never be queued after the final drain has run.
+    synchronized (hitTestLock) {
+      if (!isLoopRunning) {
+        return false;
+      }
+      hitTestQueue.add(new HitTestRequest(x, y, callback));
+      return true;
+    }
+  }
+
+  /**
+   * Serve every queued hit test against this frame.
+   *
+   * Render thread only (called from the render loop). Anchor creation
+   * (HitResult.createAnchor) also happens here, on the render thread,
+   * as NAT-04/NAT-07 require for anything touching the Session.
+   */
+  private void processPendingHitTests(Frame frame) {
+    HitTestRequest request;
+    while ((request = hitTestQueue.poll()) != null) {
+      try {
+        ARCoordinateMapper.HitTestResult hit =
+            coordinateMapper != null
+                ? coordinateMapper.screenToWorldHitTest(request.x, request.y, frame)
+                : null;
+
+        String anchorId = null;
+        if (hit != null && hit.hitResult != null && anchorManager != null) {
+          com.google.ar.core.Anchor anchor = hit.hitResult.createAnchor();
+          anchorId = anchorManager.registerAnchor(anchor);
+        }
+
+        request.callback.onHitTestComplete(hit, anchorId, null);
+      } catch (Exception e) {
+        Log.e(TAG, "Queued hit test failed", e);
+        request.callback.onHitTestComplete(null, null, e.getMessage());
+      }
+    }
+  }
+
+  /**
+   * Fail every queued hit test. Render thread only (loop exit), so a
+   * stopping loop never leaves a plugin promise hanging.
+   */
+  private void failPendingHitTests(String error) {
+    HitTestRequest request;
+    while ((request = hitTestQueue.poll()) != null) {
+      request.callback.onHitTestComplete(null, null, error);
+    }
   }
 
   /**
@@ -290,6 +407,9 @@ public class ARRenderer implements ARNativeView.ARViewRenderer {
    * Single loop: update + render per frame
    */
   private void renderLoop() {
+    synchronized (hitTestLock) {
+      isLoopRunning = true;
+    }
     while (isSessionReady && isSurfaceValid && !isPaused) {
       try {
         // ========== STEP 1: FRAME ACQUISITION ==========
@@ -300,6 +420,10 @@ public class ARRenderer implements ARNativeView.ARViewRenderer {
           Thread.sleep(5);
           continue;
         }
+
+        // ========== STEP 1b: QUEUED HIT TESTS (NAT-07) ==========
+        // Serve plugin hit tests against this frame, on this thread.
+        processPendingHitTests(arFrame);
 
         // ========== STEP 2: TRACKING STATE ==========
         com.google.ar.core.Camera arCamera = arFrame.getCamera();
@@ -364,6 +488,12 @@ public class ARRenderer implements ARNativeView.ARViewRenderer {
         break;
       }
     }
+
+    // NAT-07: never leave a queued hit test unresolved when the loop ends.
+    synchronized (hitTestLock) {
+      isLoopRunning = false;
+    }
+    failPendingHitTests("Render loop stopped");
 
     Log.d(TAG, "Render loop ended");
   }

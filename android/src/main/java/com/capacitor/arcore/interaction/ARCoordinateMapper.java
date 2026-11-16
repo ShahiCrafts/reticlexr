@@ -39,6 +39,12 @@ public class ARCoordinateMapper {
   private int displayHeight;
   private float displayDensity;
 
+  // NAT-13: the Context is retained so display metrics can be refreshed
+  // for every hit test instead of being snapshotted once at plugin load
+  // (rotation is handled by ARCore, but foldables, multi-window and
+  // resolution changes otherwise leave the mapper with stale dimensions).
+  private Context context;
+
   public ARCoordinateMapper() {
   }
 
@@ -49,21 +55,32 @@ public class ARCoordinateMapper {
    * UI thread
    */
   public void initialize(Context context) {
+    this.context = context.getApplicationContext();
+    refreshDisplayMetrics();
+  }
+
+  /**
+   * Refresh the cached display metrics from the current display.
+   *
+   * NAT-13: called from initialize() and again at the start of every
+   * hit test, so the pixel mapping always matches the current display.
+   */
+  private void refreshDisplayMetrics() {
     try {
       DisplayMetrics metrics = new DisplayMetrics();
       WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
-      
+
       if (wm != null && wm.getDefaultDisplay() != null) {
         wm.getDefaultDisplay().getMetrics(metrics);
         displayWidth = metrics.widthPixels;
         displayHeight = metrics.heightPixels;
         displayDensity = metrics.density;
 
-        Log.d(TAG, "Display initialized: " + displayWidth + "x" + displayHeight +
+        Log.d(TAG, "Display metrics: " + displayWidth + "x" + displayHeight +
             " (density: " + displayDensity + ")");
       }
     } catch (Exception e) {
-      Log.e(TAG, "Failed to initialize display", e);
+      Log.e(TAG, "Failed to refresh display metrics", e);
       // Fallback defaults
       displayWidth = 1080;
       displayHeight = 2400;
@@ -89,6 +106,9 @@ public class ARCoordinateMapper {
     if (frame == null) {
       return null;
     }
+
+    // NAT-13: never map pixels through stale display metrics.
+    refreshDisplayMetrics();
 
     // Validate input
     if (screenX < 0 || screenX > 1 || screenY < 0 || screenY > 1) {
@@ -133,9 +153,13 @@ public class ARCoordinateMapper {
             : "vertical";
       }
 
-      return new HitTestResult(
+      HitTestResult result = new HitTestResult(
           position, rotation, planeType, pixelX, pixelY
       );
+      // NAT-04: expose the raw hit so the caller (render thread) can
+      // create a real ARCore Anchor from it via createAnchor().
+      result.hitResult = hit;
+      return result;
 
     } catch (Exception e) {
       Log.e(TAG, "Hit test failed", e);
@@ -152,6 +176,10 @@ public class ARCoordinateMapper {
     public String planeType;      // "horizontal" or "vertical"
     public int pixelX;            // Original pixel coordinate
     public int pixelY;            // Original pixel coordinate
+    // NAT-04: the ARCore hit this result came from. Only valid on the
+    // thread that performed the hit test, in the frame it was taken
+    // from — the render loop uses it to createAnchor() there (NAT-07).
+    public HitResult hitResult;
 
     public HitTestResult(float[] position, float[] rotation, String planeType,
                          int pixelX, int pixelY) {

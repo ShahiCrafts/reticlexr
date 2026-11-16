@@ -92,6 +92,10 @@ public class ARCorePlugin extends Plugin {
     renderer.setSessionManager(sessionManager);
     renderer.setSurfaceManager(surfaceManager);
     renderer.setEventEmitter(eventEmitter);
+    // NAT-07: the render loop serves plugin hit tests from its queue;
+    // NAT-04: it creates real anchors from those hits.
+    renderer.setCoordinateMapper(coordinateMapper);
+    renderer.setAnchorManager(anchorManager);
 
     coordinateMapper.initialize(this.getContext());
 
@@ -341,6 +345,13 @@ public class ARCorePlugin extends Plugin {
   /**
    * Perform hit test at normalized screen coordinates.
    *
+   * NAT-07: the hit test is queued to the render loop, which serves it
+   * against the frame it just acquired (Session.update() runs only on
+   * the render thread; a Frame is never handed to the bridge thread).
+   * The call is resolved from the render thread when the queue drains.
+   * NAT-04: a successful hit creates a real ARCore Anchor (on the
+   * render thread) and returns its registered anchorId.
+   *
    * @param call contains: x (float 0-1), y (float 0-1)
    */
   @PluginMethod
@@ -353,46 +364,34 @@ public class ARCorePlugin extends Plugin {
       return;
     }
 
-    try {
-      float x = call.getFloat("x", 0.5f);
-      float y = call.getFloat("y", 0.5f);
+    float x = call.getFloat("x", 0.5f);
+    float y = call.getFloat("y", 0.5f);
 
-      // Get latest frame through session manager
-      com.google.ar.core.Frame frame = sessionManager.acquireLatestFrame();
-
-      if (frame == null) {
-        JSObject result = new JSObject();
-        result.put("hit", false);
-        result.put("error", "No frame available");
-        call.resolve(result);
-        return;
-      }
-
-      // Perform hit test via coordinate mapper
-      ARCoordinateMapper.HitTestResult hit =
-          coordinateMapper.screenToWorldHitTest(x, y, frame);
-
+    boolean submitted = renderer.submitHitTest(x, y, (hit, anchorId, error) -> {
       JSObject result = new JSObject();
-
-      if (hit != null) {
+      if (error != null) {
+        result.put("hit", false);
+        result.put("error", error);
+      } else if (hit != null) {
         result.put("hit", true);
         result.put("position", floatArrayToJSArray(hit.position));
         result.put("rotation", floatArrayToJSArray(hit.rotation));
         result.put("planeType", hit.planeType);
+        if (anchorId != null) {
+          result.put("anchorId", anchorId);
+        }
       } else {
         result.put("hit", false);
       }
-
-      // Note: Frame lifecycle is managed by ARCore Session
-      // No explicit release needed in Filament 1.52.0
-
       call.resolve(result);
+    });
 
-    } catch (Exception e) {
-      Log.e(TAG, "Hit test error", e);
+    if (!submitted) {
+      // Render loop is not running (e.g. Activity paused): resolve
+      // immediately rather than queueing into a stopped loop.
       JSObject result = new JSObject();
       result.put("hit", false);
-      result.put("error", e.getMessage());
+      result.put("error", "Render loop not running");
       call.resolve(result);
     }
   }
