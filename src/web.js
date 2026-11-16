@@ -1204,7 +1204,9 @@ export class ARCoreWeb extends WebPlugin {
   }) {
     modelUrl = modelUrl || modelPath;
     position = position || this.lastHitPosition;
-    rotation = rotation || this.lastHitRotation || [0, 0, 0, 1];
+    // No hit was involved in an explicit placement: a missing/null rotation
+    // means identity, never an unrelated earlier hit's rotation (BUG-12)
+    rotation = rotation || [0, 0, 0, 1];
     if (!modelUrl) throw new Error("modelUrl/modelPath is required");
     if (!position) throw new Error("No surface hit available. Scan a surface before placing a model.");
     const anchorId = `anchor_${Date.now()}_${Math.random()
