@@ -117,7 +117,20 @@ export class ARView {
     this.gestures = createARGestureController({
       element: this.overlay,
       onTap: async ({ x, y, event }) => {
-        if (!this.activeModelId && options.modelUrl) await this.placeModel(options.modelUrl(), { x: x / innerWidth, y: y / innerHeight });
+        if (!this.activeModelId && options.modelUrl) {
+          try {
+            // modelUrl accepts a plain string or a () => string (BUG-05)
+            const modelUrl = typeof options.modelUrl === 'function' ? options.modelUrl() : options.modelUrl;
+            await this.placeModel(modelUrl, { x: x / innerWidth, y: y / innerHeight });
+          } catch (error) {
+            // The gesture controller never awaits this handler, so a
+            // rejection here would be unhandled. Route placement failures
+            // to the caller's error handler instead (BUG-05).
+            if (options.onError) { options.onError(error); return; }
+            console.error('[ARView] Tap-to-place failed:', error);
+            return;
+          }
+        }
         options.onTap?.({ x, y, event });
       },
       onPinch: ({ factor }) => {
