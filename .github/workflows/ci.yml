@@ -1,35 +1,102 @@
 name: CI
 
+# TEST-02: the audit asked for CI that type-checks the JS, runs the
+# test suite, builds the example, and assembles the Android library.
+# All actions are pinned by commit SHA (version in the trailing
+# comment); the SHAs were resolved from each action's release tag.
 on:
   push:
-    branches: [main]
+    branches: [main, 'fix/**', 'docs/**']
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  validate:
+  js:
+    name: JS — type-check, tests, example build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
-      - name: Install SDK dependencies
-        run: npm install --no-audit --no-fund
-      - name: Validate SDK syntax
+      # npm ci (TEST-02): install exactly what the committed
+      # lockfiles pin — the reason SEC-02 committed them.
+      - name: Install (root, npm ci)
+        run: npm ci
+      - name: Type-check (tsc --checkJs over src/)
+        run: npm run check-types
+      - name: Test (Vitest suite — tests/harness/)
+        run: npm test
+      - name: Consumer declaration smoke test
+        run: npx tsc -p tests/harness/tsconfig.smoke.json
+      # SEC-01: the audit steps are deliberately NON-BLOCKING — they
+      # report advisories without failing the build (and on networks
+      # whose registry proxy refuses the audit endpoint they must not
+      # take CI down with it). Split per package so one failure does
+      # not skip the other.
+      - name: Dependency audit — root (non-blocking — SEC-01)
+        continue-on-error: true
+        run: npm audit
+      - name: Dependency audit — example (non-blocking — SEC-01)
+        continue-on-error: true
+        working-directory: example
+        run: npm audit
+      - name: Example — install + build
+        working-directory: example
         run: |
-          node --check src/index.js
-          node --check src/web.js
-          node --check src/ar-view.js
-          node --check src/gestures.js
-          node --check src/hooks.js
-      - name: Install example dependencies
+          npm ci
+          npm run build
+
+  gradle-assemble:
+    name: Android — cap sync + :reticlexr:assembleDebug
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: example/package-lock.json
+      - name: Install (root, npm ci)
+        run: npm ci
+      # cache: gradle (TEST-02) — caches the Gradle user home
+      # (dependencies + wrapper) between runs.
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses > /dev/null
+      - name: Example — install + build
         working-directory: example
-        run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Build example
+        run: |
+          npm ci
+          npm run build
+      - name: Capacitor sync (android)
         working-directory: example
-        run: npm run build
+        run: npx cap sync android
+      - name: Make gradlew executable
+        working-directory: example/android
+        run: chmod +x gradlew
+      - name: Assemble the reticlexr Android library
+        working-directory: example/android
+        run: ./gradlew :reticlexr:assembleDebug --no-daemon --stacktrace
+      - name: Upload Android build reports (on failure)
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: android-build-reports
+          path: android/build/reports/
