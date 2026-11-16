@@ -254,6 +254,24 @@ export class ARCoreWeb extends WebPlugin {
       confidence: 0,
     };
 
+    // Surface notification throttling (PERF-02): frame listeners are
+    // notified on CHANGE — a hasSurface transition or a plane-type
+    // change fires immediately — and otherwise at most every 100 ms
+    // (10 Hz), so consumers like the React hook are not re-rendered
+    // per frame. Payloads are single reused objects, mutated before
+    // each emission; listeners must read them synchronously and must
+    // not retain them.
+    this._surfaceDetectedPayload = {
+      type: "surfaceDetected",
+      hasSurface: true,
+      position: null,
+      rotation: null,
+      planeType: null,
+      confidence: 1,
+    };
+    this._surfaceLostPayload = { type: "surfaceLost", hasSurface: false };
+    this._lastSurfaceNotify = { hasSurface: null, planeType: null, time: -Infinity };
+
     // Configuration
     this.config = {
       showReticle: true,
@@ -1075,14 +1093,12 @@ export class ARCoreWeb extends WebPlugin {
 
             this.lastPlaneType = planeType;
 
-            // Update surface state
-            this.surfaceState = {
-              hasSurface: true,
-              position: this.lastHitPosition,
-              rotation: this.lastHitRotation,
-              planeType: planeType,
-              confidence: 1,
-            };
+            // Update surface state (mutated in place — PERF-02)
+            this.surfaceState.hasSurface = true;
+            this.surfaceState.position = this.lastHitPosition;
+            this.surfaceState.rotation = this.lastHitRotation;
+            this.surfaceState.planeType = planeType;
+            this.surfaceState.confidence = 1;
 
             // Reticle visibility
             const shouldShowReticle = this.config.showReticle && this.reticle;
@@ -1114,17 +1130,24 @@ export class ARCoreWeb extends WebPlugin {
               this.reticleVisible = false;
             }
 
-            // Notify listeners
-            this.frameListeners.forEach((cb) =>
-              cb({
-                type: "surfaceDetected",
-                hasSurface: true,
-                position: this.lastHitPosition,
-                rotation: this.lastHitRotation,
-                planeType: planeType,
-                confidence: 1,
-              })
-            );
+            // Notify listeners — throttled (PERF-02): transitions
+            // (surface gained, plane type changed) fire immediately;
+            // steady-state updates are capped at 10 Hz.
+            const lastNotify = this._lastSurfaceNotify;
+            if (
+              lastNotify.hasSurface !== true ||
+              lastNotify.planeType !== planeType ||
+              timestamp - lastNotify.time >= 100
+            ) {
+              lastNotify.hasSurface = true;
+              lastNotify.planeType = planeType;
+              lastNotify.time = timestamp;
+              const payload = this._surfaceDetectedPayload;
+              payload.position = this.lastHitPosition;
+              payload.rotation = this.lastHitRotation;
+              payload.planeType = planeType;
+              this.frameListeners.forEach((cb) => cb(payload));
+            }
 
             // Debug logging
             if (planeType !== lastLoggedPlaneType || (frameCount % 180 === 0 && frameCount < 900)) {
@@ -1138,20 +1161,20 @@ export class ARCoreWeb extends WebPlugin {
           }
           this.reticleVisible = false;
 
-          this.surfaceState = {
-            hasSurface: false,
-            position: null,
-            rotation: null,
-            planeType: null,
-            confidence: 0,
-          };
+          this.surfaceState.hasSurface = false;
+          this.surfaceState.position = null;
+          this.surfaceState.rotation = null;
+          this.surfaceState.planeType = null;
+          this.surfaceState.confidence = 0;
 
-          this.frameListeners.forEach((cb) =>
-            cb({
-              type: "surfaceLost",
-              hasSurface: false,
-            })
-          );
+          // Losing the surface is a transition: fire immediately,
+          // once (PERF-02) — not on every empty frame.
+          if (this._lastSurfaceNotify.hasSurface !== false) {
+            this._lastSurfaceNotify.hasSurface = false;
+            this._lastSurfaceNotify.planeType = null;
+            this._lastSurfaceNotify.time = timestamp;
+            this.frameListeners.forEach((cb) => cb(this._surfaceLostPayload));
+          }
         }
       }
 
@@ -1759,8 +1782,11 @@ export class ARCoreWeb extends WebPlugin {
   //
   // Frame listeners (addFrameListener) — payloads always carry `type`:
   //   surfaceDetected  {hasSurface: true, position, rotation, planeType, confidence}
-  //                    — every frame the centre ray has a hit
-  //   surfaceLost      {hasSurface: false} — every frame without a hit
+  //                    — throttled (PERF-02): on change (surface gained
+  //                    or plane type changed) immediately, otherwise at
+  //                    most 10 Hz while the centre ray has a hit
+  //   surfaceLost      {hasSurface: false} — once, when the centre ray
+  //                    loses its hit
   //   modelPlaced      {anchorId, modelUrl, position, rotation, scale}
   //   modelRemoved     {anchorId}
   //   modelTransformed {anchorId, modelUrl, position, rotation, scale}
@@ -1786,6 +1812,12 @@ export class ARCoreWeb extends WebPlugin {
 
   /**
    * Subscribe to frame/model events (see the event list above).
+   *
+   * HOT PATH: callbacks run inside the render loop. Surface events
+   * are throttled (on change, at most 10 Hz — PERF-02), but handlers
+   * should still be cheap and allocation-light, and must not retain
+   * surface payload objects — they are reused between emissions.
+   *
    * @param {Function} callback - Receives the event payload
    * @returns {Function} Unsubscribe function
    */
