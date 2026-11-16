@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 430">
+<rect width="1200" height="430" fill="#0e1020"/>
+<text x="48" y="54" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="27" font-weight="700" fill="#ffffff">How the SDK layers stack up</text>
+<line x1="48" y1="72" x2="190" y2="72" stroke="#667eea" stroke-width="3"/>
+<g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+<rect x="48" y="100" width="720" height="66" rx="10" fill="#1c1f38" stroke="#3c4170"/><text x="72" y="141" font-size="20" font-weight="700" fill="#ffffff">Your React app</text><text x="744" y="141" font-size="15" fill="#9aa0cf" text-anchor="end">DOM overlay · product UI · model URLs</text>
+<rect x="48" y="182" width="720" height="66" rx="10" fill="#23264a" stroke="#667eea" stroke-width="2"/><text x="72" y="223" font-size="20" font-weight="700" fill="#ffffff">capacitor-arcore (this SDK)</text><text x="744" y="223" font-size="15" fill="#c7cbec" text-anchor="end">createARView · sessions · gestures · caching</text>
+<rect x="48" y="264" width="720" height="66" rx="10" fill="#1c1f38" stroke="#3c4170"/><text x="72" y="305" font-size="20" font-weight="700" fill="#ffffff">Three.js + WebXR</text><text x="744" y="305" font-size="15" fill="#9aa0cf" text-anchor="end">scene · GLTF loading · hit testing</text>
+<rect x="48" y="346" width="720" height="66" rx="10" fill="#1c1f38" stroke="#3c4170"/><text x="72" y="387" font-size="20" font-weight="700" fill="#ffffff">Android ARCore bridge</text><text x="744" y="387" font-size="15" fill="#9aa0cf" text-anchor="end">native plugin in android/ · Capacitor</text>
+<text x="820" y="150" font-size="16" fill="#9aa0cf">You write this layer.</text>
+<text x="820" y="232" font-size="16" fill="#c7cbec">The SDK absorbs the AR</text>
+<text x="820" y="254" font-size="16" fill="#c7cbec">plumbing in the middle.</text>
+<text x="820" y="314" font-size="16" fill="#9aa0cf">Engines and platform</text>
+<text x="820" y="336" font-size="16" fill="#9aa0cf">do the tracking.</text>
+</g></svg>
