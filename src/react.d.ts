@@ -8,5 +8,6 @@ export type {
   ModelTransforms,
   PlacedModel,
   PlaneCounts,
+  UseARCoreOptions,
   UseARCoreReturn,
 } from './hooks.js';

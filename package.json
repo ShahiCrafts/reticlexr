@@ -35,8 +35,7 @@
     "./package.json": "./package.json"
   },
   "sideEffects": [
-    "./src/index.js",
-    "./src/hooks.js"
+    "./src/index.js"
   ],
   "scripts": {
     "check-types": "tsc --noEmit --checkJs"

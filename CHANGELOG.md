@@ -29,8 +29,8 @@ the remediation programme and will be completed before release._
   Deep imports outside the map (e.g. `reticlexr/src/web.js`) no
   longer resolve under Node/bundler exports rules — use the
   subpaths. `sideEffects` is declared accurately: only the root
-  entry (plugin registration) and the hook module (shared-engine
-  construction) have import-time effects.
+  entry (Capacitor plugin registration) has an import-time effect;
+  the hook's shared engine is constructed lazily (API-04).
 - **`three` and `@capacitor/core` are peer dependencies (PKG-04).**
   They moved out of `dependencies` (and remain `devDependencies`
   for local development and tests). Host apps now provide the one
@@ -44,6 +44,12 @@ the remediation programme and will be completed before release._
 - **`reticlexr/react` subpath (API-02).** React applications can
   import `useARCore` from `reticlexr/react`, the supported React
   entry point.
+- **Per-instance hook engine (API-04).** `useARCore({ engine })`
+  drives the given `ARCoreWeb` instance (fixed at mount), so
+  multiple independent AR views can coexist. With no argument the
+  hook keeps its historical behaviour — one shared engine for the
+  app — except that the shared engine is now constructed lazily on
+  first use instead of at module import.
 
 ### Deprecated
 

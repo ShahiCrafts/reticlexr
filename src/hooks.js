@@ -10,7 +10,7 @@
  *
  * @example
  * // Basic usage in a React component
- * import { useARCore } from 'reticlexr';
+ * import { useARCore } from 'reticlexr/react';
  *
  * function ARComponent() {
  *   const {
@@ -36,9 +36,23 @@ import { useState, useEffect, useCallback, useRef } from "react";
 // We import the class directly rather than the singleton to maintain hook isolation
 import { ARCoreWeb } from "./web.js";
 
-// Create a module-level instance for the hook to use
-// This ensures all hook consumers share the same AR session
-const arCore = new ARCoreWeb();
+/**
+ * The shared default engine (API-04).
+ *
+ * Constructed LAZILY on first use — never at module import — so
+ * importing this module has no side effects (SSR, tests,
+ * tree-shaking). Hook consumers that pass no engine share this one
+ * instance (the historical behaviour: one session, one scene for
+ * the whole app). Consumers that need isolation — multiple
+ * independent AR views, tests, a second overlay — pass their own
+ * engine via `useARCore({ engine })` and get a fully independent
+ * hook instance; the engine is fixed at mount.
+ */
+let sharedEngine = null;
+function getSharedEngine() {
+  if (!sharedEngine) sharedEngine = new ARCoreWeb();
+  return sharedEngine;
+}
 
 /**
  * React hook for using ARCore functionality in React components.
@@ -51,6 +65,12 @@ const arCore = new ARCoreWeb();
  * - Model placement, transformation, and customization
  * - Automatic cleanup on component unmount
  *
+ * @param {Object} [options] - Hook options
+ * @param {ARCoreWeb} [options.engine] - Engine instance this hook
+ *   instance drives (API-04). Fixed at mount. Defaults to a shared
+ *   engine instance (constructed lazily), so existing consumers keep
+ *   the historical one-session-per-app behaviour; pass a dedicated
+ *   `new ARCoreWeb()` (from `reticlexr/web`) for an isolated view.
  * @returns {Object} AR state and methods. Fields:
  *   `isSupported` (boolean|null) — whether AR is supported (null while
  *   checking); `isSessionActive` (boolean); `placedModels` (Array) —
@@ -81,7 +101,16 @@ const arCore = new ARCoreWeb();
  *   clearError,
  * } = useARCore();
  */
-export function useARCore() {
+export function useARCore(options = {}) {
+  // Engine resolution (API-04): the instance is chosen once, at
+  // mount — an explicitly passed engine wins, otherwise the shared
+  // default. Every callback below closes over this instance.
+  const engineRef = useRef(null);
+  if (engineRef.current === null) {
+    engineRef.current = options.engine || getSharedEngine();
+  }
+  const arCore = engineRef.current;
+
   // ============================================================
   // State Management
   // ============================================================

@@ -1,11 +1,12 @@
 /**
  * Type declarations for the React hook (`src/hooks.js`).
- * The hook wraps a module-level singleton engine and mirrors its
- * state into React state.
+ * By default every hook consumer shares one lazily-constructed
+ * engine; pass `{ engine }` for an instance-scoped hook (API-04).
  */
 import type * as THREE from 'three';
 import {
   ARConfig,
+  ARCoreWeb,
   ARSessionOptions,
   DetectedPlaneInfo,
   HitTestResult,
@@ -107,4 +108,18 @@ export interface UseARCoreReturn {
   takeScreenshot: (options?: ScreenshotOptions) => Promise<ScreenshotResult>;
 }
 
-export declare function useARCore(): UseARCoreReturn;
+/** Options for {@link useARCore} (API-04). */
+export interface UseARCoreOptions {
+  /**
+   * Engine instance this hook instance drives. Fixed at mount.
+   * Defaults to a shared engine (constructed lazily on first use),
+   * preserving the historical one-session-per-app behaviour; pass a
+   * dedicated `new ARCoreWeb()` (from `reticlexr/web`) for an
+   * isolated AR view.
+   */
+  engine?: ARCoreWeb;
+}
+
+export declare function useARCore(
+  options?: UseARCoreOptions
+): UseARCoreReturn;

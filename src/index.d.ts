@@ -184,7 +184,12 @@ export type {
  * removed in the next major version.
  */
 export { useARCore } from './hooks.js';
-export type { PlacedModel, PlaneCounts, UseARCoreReturn } from './hooks.js';
+export type {
+  PlacedModel,
+  PlaneCounts,
+  UseARCoreOptions,
+  UseARCoreReturn,
+} from './hooks.js';
 export { createARGestureController } from './gestures.js';
 export type {
   ARGestureController,
