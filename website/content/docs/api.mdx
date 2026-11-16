@@ -1,0 +1,364 @@
+---
+title: API reference
+description: Every public function, option, type and event in capacitor-arcore v1.0.0, hand-written from the verified source signatures.
+---
+
+This reference is hand-written from the source. The library is untyped
+JavaScript with JSDoc — there are no TypeScript declarations in the
+package, so TypeDoc generation is not applicable; every signature below
+was verified against `src/` (and `android/` for the native facade) during
+the v1.0.0 audit. Where the JSDoc in the code disagrees with the
+implementation, this page documents the **implementation** and says so.
+
+## Package exports
+
+```js
+import ARCore, {
+  useARCore,
+  createARGestureController,
+  ARView,
+  createARView,
+  takeScreenshot,
+  enableCustomization,
+  addTextures,
+  switchModel,
+  placeModel,
+} from 'capacitor-arcore';
+```
+
+| Export | Kind | Layer |
+| --- | --- | --- |
+| `ARCore` (default) | Native facade object | Capacitor bridge → Android ARCore (web → WebXR engine) |
+| `ARView`, `createARView` | Class + factory | High-level facade over the WebXR engine |
+| `takeScreenshot`, `enableCustomization`, `addTextures`, `switchModel`, `placeModel` | Functional helpers (view-first) | Same facade, function style |
+| `useARCore` | React hook | WebXR engine mirrored into React state |
+| `createARGestureController` | Factory | Standalone Pointer Events controller |
+
+<Note>
+Two identifier systems exist in one package: the native facade calls a
+placed model a **`modelId`**, the WebXR engine calls it an **`anchorId`**.
+`ARView` returns a `modelId` that is actually the engine's anchor id. The
+engine's facade shims accept either key. This split is a known API design
+issue; until it is unified, use `modelId` with `ARCore` and `anchorId`
+with the engine/hook.
+</Note>
+
+## ARCore native facade
+
+The default export. Every method delegates to the Capacitor plugin
+registered as `ARCore` — on Android that's the native plugin, on web it
+falls through to the WebXR engine (`ARCoreWeb`). Errors are rethrown
+wrapped as `Error('Failed to …: ' + e.message)`, except `checkSupport`,
+which resolves a failure object instead.
+
+```js title="native-facade.js"
+import ARCore from 'capacitor-arcore';
+
+const support = await ARCore.checkSupport();
+if (support.supported) {
+  await ARCore.startSession({ planeDetection: true, lightEstimation: true });
+  const { modelId } = await ARCore.placeModel({ modelPath: '/models/sofa.glb' });
+  await ARCore.setTransform({ modelId, rotation: { x: 0, y: 45, z: 0 }, scale: 1.2 });
+  await ARCore.setMaterial({ modelId, color: '#68705b' });
+  await ARCore.removeModel({ modelId });
+  await ARCore.stopSession();
+}
+```
+
+| Method | Signature | Returns |
+| --- | --- | --- |
+| `startSession` | `(options?: { planeDetection = true, lightEstimation = true })` | `Promise<{ success: boolean }>` |
+| `stopSession` | `()` | `Promise<void>` |
+| `hitTest` | `(options: { x: number, y: number })` — normalised [0, 1] | `Promise<Object>` — `{ hit, position?, rotation?, planeType?, error? }` |
+| `placeModel` | `(options: { modelPath: string, hitId?: string })` | `Promise<{ modelId: string, anchorId: string }>` |
+| `setTransform` | `(options: { modelId, rotation?: {x,y,z} degrees, scale?: number })` | `Promise<void>` |
+| `setMaterial` | `(options: { modelId, color: string })` — hex color | `Promise<void>` |
+| `moveModel` | `(options: { modelId, x: number, y: number })` | `Promise<Object>` |
+| `removeModel` | `(options: { modelId })` | `Promise<void>` |
+| `checkSupport` | `()` | `Promise<{ supported: boolean, reason: string }>` |
+| `on` | `(eventType: string, callback: (data) => void)` | unsubscribe function `() => void` |
+| `addListener` | `(eventType, callback)` | Capacitor listener handle (internal) |
+
+<Warning>
+Native-runtime reality check (verified in the audit): on Android today
+the session, hit test and events are real, but `placeModel` registers
+model metadata without rendering anything, `moveModel` resolves success
+without moving the model, the `hitId` option is ignored (every placement
+uses the anchor id `"anchor_center"`), and `checkSupport` resolves
+`supported: true` unconditionally. WebXR is the runtime that renders
+models. See [WebXR vs native ARCore](/docs/concepts/webxr-vs-native).
+</Warning>
+
+### Facade events
+
+`ARCore.on(eventType, callback)` subscribes to the local event bus, fed
+by the native event bridge set up at import time:
+
+```js
+const off = ARCore.on('modelPlaced', (data) => console.log(data));
+off(); // unsubscribe
+```
+
+Wired event types: `sessionStarted`, `trackingChanged`,
+`surfaceDetected`, `surfaceLost`, `surfaceUpdated`, `sessionStopped`,
+`modelPlaced`, `modelRemoved`, `modelTransformed`,
+`modelMaterialChanged`, `modelMoved`, `error`.
+
+## ARView and createARView
+
+The framework-agnostic facade over one WebXR engine instance. This is
+the API the guides and the example use.
+
+```js
+import { createARView } from 'capacitor-arcore';
+
+const ar = createARView({ overlay: document.querySelector('#ar-overlay') });
+```
+
+Constructor options: `{ engine?, overlay? }` — `engine` is an `ARCoreWeb`
+instance (default: a new one), `overlay` the DOM element for the
+immersive session's overlay.
+
+### Session
+
+| Member | Signature / behaviour |
+| --- | --- |
+| `checkSupport()` | → engine `checkSupport()` → `{ supported, reason }` |
+| `create(options?)` | Starts the session. Options: `{ overlay?, showReticle = true, showPlanes (forced false), showPlaneDots = true, dotSpacing = 0.14, dotSize = 0.014, showShadow = true, planeDetection = true, lightEstimation = true }`. Resolves `{ success, hasOverlay, planeDetection }` |
+| `destroy()` | Destroys gestures, then `await engine.stopSession()` |
+| `onFrame(cb)` / `onPlanes(cb)` | Subscribe to engine frame / plane listeners; both return an unsubscribe function |
+| `getSurface()` | Current surface state `{ hasSurface, position, rotation, planeType, confidence }` |
+| `getPlanes()` | `[{ orientation, polygon: [{x, y, z}] }]` |
+| `setReticleVisible(v)` / `setSurfaceDotsVisible(v)` | Visibility toggles |
+
+```js title="session.js"
+await ar.create({ showReticle: true, showPlaneDots: true, dotSpacing: 0.14 });
+const off = ar.onPlanes((e) => console.log(e.total, 'planes'));
+console.log(ar.getSurface().planeType); // e.g. 'horizontal'
+await ar.destroy();
+off();
+```
+
+### Models
+
+| Member | Signature / behaviour |
+| --- | --- |
+| `preloadModels(urls)` | Loads each URL into the engine cache (`Promise.all`) |
+| `placeModel(modelUrl, options?)` | Options: `{ position?, rotation?, x = 0.5, y = 0.5, scale? }`. Hit-tests the centre (or `x, y`) unless `position` is given. Resolves `{ success: true, modelId, anchorId, … }` or `{ success: false, reason: 'NO_SURFACE' }`. Sets `activeModelId` / `activeModelUrl` |
+| `switchModel(modelUrl, options?)` | Options: `{ preserveMaterial = true }`. Keeps placement/transform; falls back to `placeModel` when nothing is placed |
+| `removeModel()` | Removes the active model; no-op if none |
+| `setScale(scale)` | Clamped to **[0.1, 5]**, applied uniformly |
+| `rotateBy(radians)` | Accumulates `transform.rotationY`, applies a Y rotation |
+| `setColor(color)` | Sets the active model's color (hex string) |
+| `addTextures({ name: url })` | Registers named texture URLs; returns `this` |
+| `applyTexture(nameOrUrl, options?)` | Options: `{ materialName? }`. Throws if no model is placed |
+| `takeScreenshot(options?)` | Delegates to the engine — see [Screenshots](/docs/guides/screenshots) |
+| Public fields | `activeModelId`, `activeModelUrl`, `transform` (`{ scale: 1, rotationY: 0 }`), `textures` (a `Map`) |
+
+```js title="models.js"
+await ar.preloadModels(['/models/sofa.glb', '/models/chair.glb']);
+const placed = await ar.placeModel('/models/sofa.glb');
+if (placed.success) {
+  ar.setScale(1.25);
+  ar.rotateBy(Math.PI / 6);
+  await ar.switchModel('/models/chair.glb'); // same anchor, scale, rotation
+  await ar.setColor('#222b3c');
+  await ar.removeModel();
+}
+```
+
+### Customization and gestures
+
+`enableCustomization(options?)` wires the gesture controller to the
+overlay. It **throws without an overlay**. Options:
+`{ modelUrl: () => string, onTap?, onScale?, onRotate? }` — note
+`modelUrl` is invoked as a function on every tap. Returns a cleanup
+function. Full details in [Gestures](/docs/guides/gestures).
+
+### Functional helpers
+
+The same operations, view-first, for function-style codebases:
+
+```js
+import { placeModel, switchModel, addTextures, enableCustomization, takeScreenshot } from 'capacitor-arcore';
+
+await placeModel(ar, '/models/sofa.glb');
+await switchModel(ar, '/models/chair.glb', { preserveMaterial: false });
+addTextures(ar, { oak: '/textures/oak.jpg' });
+const cleanup = enableCustomization(ar, { modelUrl: () => '/models/sofa.glb' });
+const shot = await takeScreenshot(ar, { format: 'jpeg', quality: 0.85 });
+```
+
+## ARCoreWeb engine
+
+The WebXR engine class behind everything above (`new ARCoreWeb()`).
+Advanced consumers can use it directly — the hook does. Methods used by
+the layers above:
+
+### Configuration
+
+`setConfig(partial)` / `getConfig()`. Defaults:
+
+| Key | Default | Key | Default |
+| --- | --- | --- | --- |
+| `showReticle` | `true` | `reticleColor` | `0x00ff88` |
+| `showPlanes` | `false` | `reticleColorVertical` | `0xff6b6b` |
+| `showPlaneDots` | `true` | `planeColorHorizontal` | `0x00ff88` |
+| `showShadow` | `true` | `planeColorVertical` | `0xff6b6b` |
+| `showBaseRing` | `false` | `shadowOpacity` | `0.4` |
+| `dotSize` | `0.02` | `shadowSize` | `1.2` |
+| `dotSpacing` | `0.1` | | |
+
+<Note>
+The facade's `create()` overrides some of these per view (dots at
+spacing `0.14`, size `0.014`). Engine defaults apply when you drive the
+engine directly.
+</Note>
+
+### Session and accessors
+
+`checkSupport()`, `startSession({ planeDetection = true, lightEstimation = true, domOverlay = null })`,
+`stopSession()`, `getSession()`, `getRenderer()`, `getScene()`,
+`getCamera()`, `getAnchors()`.
+
+<Todo>
+There is no public subpath export for the engine class in v1.0.0 — do not
+try to import `ARCoreWeb` from the package directly. Reach the engine
+through `ARView`'s `ar.engine` field, or use the hook's accessors
+(`getRenderer` / `getScene` / `getCamera`). An `exports` map with
+subpaths is on the roadmap.
+</Todo>
+
+### Models
+
+| Method | Signature / behaviour |
+| --- | --- |
+| `loadModel(url)` | Loads (or returns the cache entry) and resolves a fresh `gltf.scene.clone()` |
+| `placeModel({ modelUrl \| modelPath, position?, rotation = [0,0,0,1], scale = [1,1,1] })` | Resolves `{ anchorId }` |
+| `removeModel({ anchorId })` | Removes the model from the scene |
+| `transformModel({ anchorId, position?, rotation?, scale? })` | Applies an anchor transform |
+| `switchModel({ anchorId, modelUrl, preserveMaterial = true })` | Swaps the model on an existing anchor |
+| `setModelColor({ anchorId, color })` | Recolors |
+| `setModelMaterial({ anchorId, metalness?, roughness?, opacity? })` | PBR property update |
+| `setModelTexture({ anchorId, textureUrl, materialName? })` | Applies a texture |
+| `setTransform(options)` / `setMaterial(options)` / `moveModel(options)` | Facade-compatibility shims accepting `modelId` or `anchorId` |
+
+```js title="engine-models.js"
+const { anchorId } = await engine.placeModel({
+  modelUrl: '/models/sofa.glb',
+  position: [0, 0, -1.5],
+  rotation: [0, 0, 0, 1], // quaternion
+  scale: [1, 1, 1],
+});
+await engine.setModelMaterial({ anchorId, roughness: 0.8 });
+await engine.removeModel({ anchorId });
+```
+
+### Queries, events and visualisation
+
+| Method | Behaviour |
+| --- | --- |
+| `hitTest({ x, y })` | Resolves `{ hit, position?, rotation?, planeType? }`. **v1.0.0: coordinates are ignored** — the result is always the centre-screen hit |
+| `getSurfaceState()` / `getSurfaceDetectionState()` | Current surface state |
+| `getDetectedPlanes()` | Detected plane list |
+| `addFrameListener(cb)` / `addPlaneListener(cb)` | Subscribe; return unsubscribe |
+| `setReticleVisible(v)` | Toggle the reticle |
+| `setPlaneVisualization(v)` / `isPlaneVisualizationEnabled()` | Plane mesh visualisation |
+| `setShadowVisible(anchorId, v)` | Per-model shadow toggle |
+| `setShadowConfig({ enabled?, opacity?, size? })` / `getShadowConfig()` | Shadow tuning |
+
+Frame listeners receive engine events: `surfaceDetected` (every frame
+with a hit), `surfaceLost`, `modelPlaced`, `modelRemoved`,
+`modelTransformed`, `modelColorChanged`, `modelSwitched`,
+`sessionEnded`. Plane listeners receive `planeAdded` and `planesUpdated`
+with payload `{ type, total, horizontal, vertical }` — counts as
+**numbers**.
+
+### Screenshots
+
+`takeScreenshot({ format = 'png', quality = 0.92, width?, height?, includeReticle? })`
+resolves `{ success, dataUrl, width, height, timestamp, includesCamera }`
+or `{ success: false, code?, error }` with `code` one of
+`'CAMERA_CAPTURE_UNAVAILABLE'`, `'CAPTURE_BUSY'`. See
+[Screenshots](/docs/guides/screenshots).
+
+## useARCore
+
+React hook wrapping a module-level singleton engine. It checks support
+on mount and mirrors engine events into state.
+
+**State:** `isSupported: boolean | null`, `isSessionActive: boolean`,
+`placedModels: Array<{ anchorId, modelUrl, position, rotation, scale }>`,
+`error: string | null`,
+`detectedPlanes: { horizontal, vertical, total }`,
+`surfaceState: { hasSurface, position, rotation, planeType, confidence }`.
+
+**Methods** (all memoised): `startSession(options)` →
+`Promise<boolean>` (options pass straight to the engine, e.g.
+`{ domOverlay }`), `stopSession()`, `hitTest(x, y)`,
+`placeModel(modelUrl, position, rotation, scale)`,
+`removeModel(anchorId)`, `transformModel(anchorId, transforms)`,
+`setModelColor(anchorId, color)`, `setModelMaterial(anchorId, properties)`,
+`setConfig` / `getConfig`, `setShadowConfig` / `getShadowConfig`,
+`setShadowVisible(anchorId, v)`, `getDetectedPlanes()`,
+`setReticleVisible(v)`, `setPlaneVisualization(v)`, `clearError()`,
+`getRenderer` / `getScene` / `getCamera`, `takeScreenshot(options)`.
+
+```jsx title="hook.jsx"
+const ar = useARCore();
+
+await ar.startSession({ domOverlay: overlayElement });
+await ar.placeModel('/models/sofa.glb', [0, 0, -1.5], [0, 0, 0, 1], [1, 1, 1]);
+// Placed models (with their anchorIds) are mirrored into state:
+const first = ar.placedModels[0];
+if (first) ar.setModelColor(first.anchorId, '#a55f3b');
+```
+
+<Warning>
+Hook contract traps, verified against the engine:
+
+- `placeModel` transform arguments are **arrays** (position `[x,y,z]`,
+  rotation quaternion `[x,y,z,w]`, scale `[sx,sy,sz]`). The hook's JSDoc
+  describes `{x, y, z}` objects — objects produce `NaN` transforms.
+- `detectedPlanes` state currently never updates (it reads array fields;
+  the engine emits numeric counts). Use a plane listener instead.
+- All hook consumers share one engine; one consumer unmounting stops the
+  session for everyone. Mount it once.
+</Warning>
+
+## Gesture controller
+
+```js
+import { createARGestureController } from 'capacitor-arcore';
+
+const gestures = createARGestureController({
+  element,                  // required — throws if missing
+  onTap, onDrag, onPinch, onRotate,
+  tapMaxDuration = 260,     // ms
+  tapMaxDistance = 12,      // px
+  preventDefault = true,
+  ignoreSelector = '[data-ui]',
+});
+gestures.destroy();
+```
+
+Payloads: `onTap({ x, y })`, `onDrag({ dx, dy, x, y })`,
+`onPinch({ factor, center })` with an **incremental** factor,
+`onRotate({ delta, center })` with an incremental delta in radians
+wrapped to ±π. Full guide: [Gestures](/docs/guides/gestures).
+
+## Error conventions
+
+There is no single error convention in v1.0.0 — know which layer you're
+calling:
+
+| Layer | Convention |
+| --- | --- |
+| `ARCore` facade | Throws `Error('Failed to …: …')`; `checkSupport` resolves `{ supported: false, reason }` instead |
+| Engine `hitTest` | Resolves `{ hit: false, error }` |
+| `ARView.placeModel` | Resolves `{ success: false, reason: 'NO_SURFACE' }` |
+| `useARCore` | Sets `error` state; methods resolve result objects |
+| Screenshots | Resolve `{ success: false, code, error }` — the only coded errors in the package |
+
+Unifying these behind coded errors is on the
+[roadmap](/docs/known-issues#roadmap).

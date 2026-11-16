@@ -1,0 +1,153 @@
+---
+title: Architecture
+description: Two independent AR runtimes behind three JS API layers — the module map, the public surface, and both data flows.
+---
+
+The package is a Capacitor plugin with **two independent AR runtimes**
+behind **three JS API layers**. There is no build step and no TypeScript:
+the published entry is the raw ESM source.
+
+<svg viewBox="0 0 760 470" role="img" aria-label="Architecture diagram: your app calls the ARCore facade or the ARView, hook and gesture layers. The facade crosses the Capacitor bridge to the native Android ARCore and Filament plugin. The high-level layers drive the ARCoreWeb engine, which renders through Three.js over WebXR." className="my-8 w-full">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b7ff5" />
+    </marker>
+  </defs>
+
+  {/* App */}
+  <rect x="180" y="10" width="400" height="46" rx="8" fill="#8b7ff5" fillOpacity="0.16" stroke="#8b7ff5" />
+  <text x="380" y="39" textAnchor="middle" fontSize="15" fontWeight="600" fill="#a78bfa">Your app — React or plain JS</text>
+
+  {/* Facade */}
+  <rect x="30" y="100" width="320" height="58" rx="8" fill="#64748b" fillOpacity="0.12" stroke="#64748b" />
+  <text x="190" y="124" textAnchor="middle" fontSize="14" fontWeight="600" fill="#94a3b8">ARCore facade</text>
+  <text x="190" y="144" textAnchor="middle" fontSize="12" fill="#94a3b8">src/index.js · registerPlugin('ARCore')</text>
+
+  {/* High-level layers */}
+  <rect x="410" y="100" width="320" height="58" rx="8" fill="#64748b" fillOpacity="0.12" stroke="#64748b" />
+  <text x="570" y="124" textAnchor="middle" fontSize="14" fontWeight="600" fill="#94a3b8">ARView · useARCore · gestures</text>
+  <text x="570" y="144" textAnchor="middle" fontSize="12" fill="#94a3b8">src/ar-view.js · src/hooks.js · src/gestures.js</text>
+
+  {/* Bridge */}
+  <rect x="30" y="205" width="320" height="50" rx="8" fill="#64748b" fillOpacity="0.12" stroke="#64748b" />
+  <text x="190" y="235" textAnchor="middle" fontSize="14" fontWeight="600" fill="#94a3b8">Capacitor bridge</text>
+
+  {/* Engine */}
+  <rect x="410" y="205" width="320" height="50" rx="8" fill="#64748b" fillOpacity="0.12" stroke="#64748b" />
+  <text x="570" y="228" textAnchor="middle" fontSize="14" fontWeight="600" fill="#94a3b8">ARCoreWeb engine</text>
+  <text x="570" y="246" textAnchor="middle" fontSize="12" fill="#94a3b8">src/web.js · WebPlugin</text>
+
+  {/* Native */}
+  <rect x="30" y="305" width="320" height="72" rx="8" fill="#8b7ff5" fillOpacity="0.10" stroke="#8b7ff5" />
+  <text x="190" y="330" textAnchor="middle" fontSize="14" fontWeight="600" fill="#a78bfa">Native Android plugin</text>
+  <text x="190" y="350" textAnchor="middle" fontSize="12" fill="#94a3b8">ARCore session · hit test · surface events</text>
+  <text x="190" y="367" textAnchor="middle" fontSize="12" fill="#94a3b8">Filament render loop (camera background)</text>
+
+  {/* Three + WebXR */}
+  <rect x="410" y="305" width="320" height="72" rx="8" fill="#8b7ff5" fillOpacity="0.10" stroke="#8b7ff5" />
+  <text x="570" y="330" textAnchor="middle" fontSize="14" fontWeight="600" fill="#a78bfa">Three.js over WebXR</text>
+  <text x="570" y="350" textAnchor="middle" fontSize="12" fill="#94a3b8">GLB models · planes · reticle · screenshots</text>
+  <text x="570" y="367" textAnchor="middle" fontSize="12" fill="#94a3b8">immersive-ar session in the browser</text>
+
+  {/* Device note */}
+  <text x="380" y="420" textAnchor="middle" fontSize="12.5" fill="#94a3b8">Left path: Android app only · Right path: browser, and the web platform inside Capacitor</text>
+  <text x="380" y="442" textAnchor="middle" fontSize="12.5" fill="#94a3b8">The two runtimes do not share code below the facade — and are not at feature parity.</text>
+
+  {/* Arrows */}
+  <line x1="300" y1="56" x2="200" y2="96" stroke="#8b7ff5" strokeWidth="1.6" markerEnd="url(#arr)" />
+  <line x1="460" y1="56" x2="560" y2="96" stroke="#8b7ff5" strokeWidth="1.6" markerEnd="url(#arr)" />
+  <line x1="190" y1="158" x2="190" y2="201" stroke="#8b7ff5" strokeWidth="1.6" markerEnd="url(#arr)" />
+  <line x1="570" y1="158" x2="570" y2="201" stroke="#8b7ff5" strokeWidth="1.6" markerEnd="url(#arr)" />
+  <line x1="190" y1="255" x2="190" y2="301" stroke="#8b7ff5" strokeWidth="1.6" markerEnd="url(#arr)" />
+  <line x1="570" y1="255" x2="570" y2="301" stroke="#8b7ff5" strokeWidth="1.6" markerEnd="url(#arr)" />
+</svg>
+
+*Diagram — the two runtimes of capacitor-arcore v1.0.0 and the layers above them.*
+
+## The three JS layers
+
+| Layer | Files | Sits on |
+| --- | --- | --- |
+| `ARCore` facade — session/hit-test/model methods plus a local event bus (`on()`), bridging native events at import time | `src/index.js` (7.5 KB) | Capacitor plugin named `ARCore` |
+| `ARView` / `createARView` + functional helpers — single active model, transform state, texture registry, gesture wiring | `src/ar-view.js` (6.4 KB) | WebXR engine only |
+| `useARCore` hook + `createARGestureController` | `src/hooks.js` (24 KB), `src/gestures.js` (3.3 KB) | WebXR engine only |
+
+The high-level layers **never call the native plugin**. If you use
+`createARView` or the hook, you are on the WebXR runtime everywhere —
+including inside a Capacitor app, where the web view runs the same code.
+
+## Data flow: JS → bridge → native ARCore
+
+```
+App JS ─ ARCore.startSession() ─ Capacitor bridge ─► ARCorePlugin (UI thread)
+  ├─ camera permission check / request
+  └─ ARSessionManager.createSession(planeDetection, lightEstimation)
+       ├─ ArCoreApk availability / requestInstall
+       ├─ new Session + Config (plane finding, light estimation, auto focus)
+       └─ onSessionReady ─► ARRenderer + ARViewManager
+            (native view inserted behind the WebView; WebView made transparent)
+
+Render loop (dedicated ARRenderThread):
+  Session.update() → tracking → planes → camera matrices
+  → camera-texture background → Filament render
+
+Events: managers → AREventEmitter → notifyListeners → Capacitor
+  → the facade's import-time bridge → ARCore.on() subscribers
+
+Hit test: JS hitTest({x, y}) → plugin → latest frame
+  → normalised coords → display pixels → frame.hitTest()
+```
+
+## Data flow: JS → Three.js → WebXR
+
+```
+App ─ createARView({ overlay }) ─► ARView ─► ARCoreWeb
+create() ─► setConfig() + startSession({ domOverlay })
+  Three.js setup (once): WebGLRenderer, Scene, PerspectiveCamera (70°),
+    lights, GLTFLoader, plane groups, reticle
+  navigator.xr.requestSession('immersive-ar', {
+    requiredFeatures: ['local-floor', 'hit-test'],
+    optionalFeatures: ['plane-detection'?, 'light-estimation'?,
+                       'camera-access'? (with light estimation),
+                       'dom-overlay'? (with overlay)] })
+  renderer.xr.setSession(); hit-test source from the viewer space
+
+Per frame: viewer hit test → reticle pose + surface state + frame listeners
+  every 8th frame: detected planes → dot/mesh visualisation
+  anchor map → model + shadow transforms → render
+
+Models: GLTFLoader.load(url) → cache → scene.clone() per placement
+  → per-instance cloned materials → blob shadow plane per anchor
+Gestures: Pointer Events on the overlay ─► facade callbacks ─► engine transforms
+```
+
+## The native side at a glance
+
+Ten Java classes under `android/src/main/java/com/capacitor/arcore/`:
+the plugin facade, a session manager (sole owner of the ARCore
+`Session`), a Filament renderer with its own render thread, a surface
+manager, a coordinate mapper for hit tests, an event emitter, a view
+manager — plus a model manager and an anchor manager that are currently
+registries only. What that means in practice is the subject of
+[WebXR vs native ARCore](/docs/concepts/webxr-vs-native).
+
+## Dependencies (verified from package.json)
+
+| Kind | Package | Version |
+| --- | --- | --- |
+| dependency | `@capacitor/core` | `^8.5.2` |
+| dependency | `three` | `^0.180.0` |
+| peerDependency | `react` | `>=16.8.0` |
+| Android | `com.google.ar:core` | `1.40.0` |
+| Android | Filament (`filament-android`, `gltfio-android`) | `1.52.0` |
+| Android SDK | compile / target / min | 36 / 36 / 24 |
+
+No lockfile is committed anywhere in the repo, so installed versions
+resolve from these ranges.
+
+<Todo>
+Resolved (actually installed) dependency versions cannot be quoted until
+someone runs `npm install && npm ls` against a committed lockfile — none
+exists yet. The ranges above are exact; transitive versions are not
+verified.
+</Todo>

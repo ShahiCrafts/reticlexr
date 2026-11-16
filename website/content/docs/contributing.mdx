@@ -1,0 +1,52 @@
+---
+title: Contributing
+description: How to contribute to arcore-react — development setup, what to run before a PR, and the project's versioning rules.
+---
+
+Thanks for contributing to arcore-react.
+
+## Development
+
+1. Fork the repository and create a focused branch from `main`.
+2. Install the SDK dependencies with `npm install`.
+3. Install the example app dependencies with `cd example && npm install`.
+4. Run the example with `npm run dev:https` when testing WebXR on a
+   physical device.
+5. Keep AR/WebXR/Three.js implementation details inside the SDK; the
+   example app should consume the public API.
+6. Run the available validation/build commands before opening a pull
+   request.
+
+## Repository layout
+
+| Area | Path |
+| --- | --- |
+| JavaScript API (facade, WebXR engine, hook, gestures) | `src/` |
+| Native Android plugin | `android/` |
+| Example app | `example/` |
+| Documentation site (this site) | `website/` |
+| Legacy markdown docs | `docs/` |
+
+## What CI runs today
+
+Be aware of what is — and isn't — checked automatically:
+
+- `node --check` syntax validation on the five `src/*.js` files.
+- The example app installs and builds (`vite build`).
+
+There is **no test suite, no lint and no Android/Gradle compile job**
+yet. That means for AR-specific changes, your PR description carries the
+verification: include the device/browser details, what you ran, and what
+you saw. Gesture math, coordinate mapping and event shapes are the most
+valuable first unit tests if you'd like to contribute infrastructure —
+see the [roadmap](/docs/known-issues#roadmap).
+
+## Pull requests
+
+Keep changes focused, describe user-visible behavior, document public
+API changes, and include device/browser details for AR-specific fixes.
+
+## Versioning
+
+This project follows Semantic Versioning. Breaking public API changes
+require a major version increment.

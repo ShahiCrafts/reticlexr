@@ -1,0 +1,56 @@
+---
+title: WebXR vs native ARCore
+description: An honest feature-by-feature split of the package's two runtimes in v1.0.0 — what each one actually does, verified against the code.
+---
+
+The package contains two AR runtimes that share a JS facade name and
+almost nothing else. Earlier README wording presented them as "two
+runtimes, one API" at feature parity. They are not — this page is the
+corrected, code-verified split.
+
+## Feature by feature
+
+| Capability | WebXR runtime (`src/web.js`) | Native Android (`android/`) |
+| --- | --- | --- |
+| Session start/stop | Yes — `immersive-ar` XR session | Yes — ARCore `Session` via the plugin |
+| Plane detection | Yes — XR planes, dot/mesh visualisation | Yes — planes tracked, surface state events |
+| Hit testing | Yes — centre-screen (viewer space); `x, y` arguments ignored in v1.0.0 | Yes — real per-coordinate hit test against the frame |
+| **Model rendering** | **Yes — GLB/GLTF via Three.js, anchored in the scene** | **No — `placeModel` records metadata (id, path, scale, rotation, color) and emits `modelPlaced`, but no renderable is ever created** |
+| Model transforms | Yes — position/rotation/scale on anchors | Registry values only; nothing visible changes |
+| `moveModel` | Centre-hit based (inherits the centre-only hit test) | Resolves `{success: true}` without moving anything |
+| Colors / textures | Yes — materials are real and rendered | Stored in the registry only |
+| Anchors | Yes — XR anchors drive model poses per frame | No real anchors are created; every placement uses the hardcoded id `"anchor_center"` and the documented `hitId` is ignored |
+| Screenshots | Yes — camera + scene composite (needs camera access) | No |
+| Gestures | Yes — Pointer Events controller over the DOM overlay | Via your web UI (the WebView stays on top) |
+| Support check | Real — feature detection against `navigator.xr` | Resolves `supported: true` unconditionally in v1.0.0 |
+| Pause/resume with the activity | Browser-managed | Not wired — the plugin overrides no Capacitor lifecycle hooks, so the session/render loop are not paused with the activity |
+
+## Which runtime am I on?
+
+- `createARView`, the functional helpers and `useARCore` → **always
+  WebXR**, in a browser and inside a Capacitor app alike.
+- The `ARCore` facade → native plugin on Android; on web platforms the
+  same plugin name resolves to the WebXR engine, so facade calls in a
+  browser behave like the engine (including rendering).
+
+## Guidance
+
+- **Building a product viewer today:** use the WebXR path
+  (`createARView`). It is the only runtime that renders models, and it
+  runs on ARCore-capable Android devices through Chrome or the Capacitor
+  web view.
+- **Planning on the native path:** treat it as session + hit-test +
+  surface events. Native model rendering (gltfio) is described in the
+  native code itself as future integration; it is the top item on the
+  [roadmap](/docs/known-issues#roadmap), either to implement or to
+  formally scope out.
+- **Support gating:** don't gate an "AR available" UI on the native
+  facade's `checkSupport()` — it always says yes. Use the WebXR check,
+  and treat native `startSession` failure as the real signal.
+
+<Note>
+None of this makes the native layer useless: availability handling,
+install flow, session configuration, plane tracking and the render loop
+for the camera background are real, working code. The gap is specific —
+models — and it is documented here rather than discovered by users.
+</Note>

@@ -1,0 +1,73 @@
+---
+title: Screenshots
+description: Capture the composited AR view to a data URL — what the result contains, and why it can return CAMERA_CAPTURE_UNAVAILABLE.
+---
+
+## Taking a screenshot
+
+```js
+const shot = await ar.takeScreenshot({ format: 'png', includeReticle: false });
+
+if (shot.success) {
+  // shot.dataUrl   — 'data:image/png;base64,…'
+  // shot.width / shot.height
+  // shot.timestamp
+  // shot.includesCamera — whether the camera feed is in the image
+  const img = new Image();
+  img.src = shot.dataUrl;
+  document.body.appendChild(img);
+} else {
+  console.warn(shot.code, shot.error);
+}
+```
+
+Options (all optional):
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `format` | `'png'` | `'png'` or `'jpeg'` |
+| `quality` | `0.92` | JPEG quality (ignored for PNG) |
+| `width` / `height` | canvas size | Output dimensions |
+| `includeReticle` | engine default | Whether the placement reticle is composited in |
+
+The same call exists as a functional helper,
+`takeScreenshot(view, options)`, and on the `useARCore` hook.
+
+## Saving the image
+
+A data URL is all you get back — turning it into a download or an upload
+is your app's job:
+
+```js title="save-shot.js"
+function downloadShot(shot) {
+  const a = document.createElement('a');
+  a.href = shot.dataUrl;
+  a.download = `ar-${shot.timestamp}.png`;
+  a.click();
+}
+```
+
+## When screenshots fail
+
+Screenshots composite the **camera image** with the rendered scene, which
+needs the WebXR `camera-access` feature. Two failure codes exist:
+
+| Code | Meaning |
+| --- | --- |
+| `CAMERA_CAPTURE_UNAVAILABLE` | The browser/session has no camera access — the capture cannot include the camera feed |
+| `CAPTURE_BUSY` | Another capture is already in flight |
+
+<Warning>
+Camera access is requested as a side effect of light estimation: when a
+session starts with `lightEstimation: true` (the default in
+`ARView.create()`), the engine also adds `camera-access` to the session's
+optional features. On browsers that don't grant it, sessions still run —
+but `takeScreenshot` returns `CAMERA_CAPTURE_UNAVAILABLE`. Design your UI
+to treat screenshots as best-effort, and always branch on `shot.success`.
+</Warning>
+
+<Note>
+Composition runs as a per-pixel loop on the main thread (~2M iterations
+at 1080p), so expect a visible hitch on capture. Fine for a shutter
+button; don't call it per frame.
+</Note>

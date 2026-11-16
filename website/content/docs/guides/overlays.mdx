@@ -1,0 +1,70 @@
+---
+title: Overlays
+description: Your product UI as regular DOM on top of the immersive view — how the overlay element works and how data-ui keeps buttons out of the gesture layer.
+---
+
+## The overlay element
+
+An `ARView` is bound to one DOM element — the **overlay**. You pass it to
+the constructor (or later to `create()`):
+
+```js
+const ar = createARView({ overlay: document.querySelector('#ar-overlay') });
+await ar.create({ /* … */ });
+```
+
+When the session starts, that element is handed to the browser as the XR
+session's DOM overlay: it stays visible and interactive on top of the
+camera view while the session is immersive. Everything inside it is
+ordinary DOM — your product cards, price tags, variant pickers and
+checkout buttons, styled however you like.
+
+```html title="overlay.html"
+<div id="ar-overlay">
+  <header data-ui>
+    <button id="close-ar">×</button>
+    <span>AR View</span>
+  </header>
+
+  <div class="product-card" data-ui>
+    <strong>Sofa — $899</strong>
+    <button id="add-to-cart">Add to cart</button>
+  </div>
+</div>
+```
+
+## Keeping UI out of the gesture layer
+
+The gesture controller ignores pointer events that land on elements
+matching `[data-ui]` (the `ignoreSelector` default). Mark every
+interactive overlay element — or a wrapper around them — with `data-ui`:
+
+- Buttons, links, inputs, sheets and dialogs: **mark them.**
+- Empty areas of the overlay: leave unmarked, so taps, pinches and
+  twists reach the scene.
+
+In React, the attribute is just `data-ui` (any value, including none):
+
+```jsx
+<button data-ui onClick={addToCart}>Add to cart</button>
+```
+
+The repository's example and this site's [demo](/demo) both follow this
+pattern: header, product strip, swatch sheet and dialogs are `data-ui`;
+the rest of the overlay surface drives gestures.
+
+## Without an overlay
+
+`createARView()` can be constructed without an overlay. The session then
+runs without a DOM overlay (the renderer canvas is appended to
+`document.body`), and `enableCustomization()` — which needs an element
+to listen on — throws. If you want gestures, you need an overlay; if you
+only place models programmatically, you don't.
+
+## The native path is different
+
+In a Capacitor Android app, there is no WebXR DOM overlay: the plugin
+inserts a native AR view *behind* the WebView and makes the WebView
+transparent during a session, so your web UI visually floats over the
+native camera view. The programming model (your DOM stays your DOM) is
+the same; the mechanism is not.
