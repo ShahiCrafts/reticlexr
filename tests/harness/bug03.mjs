@@ -1,22 +1,20 @@
-// Verification harness (Phases 1-2). Stub-based, runs under plain
-// Node: `node tests/harness/bug03.mjs`. Phase 6 (TEST-01) formalises
-// these into the Vitest suite — see tests/README.md.
+// Verification harness (Phases 1-2). Stub-based, Vitest suite (TEST-01): run with `npm test`. See tests/README.md.
 // BUG-03 harness: ray-based hit testing for explicit screen points.
 // Part 1: NDC -> ray math against known screen points.
 // Part 2: full hitTestAtPoint flow against a fake XRSession, including
 // source.cancel() on every settle path.
+
+import { test, expect } from 'vitest';
+import * as THREE from 'three';
+
+test('bug03', async () => {
 globalThis.window = globalThis;
 globalThis.XRRay = class XRRay {
   constructor(origin, direction) { this.origin = origin; this.direction = direction; }
 };
-import * as THREE from 'three';
 const { ARCoreWeb, rayFromScreenPoint } = await import('../../src/web.js');
 
-let pass = 0, fail = 0;
-function check(name, cond) {
-  if (cond) { pass++; console.log('  ok  ', name); }
-  else { fail++; console.log('  FAIL', name); }
-}
+const check = (name, cond) => expect(cond, name).toBe(true);
 const EPS = 1e-5;
 const dirNear = (d, [x, y, z], eps = EPS) =>
   Math.abs(d.x - x) <= eps && Math.abs(d.y - y) <= eps && Math.abs(d.z - z) <= eps;
@@ -226,6 +224,4 @@ function engineWith(session) {
   check('2g moveModel succeeds via ray hit', res.success === true);
   check('2g model moved to hit position', JSON.stringify(e.anchors.get('m1').position) === '[2,0,-3]');
 }
-
-console.log(`\nBUG-03 harness: ${pass} passed, ${fail} failed`);
-process.exit(fail ? 1 : 0);
+});

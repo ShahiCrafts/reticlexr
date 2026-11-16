@@ -44,6 +44,9 @@ management and hit-testing only** (audit NAT-01, Option B):
 | `hitTest` | Implemented — served by the render loop; a successful hit creates a real ARCore anchor and returns its `anchorId` |
 | `placeModel` | **Not implemented** — rejects with code `NOT_IMPLEMENTED` (no native model rendering) |
 | `moveModel` | **Not implemented** — rejects with code `NOT_IMPLEMENTED` |
+| `setTransform` | **Not implemented** — rejects with code `NOT_IMPLEMENTED` |
+| `setMaterial` | **Not implemented** — rejects with code `NOT_IMPLEMENTED` |
+| `removeModel` | **Not implemented** — rejects with code `NOT_IMPLEMENTED` |
 | `getPlacedModels` | **Not implemented** — rejects with code `NOT_IMPLEMENTED` |
 | `clearModels` | **Not implemented** — rejects with code `NOT_IMPLEMENTED` |
 

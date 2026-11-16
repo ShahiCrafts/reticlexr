@@ -142,19 +142,37 @@ export interface ARCoreFacade {
     /** The same id (the web engine's name for it); prefer `modelId`. */
     anchorId: string;
   }>;
+  /**
+   * Update a placed model's transform. Implemented by the WebXR
+   * runtime; on Android the native plugin rejects with code
+   * `NOT_IMPLEMENTED` (Option B: native places no models).
+   */
   setTransform(options: ARCoreSetTransformOptions): Promise<void>;
+  /**
+   * Set a placed model's material/colour. Implemented by the WebXR
+   * runtime; on Android the native plugin rejects with code
+   * `NOT_IMPLEMENTED` (Option B: native places no models).
+   */
   setMaterial(options: ARCoreSetMaterialOptions): Promise<void>;
   moveModel(
     options: ARCoreMoveModelOptions
   ): Promise<ARCoreHitTestResult>;
+  /**
+   * Remove a placed model. Implemented by the WebXR runtime; on
+   * Android the native plugin rejects with code `NOT_IMPLEMENTED`
+   * (Option B: native places no models).
+   */
   removeModel(options: ARCoreRemoveModelOptions): Promise<void>;
   /**
    * List the currently placed models (API-03). Web returns the
-   * engine's list; the Android plugin method lands with the native
-   * remediation phase and this rejects on Android until then.
+   * engine's list; on Android the native plugin rejects with code
+   * `NOT_IMPLEMENTED` (Option B: native places no models).
    */
   getPlacedModels(): Promise<ARCorePlacedModel[]>;
-  /** Remove every placed model (API-03). Same Android caveat. */
+  /**
+   * Remove every placed model (API-03). On Android this rejects
+   * with code `NOT_IMPLEMENTED`, like `getPlacedModels`.
+   */
   clearModels(): Promise<void>;
   checkSupport(): Promise<ARCoreSupportResult>;
   /**

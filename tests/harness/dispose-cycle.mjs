@@ -6,18 +6,16 @@
 // complete. initThreeJS itself needs a DOM/WebGL context, so the
 // harness substitutes a fake that builds the same field shape with
 // a stub renderer — what is under test is dispose()'s teardown and
-// field reset, not WebGL. Runs under plain Node:
-// `node tests/harness/dispose-cycle.mjs`.
+// field reset, not WebGL. Vitest suite (TEST-01): run with `npm test`.
+
+import { test, expect } from 'vitest';
 import * as THREE from 'three';
 
+test('dispose-cycle', async () => {
 const { ARCoreWeb, collectResources } = await import('../../src/web.js');
 const { ARView } = await import('../../src/ar-view.js');
 
-let failures = 0;
-const check = (name, cond) => {
-  console.log(cond ? 'PASS' : 'FAIL', name);
-  if (!cond) failures++;
-};
+const check = (name, cond) => expect(cond, name).toBe(true);
 
 // Minimal live-resource tracker (same scheme as leak-phase3.mjs)
 const created = new Set();
@@ -93,6 +91,4 @@ fakeInit(viewEngine, spies);
 const view = new ARView({ engine: viewEngine });
 await view.destroy();
 check('ARView.destroy() runs engine.dispose()', viewEngine.renderer === null && viewEngine.scene === null);
-
-console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURES`);
-process.exit(failures === 0 ? 0 : 1);
+});

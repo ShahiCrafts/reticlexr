@@ -1,11 +1,12 @@
-// Verification harness (Phases 1-2). Stub-based, runs under plain
-// Node: `node tests/harness/compat02.mjs`. Phase 6 (TEST-01) formalises
-// these into the Vitest suite — see tests/README.md.
+// Verification harness (Phases 1-2). Stub-based, Vitest suite (TEST-01): run with `npm test`. See tests/README.md.
 // Throwaway COMPAT-02 verification: checkSupport reason/code per environment.
+
+import { test, expect } from 'vitest';
+
+test('compat02', async () => {
 const { ARCoreWeb } = await import('../../src/web.js');
 
-let failures = 0;
-const check = (name, cond) => { console.log(cond ? 'PASS' : 'FAIL', name); if (!cond) failures++; };
+const check = (name, cond) => expect(cond, name).toBe(true);
 const engine = new ARCoreWeb();
 
 // Case 1: insecure context -> distinct reason + code, even though xr exists
@@ -39,6 +40,4 @@ Object.defineProperty(globalThis, 'navigator', { value: { xr: { isSessionSupport
   const r = await engine.checkSupport();
   check('secure + unsupported: original reason', r.supported === false && r.reason === 'immersive-ar not supported');
 }
-
-console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURES`);
-process.exit(failures === 0 ? 0 : 1);
+});

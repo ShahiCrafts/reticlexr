@@ -31,7 +31,7 @@ findings plus the 3 TODO items SEC-01, COMPAT-03, COMPAT-06).
 | LEAK-07 | low | fixed | 40a4126a941775c5d8218d54156c27074f710880 | tested |
 | PERF-01 | high | fixed | 430922d9d290e2925e74623209781f5d28241f20 | tested |
 | PERF-02 | medium | fixed | c32e836d9e8228fd806da4a438d3f0b031134984 | tested |
-| PERF-03 | medium | open | — | — |
+| PERF-03 | medium | fixed | 9abc454 | Example: SDK lazy-loaded (navigator.xr probe at mount, import('reticlexr') on Start) + three split via manualChunks. Entry chunk 784.25 kB min / 213.66 kB gzip (single chunk, before) → 160.51/52.54 entry + 60.30/18.55 lazy SDK + 571.97/145.56 three (Vite report). |
 | PERF-04 | low | fixed | 3a11a8912f67e32a4bc5047a8e1f55254371d096 | code-verified |
 | PERF-05 | low | wontfix | 65a8dd673738ec01903e07c2712de5e877b61dc7 | tested |
 | PERF-06 | low | fixed | 24cbb078e083b19ca1d0c56ccf982cae7fd283af | tested |
@@ -60,9 +60,9 @@ findings plus the 3 TODO items SEC-01, COMPAT-03, COMPAT-06).
 | COMPAT-02 | medium | fixed | 1d072ba413e3d547613d3e5bcd855682e1931fab | tested |
 | COMPAT-03 | TODO | fixed | 83fe0fc05acdc7fd14d3fb3e8d4ef26ec6599caf | tested (scratch; framework prerender TODO) |
 | COMPAT-04 | low | open | — | — |
-| COMPAT-05 | low | open | — | — |
+| COMPAT-05 | low | fixed | 9abc454 | BrowserUnsupported wired into ARPlayground, rendered when supported === false; its copy was corrected to the WebXR runtime first (the old text claimed native ARCore/Filament features the audit disproved — wiring it verbatim would have shipped false claims). Example build passes; fallback copy verified present in the entry chunk. |
 | COMPAT-06 | TODO | TODO | — | — |
-| SEC-01 | TODO | TODO | — | — |
+| SEC-01 | TODO | TODO | — | — | Owner to run where the registry permits it: `npm audit` (repo root) and `cd example && npm audit`. Attempted again in Phase 6 from this environment: both fail with HTTP 403 `policy_denied` on POST /-/npm/v1/security/audits/quick (managed registry proxy) — no counts exist and none are claimed. CI carries a non-blocking audit step (TEST-02 workflow) so the first real run happens there or on the owner's machine. |
 | SEC-02 | medium | fixed | e4bc492e9bbc575fdf9ac47772d115fcc43160f2 | tested |
 | SEC-03 | low | open | — | — |
 | SEC-04 | low | fixed | 6d3d0da9af8e897d88382a41905ec08b85e6b845 | tested |
@@ -71,9 +71,9 @@ findings plus the 3 TODO items SEC-01, COMPAT-03, COMPAT-06).
 | PKG-03 | medium | fixed | bddd4cc2823d3f99e9730883be042f5b9f5bbb90 | tested |
 | PKG-04 | medium | fixed | 093f1bf96742d4a95176573e80834fd2a5d7d58f | tested |
 | PKG-05 | low | fixed | 713639b8d1ceeadcae532799d740cafd2901418f | code-verified |
-| TEST-01 | high | open | — | — |
-| TEST-02 | medium | open | — | — |
-| TEST-03 | low | open | — | — |
+| TEST-01 | high | fixed | 8c689bd, 635b599, 86513da | All 24 harness files converted to Vitest (vitest.config.mjs includes tests/harness/*.mjs; `npm test` = vitest run). Assertion preservation counted statically per file (check() call sites, helper definitions excluded): 277 before → 280 after; identical per file except leak-phase3 +3 (the negative control's balloon signature is now 3 explicit assertions — it was an exit-code verdict before; nat-notimplemented's 4 call sites execute 12 assertions across its 3 cases, unchanged). Suite green: 24 files / 25 tests. The leak negative control is an always-on test (disposal disabled via the ownership mechanism must balloon per path). |
+| TEST-02 | medium | prepared | — (working tree only) | Workflow updated in the working tree (backup: ci-gradle-assemble.yml): triggers push [main, fix/**, docs/**] + pull_request; `js` job = npm ci → check-types → Vitest → consumer smoke → non-blocking npm audit (continue-on-error) → example npm ci + build; `gradle-assemble` job kept (cap sync + :reticlexr:assembleDebug) with setup-java cache: gradle. NOT fixed until the owner pushes .github/workflows/ci.yml with workflow scope and a run exists — the connector cannot push workflow files (403). |
+| TEST-03 | low | fixed | 7c781c3 | example/tsconfig.json deleted (strict TS over src/** that nothing ran — the example is plain JSX and no tsc step exists in its build; type-checking lives in root check-types + the consumer smoke test). Deleted via the connector's delete_file (snapshot pushes cannot delete). |
 | DOC-01 | critical | open | — | — |
 | DOC-02 | high | open | — | — |
 | DOC-03 | medium | open | — | — |
@@ -468,12 +468,14 @@ Phase 4 harness suite (23/23) is unaffected.
   resolved fictional success), as do the native `getPlacedModels` /
   `clearModels` methods the Phase 4 facade calls. The native scope
   (session + hit-testing only) is documented in docs/API.md and the
-  CHANGELOG. Deliberately left, flagged for the owner: native
-  `setTransform` / `setMaterial` / `removeModel` still operate on the
-  ARModelManager metadata registry — they were outside the
-  enumerated Option B rejection set, and with `placeModel` rejecting,
-  no model can enter that registry; whether they should also reject
-  NOT_IMPLEMENTED is an owner decision.
+  CHANGELOG. Resolved after Phase 5 (owner decision, implemented in
+  Phase 6): native `setTransform` / `setMaterial` / `removeModel` —
+  which still operated on the ARModelManager metadata registry —
+  now reject `NOT_IMPLEMENTED` too; ARModelManager is kept with a
+  comment noting Option A would reuse it. Verification for this
+  follow-up is "code-verified, device TODO": the CI workflow has
+  not yet been pushed by the owner, so no compile verification
+  exists yet.
 - **NAT-02 / NAT-08 / LEAK-05 / NAT-10 (commit 65ee322):** the plugin
   overrides `handleOnPause` / `handleOnResume` / `handleOnDestroy`
   and forwards to the session manager and renderer. NAT-08: loop stop
@@ -503,3 +505,98 @@ Phase 4 harness suite (23/23) is unaffected.
   need the Phase 5 fixed markers and the native
   NOT_IMPLEMENTED / session + hit-test scope wording that root docs
   (docs/API.md, CHANGELOG) already carry.
+
+## Phase 6 notes
+
+- **Stage A — NOT_IMPLEMENTED consistency (owner decision 1;
+  commits f516377 + 5a2a015):** native `setTransform` /
+  `setMaterial` / `removeModel` now reject with coded
+  `NOT_IMPLEMENTED`, like the other five model methods; the
+  ARModelManager class is kept with a comment noting Option A would
+  reuse it. docs/API.md's unimplemented list and the facade JSDoc
+  (src/index.js + src/index.d.ts) document all seven methods.
+  Harness `tests/harness/nat-notimplemented.mjs` (12 checks) stubs
+  the native side at Capacitor's PluginHeader / nativePromise seam
+  and verifies the facade routes each call natively and surfaces
+  the code unchanged. Verification: **code-verified, device TODO**
+  for the Java change (the CI workflow has not yet been pushed by
+  the owner, so no compile verification exists yet); the harness is
+  tested (runs green).
+- **Stage B — camera feature (owner decision 2; NAT-12
+  extension):** the library manifest's `android.hardware.camera`
+  is now `required="false"` (was `required="true"`). Verified with
+  a REAL manifest merge: the standalone Android manifest merger
+  (AGP's own `com.android.manifmerger.Merger` 31.7.0, run under a
+  portable JRE in /tmp) merged the scratch Capacitor app's manifest
+  (`/tmp/pkg01`, whose `:reticlexr` project points at this repo)
+  with the library + capacitor-android manifests. The merged
+  manifest carries `android.hardware.camera.ar` and
+  `android.hardware.camera` as `required="false"` and
+  `com.google.ar.core` as `optional`; a second merge with the
+  documented host opt-in (`tools:replace`) flips both features to
+  `required="true"` and the meta-data to `required`. (The merger
+  was fed copies of the manifests with the `package` attribute and
+  `${applicationId}` value that Gradle injects from each module's
+  `namespace`/`applicationId` — the only substitutions made; the
+  CI Gradle assemble, once the owner pushes the workflow, remains
+  the authoritative full-build merge.) The opt-in is documented in
+  docs/INSTALLATION.md and a "Behavior changes" line was added to
+  the CHANGELOG 1.1.0 entry. NAT-12's row above stays as the Phase
+  5 record; this extension is recorded here.
+- **Stage C — TEST-01 (commits 8c689bd, 635b599, 86513da):** all 24
+  harness files converted in place to Vitest (same filenames — the
+  connector cannot rename/delete). vitest added as a devDependency,
+  `npm test` = `vitest run`, vitest.config.mjs includes
+  tests/harness/*.mjs (node environment). The conversion changed
+  only scaffolding: each file's local check(name, cond) helper is
+  now backed by expect(cond, name).toBe(true), counters/summary/
+  process.exit tails removed, bodies wrapped in one test() per file
+  (leak-phase3 has two). Assertion counts (static check() call
+  sites, helper definitions excluded, identical method before and
+  after): 277 before → 280 after, identical per file except
+  leak-phase3 14 → 17: the negative control — previously the
+  LEAK_NEGATIVE=1 env mode with an exit-code verdict — is now an
+  always-on second test asserting the balloon signature per path
+  (3 new explicit assertions). nat-notimplemented's 4 call sites sit
+  in a loop over 3 cases and execute 12 assertions, unchanged.
+  Full suite green locally: 24 files / 25 tests. tests/README.md
+  rewritten for the Vitest suite.
+- **Stage C — TEST-03 (commit 7c781c3):** example/tsconfig.json
+  deleted via the connector's delete_file tool (snapshot pushes
+  cannot delete files).
+- **Stage C — COMPAT-05 + PERF-03 (commit 9abc454):**
+  BrowserUnsupported is rendered by ARPlayground when
+  supported === false; its copy was first corrected to the WebXR
+  runtime (the unwired component claimed the app "requires native
+  ARCore" with Filament rendering and anchor persistence — false
+  since the audit; wiring it verbatim would have shipped those
+  claims). PERF-03: the static `import { createARView } from
+  'reticlexr'` is gone — mount runs a plain navigator.xr
+  isSessionSupported('immersive-ar') probe (no SDK download), the
+  SDK loads via import('reticlexr') on Start, where the real
+  checkSupport() still gates the session; vite.config.js splits
+  three via manualChunks (function form — the object form produced
+  an empty chunk in this setup). Bundle (Vite report, min/gzip):
+  before = one 784.25/213.66 kB chunk; after = entry 160.51/52.54 +
+  lazy SDK chunk 60.30/18.55 + three chunk 571.97/145.56. Initial
+  JS drops ~80%; total rises slightly (792.85/216.64) from chunk
+  overhead, the standard code-split trade.
+- **Stage C — SEC-01:** attempted `npm audit` at the root and in
+  example/ — both blocked by the managed registry proxy (HTTP 403,
+  policy_denied on the audits endpoint), exactly as in Phase 0/4.
+  No counts are reported (none exist). The exact commands are
+  recorded in the SEC-01 row for the owner; the TEST-02 workflow
+  also runs them as a non-blocking CI step.
+- **Stage C — TEST-02 (working tree only, NOT pushed):**
+  .github/workflows/ci.yml rewritten to the owner's spec (see the
+  TEST-02 row) and the backup copy (ci-gradle-assemble.yml)
+  refreshed byte-for-byte. Status stays "prepared" until the owner
+  pushes the file and a run exists; every Phase 5/6 native item
+  therefore remains "code-verified, device TODO" — the first
+  gradle-assemble run is also the authoritative manifest merge for
+  Stage B and the first Java compile of the Phase 5/6 native code.
+- **Phase 6 gates (local):** full Vitest suite green (24 files /
+  25 tests), `npm run check-types` clean, consumer declaration
+  smoke test green, example build passes with the PERF-03 numbers
+  above. Phase 6 stops here — Phase 7 (docs truth) does not start
+  without the owner's go-ahead.

@@ -1,14 +1,15 @@
-// Verification harness (Phases 1-2). Stub-based, runs under plain
-// Node: `node tests/harness/bug12.mjs`. Phase 6 (TEST-01) formalises
-// these into the Vitest suite — see tests/README.md.
+// Verification harness (Phases 1-2). Stub-based, Vitest suite (TEST-01): run with `npm test`. See tests/README.md.
 // Throwaway BUG-12 investigation: where does rotation actually come from
 // when a model is placed with an explicit position and no rotation?
+
+import { test, expect } from 'vitest';
 import * as THREE from 'three';
+
+test('bug12', async () => {
 const { ARCoreWeb } = await import('../../src/web.js');
 const { ARView } = await import('../../src/ar-view.js');
 
-let failures = 0;
-const check = (name, cond) => { console.log(cond ? 'PASS' : 'FAIL', name); if (!cond) failures++; };
+const check = (name, cond) => expect(cond, name).toBe(true);
 
 const STALE = [0.5, 0.5, 0.5, 0.5]; // quaternion from an unrelated earlier hit
 
@@ -62,6 +63,4 @@ const quatOf = (engine) => {
   const q = quatOf(engine);
   check('D: explicit rotation honoured', JSON.stringify(q) === JSON.stringify(rot));
 }
-
-console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURES`);
-process.exit(failures === 0 ? 0 : 1);
+});

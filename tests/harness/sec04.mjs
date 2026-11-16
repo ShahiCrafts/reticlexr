@@ -1,12 +1,13 @@
-// Verification harness (Phases 1-2). Stub-based, runs under plain
-// Node: `node tests/harness/sec04.mjs`. Phase 6 (TEST-01) formalises
-// these into the Vitest suite — see tests/README.md.
+// Verification harness (Phases 1-2). Stub-based, Vitest suite (TEST-01): run with `npm test`. See tests/README.md.
 // Throwaway SEC-04 verification: camera-access is gated behind
 // enableScreenshots; lightEstimation alone requests only light-estimation.
+
+import { test, expect } from 'vitest';
+
+test('sec04', async () => {
 const { ARCoreWeb } = await import('../../src/web.js');
 
-let failures = 0;
-const check = (name, cond) => { console.log(cond ? 'PASS' : 'FAIL', name); if (!cond) failures++; };
+const check = (name, cond) => expect(cond, name).toBe(true);
 
 globalThis.document = { body: { appendChild() {} } };
 
@@ -48,6 +49,4 @@ async function featuresFor(options) {
   const f = await featuresFor({ lightEstimation: false, enableScreenshots: true });
   check('screenshots without light estimation: camera-access only', f.includes('camera-access') && !f.includes('light-estimation'));
 }
-
-console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURES`);
-process.exit(failures === 0 ? 0 : 1);
+});

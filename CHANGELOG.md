@@ -28,7 +28,11 @@ the remediation programme and will be completed before release._
   models — `placeModel` registered metadata and resolved success, and
   `moveModel` resolved `{success: true}` without moving anything. Both
   now reject with a coded `NOT_IMPLEMENTED` error, as do the native
-  `getPlacedModels` and `clearModels` methods. Model rendering and
+  `getPlacedModels` and `clearModels` methods — and, by a later owner
+  decision, `setTransform`, `setMaterial` and `removeModel`, which
+  previously updated a metadata registry that no placement could ever
+  enter (the registry class is kept for a future native-rendering
+  option). Model rendering and
   placement are provided by the WebXR runtime. Native `hitTest` now
   creates a real ARCore anchor for a successful hit and returns its
   `anchorId`.
@@ -46,6 +50,16 @@ the remediation programme and will be completed before release._
   unsupported and session entry points fail with coded errors. Hosts
   that want AR-required can opt in from their own manifest (see
   docs/INSTALLATION.md).
+- **The camera feature is no longer required either (NAT-12
+  extension).** `android.hardware.camera` is now `required="false"`
+  in the library manifest (it was `required="true"`); the `CAMERA`
+  permission is unchanged and is still requested at runtime. Hosts
+  that want the camera feature required can opt in with
+  `tools:replace` (see docs/INSTALLATION.md). Verified with the
+  Android manifest merger against a scratch Capacitor app: the
+  merged manifest carries both hardware features as
+  `required="false"`, and the documented opt-in flips them to
+  `required="true"`.
 - **Screenshots now require an explicit opt-in (SEC-04).**
   `lightEstimation: true` no longer also requests the WebXR
   `camera-access` feature. To use `takeScreenshot()`, start the

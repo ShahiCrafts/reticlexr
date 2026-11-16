@@ -1,22 +1,22 @@
-// Verification harness (Phase 4). Stub-based, runs under plain Node:
-// `node tests/harness/api03.mjs`. Phase 6 (TEST-01) formalises these
-// into the Vitest suite — see tests/README.md.
+// Verification harness (Phase 4). Stub-based Vitest suite (TEST-01): run with `npm test`. See tests/README.md.
 // API-03: getPlacedModels() / clearModels() exist and agree across
 // the engine, ARView, the facade and the hook — and clearModels
 // routes every removal through removeModel, so disposal follows the
 // Phase 3 OWNERSHIP RULE (per-instance resources disposed,
 // cache-owned resources untouched).
+
+import { test, expect } from 'vitest';
 import * as THREE from 'three';
 import React from 'react';
 import { renderToString } from 'react-dom/server';
 
+test('api03', async () => {
 const { ARCoreWeb } = await import('../../src/web.js');
 const { ARView } = await import('../../src/ar-view.js');
 const { ARCore } = await import('../../src/index.js');
 const { useARCore } = await import('../../src/hooks.js');
 
-let failures = 0;
-const check = (name, cond) => { console.log(cond ? 'PASS' : 'FAIL', name); if (!cond) failures++; };
+const check = (name, cond) => expect(cond, name).toBe(true);
 
 // ---- Engine stub (same pattern as leak-phase3) ----
 function makeEngine() {
@@ -122,6 +122,4 @@ check('hook getPlacedModels reads its engine', hookApi.getPlacedModels().length 
   hookApi.getPlacedModels()[0].modelId === hp.modelId);
 await hookApi.clearModels();
 check('hook clearModels empties its engine', hookEngine.getPlacedModels().length === 0);
-
-console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURES`);
-process.exit(failures === 0 ? 0 : 1);
+});
