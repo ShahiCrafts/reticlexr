@@ -647,3 +647,34 @@ Phase 4 harness suite (23/23) is unaffected.
   (TODO), on-device testing of all Phase 5/6 native code, npm
   publish. Phase 8 (final completion pass + PR) does not start
   without the owner's go-ahead; no PR was opened.
+
+## Phase 8 — final report + PR (DONE)
+
+- **AUDIT-STATUS finished (commit 90f04f4):** all 71 rows now carry
+  a definite status, a commit hash and an honest verification
+  level. **Final tally: 66 fixed / 1 wontfix (PERF-05, with
+  evidence) / 4 TODO** — the TODOs are owner items only: SEC-01
+  (npm audit, registry 403 here; commands recorded in its row),
+  COMPAT-06 (real device values), COMPAT-03 (full framework
+  prerender; the DOM-less checks themselves are tested and pass),
+  TEST-02 (workflow pushed at 7075011 but never executed — run
+  43898545525 blocked by the account billing lock, gate waived by
+  the owner). COMPAT-04, the last open row, is fixed: the audit's
+  prescribed documentation exists in the react-integration guide
+  and the harm it named was removed by LEAK-03's tested disposal.
+  No row claims "compiled in CI" or "tested on device": all
+  Phase 5/6 native work remains **code-verified, device TODO**.
+- **Final numbers, re-verified on the finished tree:** bundle —
+  Phase 0 baseline 773.55/210.74 kB (min/gzip) vs Phase 6 final
+  entry 160.51/52.54 + lazy SDK 60.30/18.55 + three 571.97/145.56
+  (total 792.85/216.64; initial JS −80%). Leak harness —
+  post-warm-up baseline {geo 3, mat 4, tex 2} restored exactly
+  after 50 cycles/path; negative control balloons to {156, 413,
+  53} and is caught. Tests — `npm test` re-run at 90f04f4:
+  **24 files / 25 tests passed** (280 assertions, Vitest).
+- **PR:** https://github.com/ShahiCrafts/reticlexr/pull/3 —
+  `fix/audit-remediation` → `main`, opened for review with the
+  full programme record. (`gh pr create` was refused by the
+  fine-grained token's permissions, so the PR was created through
+  the GitHub connector.) **Not merged** — merging is the owner's
+  call, as are the remaining owner TODOs listed in the PR body.
