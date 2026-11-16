@@ -26,8 +26,8 @@ findings plus the 3 TODO items SEC-01, COMPAT-03, COMPAT-06).
 | LEAK-02 | high | fixed | 40a4126a941775c5d8218d54156c27074f710880 | tested |
 | LEAK-03 | medium | fixed | 40a4126a941775c5d8218d54156c27074f710880 | tested |
 | LEAK-04 | medium | fixed | 40a4126a941775c5d8218d54156c27074f710880 | tested |
-| LEAK-05 | high | open | — | — |
-| LEAK-06 | medium | open | — | — |
+| LEAK-05 | high | fixed | 65ee322cfce9b8d0ded09685baac925e6d11be4e | code-verified, device TODO |
+| LEAK-06 | medium | fixed | 3b31c2c0f6515688d17bb67c0e95835c13ac3947 | code-verified, device TODO |
 | LEAK-07 | low | fixed | 40a4126a941775c5d8218d54156c27074f710880 | tested |
 | PERF-01 | high | fixed | 430922d9d290e2925e74623209781f5d28241f20 | tested |
 | PERF-02 | medium | fixed | c32e836d9e8228fd806da4a438d3f0b031134984 | tested |
@@ -35,19 +35,19 @@ findings plus the 3 TODO items SEC-01, COMPAT-03, COMPAT-06).
 | PERF-04 | low | fixed | 3a11a8912f67e32a4bc5047a8e1f55254371d096 | code-verified |
 | PERF-05 | low | wontfix | 65a8dd673738ec01903e07c2712de5e877b61dc7 | tested |
 | PERF-06 | low | fixed | 24cbb078e083b19ca1d0c56ccf982cae7fd283af | tested |
-| NAT-01 | critical | open | — | — |
-| NAT-02 | critical | open | — | — |
-| NAT-03 | high | open | — | — |
-| NAT-04 | high | open | — | — |
-| NAT-05 | high | open | — | — |
-| NAT-06 | high | open | — | — |
-| NAT-07 | high | open | — | — |
-| NAT-08 | medium | open | — | — |
-| NAT-09 | medium | open | — | — |
-| NAT-10 | medium | open | — | — |
-| NAT-11 | low | open | — | — |
-| NAT-12 | low | open | — | — |
-| NAT-13 | low | open | — | — |
+| NAT-01 | critical | fixed | 71c21ffc83a344352f8c99c17041f5eb7fee83b1 | code-verified, device TODO |
+| NAT-02 | critical | fixed | 65ee322cfce9b8d0ded09685baac925e6d11be4e | code-verified, device TODO |
+| NAT-03 | high | fixed | 29aadec7283c94f89f57f3f9d3887aa575ec5122 | code-verified, device TODO |
+| NAT-04 | high | fixed | 28b4a940da2031ebc129cc1a7fcd95e331d9fb1f | code-verified, device TODO |
+| NAT-05 | high | fixed | 71c21ffc83a344352f8c99c17041f5eb7fee83b1 | code-verified, device TODO |
+| NAT-06 | high | fixed | 29aadec7283c94f89f57f3f9d3887aa575ec5122 | code-verified, device TODO |
+| NAT-07 | high | fixed | 28b4a940da2031ebc129cc1a7fcd95e331d9fb1f | code-verified, device TODO |
+| NAT-08 | medium | fixed | 65ee322cfce9b8d0ded09685baac925e6d11be4e | code-verified, device TODO |
+| NAT-09 | medium | fixed | 29aadec7283c94f89f57f3f9d3887aa575ec5122 | code-verified, device TODO |
+| NAT-10 | medium | fixed | 65ee322cfce9b8d0ded09685baac925e6d11be4e | code-verified, device TODO |
+| NAT-11 | low | fixed | 3b31c2c0f6515688d17bb67c0e95835c13ac3947 | code-verified, device TODO |
+| NAT-12 | low | fixed | 3b31c2c0f6515688d17bb67c0e95835c13ac3947 | code-verified, device TODO |
+| NAT-13 | low | fixed | 28b4a940da2031ebc129cc1a7fcd95e331d9fb1f | code-verified, device TODO |
 | API-01 | high | fixed | b1851a701744963e96cd4d758275464f980afe9c | tested |
 | API-02 | high | fixed | 8a0b86784f431cf59845d29bfd0ec98491ab1096 | tested |
 | API-03 | medium | fixed | e38086976d7fb06ec25246a8f0677e43a21bce24 | tested |
@@ -392,3 +392,114 @@ findings plus the 3 TODO items SEC-01, COMPAT-03, COMPAT-06).
   against types-smoke.ts) clean, example build passes.
 - **Bundle:** example 784.30 kB min / 212.79 kB gzip vs Phase 3's
   782.62 / 213.29 (+0.21% / −0.23% — effectively flat).
+
+## Pre-Phase-5 steps
+
+- **Rename record (commit 9fc128a):** the rename to reticlexr was the
+  owner's decision (2026-11-16); `capacitor-arcore` was never
+  published to npm (registry 404), so no registry deprecation is
+  possible — the name is deprecated in CHANGELOG.md's 1.1.0 "Package
+  rename" note instead, and AUDIT.md carries a rename annotation
+  under its title (its findings keep the original name; it is a dated
+  record). ARCHITECTURE.md's title and its two stale current-state
+  references (example dependency, settings.gradle include) now say
+  reticlexr. Sweep after the change: `capacitor-arcore` /
+  `arcore-react` hits in README.md, docs/, example/, src/, android/
+  = 0 (the Java package `com.capacitor.arcore` and `ARCore*` class
+  names are Google-tech identifiers, not package-name references,
+  and are unchanged).
+- **Gradle assemble CI (TEST-02 pulled forward) — BLOCKED.**
+  `.github/workflows/ci.yml` was extended locally (triggers: push to
+  main, fix/**, docs/** + pull_request; new `gradle-assemble` job:
+  setup-node 22, temurin 21, Android SDK, example install + build,
+  `npx cap sync android`, `./gradlew :reticlexr:assembleDebug`), but
+  the connector push was refused: `failed to create tree: POST
+  https://api.github.com/repos/ShahiCrafts/reticlexr/git/trees: 403
+  Resource not accessible by integration` — the integration may not
+  create/update workflow files. The updated workflow file is kept in
+  the working tree, uncommitted; it needs a push through a channel
+  with workflow scope (owner's own git push, or a token granted the
+  workflow permission). Consequence: **no CI compile signal exists
+  for Phase 5**, so every Phase 5 item below is marked
+  "code-verified, device TODO" — never "CI-compiled". TEST-02 stays
+  open for Phase 6. As a partial static check, the Capacitor APIs
+  Phase 5 relies on (`Plugin.handleOnPause/handleOnResume/
+  handleOnDestroy` being protected hooks, `PluginCall.reject(String,
+  String)`) were verified against the locally installed
+  capacitor-android 8.5.2 sources (example/node_modules).
+
+## Phase 5 notes
+
+All Phase 5 verification is **code-verified, device TODO** (see the
+CI blockage above). No JS (`src/`) files changed in Phase 5, so the
+Phase 4 harness suite (23/23) is unaffected.
+
+- **NAT-06 / NAT-03 / NAT-09 (commit 29aadec):** `checkSupport` now
+  resolves the real `ArCoreApk.checkAvailability()` result via
+  `ARSessionManager.checkAvailability()` (supported only for
+  SUPPORTED_INSTALLED, with an honest reason otherwise; exceptions
+  resolve `{supported:false}` — NAT-12 clean failure).
+  `createSession` takes the foreground `Activity` from the plugin
+  and passes it to `requestInstall` (no more application-Context
+  cast); `getActivity() == null` in startSession / setupARRendering /
+  stopSession rejects with code `ACTIVITY_UNAVAILABLE` instead of an
+  NPE. NAT-09 mechanism: the transient-availability retry is a stored
+  `Handler` `Runnable`, capped at 25 attempts (≈5 s), and guarded by
+  a **generation counter** — `closeSession()` removes the pending
+  callback and increments the generation, and every new
+  `createSession()` increments it too; a queued retry whose captured
+  generation is stale drops itself, so a session can never be created
+  after `stopSession`.
+- **NAT-07 / NAT-04 / NAT-13 (commit 28b4a94):** plugin hit tests go
+  through a request queue owned by `ARRenderer` and drained by the
+  render loop against the frame it just acquired; each call resolves
+  on the render thread. `Session.update()` now has exactly one
+  caller — the render loop (`acquireLatestFrame` has no other
+  callers; verified by search). Check-and-enqueue is under one lock
+  with the loop-exit path, and the loop fails all queued requests on
+  exit, so no promise can hang. NAT-04: the mapper returns the raw
+  `HitResult`; the render loop calls `createAnchor()` on the render
+  thread, registers it in `ARAnchorManager`, and `hitTest` returns
+  the real `anchorId` (the fictional `anchor_center` is gone).
+  NAT-13: the mapper refreshes display metrics from the current
+  display at the start of every hit test.
+- **NAT-01 / NAT-05 Option B (commit 71c21ff):** native `placeModel`
+  and `moveModel` reject with code `NOT_IMPLEMENTED` (they previously
+  resolved fictional success), as do the native `getPlacedModels` /
+  `clearModels` methods the Phase 4 facade calls. The native scope
+  (session + hit-testing only) is documented in docs/API.md and the
+  CHANGELOG. Deliberately left, flagged for the owner: native
+  `setTransform` / `setMaterial` / `removeModel` still operate on the
+  ARModelManager metadata registry — they were outside the
+  enumerated Option B rejection set, and with `placeModel` rejecting,
+  no model can enter that registry; whether they should also reject
+  NOT_IMPLEMENTED is an owner decision.
+- **NAT-02 / NAT-08 / LEAK-05 / NAT-10 (commit 65ee322):** the plugin
+  overrides `handleOnPause` / `handleOnResume` / `handleOnDestroy`
+  and forwards to the session manager and renderer. NAT-08: loop stop
+  uses a dedicated `stopRequested` flag (reset on start) instead of
+  latching `isPaused`, so a second session renders. LEAK-05:
+  `ARRenderer.destroy()` stops the loop, **joins the render thread**,
+  then destroys in dependency order — camera background (the
+  previously caller-less `ARCoreTextureBackground.destroy()`),
+  swap chain, view, scene, renderer, camera entity, engine last —
+  and `handleOnDestroy` runs it before closing the session. NAT-10:
+  the Filament engine is created lazily via
+  `ensureFilamentInitialized()` (first surface / session setup);
+  `startSession` fails cleanly with code `FILAMENT_UNAVAILABLE`
+  instead of deferring a null-engine crash.
+- **LEAK-06 / NAT-11 / NAT-12 (commit 3b31c2c):** `updatePlanes`
+  prunes planes whose tracking state is STOPPED or that were
+  subsumed. `WebViewState.capture` reads the WebView's real
+  background (ColorDrawable colour, or the drawable itself by
+  reference) and restore puts it back. The library manifest now
+  declares `android.hardware.camera.ar` `required="false"` and
+  `com.google.ar.core` = `optional`; the AR-required opt-in for host
+  apps is documented in docs/INSTALLATION.md. (Noticed, out of
+  scope: the manifest still declares `android.hardware.camera`
+  `required="true"` — NAT-12 named only the AR feature.)
+- **Website follow-ups for Phase 7** (docs-site work is kept off
+  this branch): the website's known-issues and API-reference pages
+  need the Phase 5 fixed markers and the native
+  NOT_IMPLEMENTED / session + hit-test scope wording that root docs
+  (docs/API.md, CHANGELOG) already carry.
