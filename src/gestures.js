@@ -71,15 +71,26 @@ export function createARGestureController({
     if (pointers.size < 2) gesture = null;
     if (pointers.size === 1) lastSingle = [...pointers.values()][0]; else lastSingle = null;
   };
+  const cancel = e => {
+    // pointercancel means the gesture was interrupted (system gesture,
+    // notification, scroll takeover). Clear the pointer's state WITHOUT
+    // the tap check, so an interrupted touch can never fire onTap and
+    // place a model (BUG-10).
+    if (preventDefault) e.preventDefault();
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) gesture = null;
+    if (pointers.size === 1) lastSingle = [...pointers.values()][0]; else lastSingle = null;
+    if (pointers.size === 0) start = null;
+  };
   element.addEventListener('pointerdown', down, {passive:false});
   element.addEventListener('pointermove', move, {passive:false});
   element.addEventListener('pointerup', up, {passive:false});
-  element.addEventListener('pointercancel', up, {passive:false});
+  element.addEventListener('pointercancel', cancel, {passive:false});
   return { destroy() {
     element.removeEventListener('pointerdown', down);
     element.removeEventListener('pointermove', move);
     element.removeEventListener('pointerup', up);
-    element.removeEventListener('pointercancel', up);
+    element.removeEventListener('pointercancel', cancel);
     pointers.clear();
   }};
 }
