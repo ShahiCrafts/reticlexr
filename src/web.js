@@ -243,6 +243,45 @@ function resolveModelId(options) {
   return undefined;
 }
 
+// ============================================================
+// One error convention (API-05)
+// ============================================================
+// Every public failure path in the package follows ONE convention:
+//
+//   * Async methods REJECT with an `ARError` — an `Error` carrying a
+//     stable, machine-readable `code` (the Capacitor norm).
+//   * Methods whose contract is a result object (hitTest,
+//     takeScreenshot) keep resolving, and the result carries the
+//     same `code` next to the human-readable `error` string.
+//
+// Codes are SCREAMING_SNAKE and stable across versions and layers:
+// SESSION_START_FAILED, SESSION_NOT_ACTIVE, MODEL_NOT_FOUND,
+// MODEL_URL_REQUIRED, MODEL_LOAD_FAILED, NO_SURFACE,
+// CAMERA_CAPTURE_UNAVAILABLE, INSECURE_CONTEXT, …
+
+export class ARError extends Error {
+  /**
+   * @param {string} code - Stable machine-readable error code
+   * @param {string} message - Human-readable explanation
+   */
+  constructor(code, message) {
+    super(message);
+    this.name = "ARError";
+    this.code = code;
+  }
+}
+
+/**
+ * Build an {@link ARError} (API-05).
+ *
+ * @param {string} code
+ * @param {string} message
+ * @returns {ARError}
+ */
+export function codedError(code, message) {
+  return new ARError(code, message);
+}
+
 // Scratch matrix for per-frame pose application (PERF-04): plane pose
 // updates run inside the render loop's plane pass and must not
 // allocate a Matrix4 per plane per change. Only used for immediate
@@ -1231,7 +1270,8 @@ export class ARCoreWeb extends WebPlugin {
         this.referenceSpace = null;
         this.viewerSpace = null;
       }
-      throw new Error(
+      throw codedError(
+        "SESSION_START_FAILED",
         `Failed to start AR session: ${error.message || "Unknown error"}`
       );
     }
@@ -1623,11 +1663,11 @@ export class ARCoreWeb extends WebPlugin {
    * @param {Object} [options]
    * @param {number} [options.x=0.5] - Normalised X [0, 1]
    * @param {number} [options.y=0.5] - Normalised Y [0, 1]
-   * @returns {Promise<{hit: boolean, position?: number[], rotation?: number[], planeType?: string, error?: string}>}
+   * @returns {Promise<{hit: boolean, position?: number[], rotation?: number[], planeType?: string, code?: string, error?: string}>} Failures resolve (never reject) with `hit: false` and a stable `code` (API-05)
    */
   async hitTest({ x = 0.5, y = 0.5 } = {}) {
     if (!this.session || !this.referenceSpace) {
-      return { hit: false, error: "Session not active" };
+      return { hit: false, code: "SESSION_NOT_ACTIVE", error: "Session not active" };
     }
 
     if (x !== 0.5 || y !== 0.5) {
@@ -1635,7 +1675,7 @@ export class ARCoreWeb extends WebPlugin {
     }
 
     if (!this.hitTestSource) {
-      return { hit: false, error: "Session not active" };
+      return { hit: false, code: "SESSION_NOT_ACTIVE", error: "Session not active" };
     }
 
     // Use cached hit result if available
@@ -1660,7 +1700,7 @@ export class ARCoreWeb extends WebPlugin {
       const onSessionEnd = () => {
         // The session ended before the frame callback fired — settle
         // instead of leaving the caller awaiting forever (BUG-08).
-        settle({ hit: false, error: "SESSION_ENDED" });
+        settle({ hit: false, code: "SESSION_ENDED", error: "SESSION_ENDED" });
       };
       const onFrame = (time, frame) => {
         const hitTestResults = frame.getHitTestResults(this.hitTestSource);
@@ -1729,7 +1769,7 @@ export class ARCoreWeb extends WebPlugin {
    *
    * @param {number} x - Normalised X [0, 1]
    * @param {number} y - Normalised Y [0, 1]
-   * @returns {Promise<{hit: boolean, position?: number[], rotation?: number[], planeType?: string, error?: string}>}
+   * @returns {Promise<{hit: boolean, position?: number[], rotation?: number[], planeType?: string, code?: string, error?: string}>} Failures resolve (never reject) with `hit: false` and a stable `code` (API-05)
    */
   hitTestAtPoint(x, y) {
     const session = this.session;
@@ -1753,12 +1793,12 @@ export class ARCoreWeb extends WebPlugin {
       const onSessionEnd = () => {
         // Never leave the caller awaiting a frame that will not come
         // (BUG-08).
-        settle({ hit: false, error: "SESSION_ENDED" });
+        settle({ hit: false, code: "SESSION_ENDED", error: "SESSION_ENDED" });
       };
       // Frames can also stall without the session ending; race a
       // timeout so the promise always settles (BUG-08).
       const timer = setTimeout(() => {
-        settle({ hit: false, error: "HIT_TEST_TIMEOUT" });
+        settle({ hit: false, code: "HIT_TEST_TIMEOUT", error: "HIT_TEST_TIMEOUT" });
       }, 1000);
 
       const onResultsFrame = (time, frame) => {
@@ -1804,7 +1844,7 @@ export class ARCoreWeb extends WebPlugin {
           const viewerPose = frame.getViewerPose(referenceSpace);
           const view = viewerPose && viewerPose.views && viewerPose.views[0];
           if (!viewerPose || !view) {
-            settle({ hit: false, error: "NO_VIEWER_POSE" });
+            settle({ hit: false, code: "NO_VIEWER_POSE", error: "NO_VIEWER_POSE" });
             return;
           }
           const ray = rayFromScreenPoint(
@@ -1818,7 +1858,7 @@ export class ARCoreWeb extends WebPlugin {
             offsetRay: new XRRay(ray.origin, ray.direction),
           });
         } catch (error) {
-          settle({ hit: false, error: "HIT_TEST_UNAVAILABLE" });
+          settle({ hit: false, code: "HIT_TEST_UNAVAILABLE", error: "HIT_TEST_UNAVAILABLE" });
           return;
         }
         if (settled) {
@@ -1999,7 +2039,14 @@ export class ARCoreWeb extends WebPlugin {
         },
         (error) => {
           console.error("Error loading model:", error);
-          reject(error);
+          // One error convention (API-05): loader failures reject
+          // with a coded error, whatever shape the loader produced
+          reject(
+            codedError(
+              "MODEL_LOAD_FAILED",
+              `Failed to load model: ${error && error.message ? error.message : "unknown error"}`
+            )
+          );
         }
       );
     });
@@ -2046,8 +2093,8 @@ export class ARCoreWeb extends WebPlugin {
     // means identity, never an unrelated earlier hit's rotation (BUG-12)
     rotation = normalizeQuaternion(rotation, [0, 0, 0, 1]);
     scale = clampScale(normalizeScale(scale, [1, 1, 1]));
-    if (!modelUrl) throw new Error("modelUrl/modelPath is required");
-    if (!position) throw new Error("No surface hit available. Scan a surface before placing a model.");
+    if (!modelUrl) throw codedError("MODEL_URL_REQUIRED", "modelUrl/modelPath is required");
+    if (!position) throw codedError("NO_SURFACE", "No surface hit available. Scan a surface before placing a model.");
     const anchorId = `anchor_${Date.now()}_${Math.random()
       .toString(36)
       .substr(2, 9)}`;
@@ -2102,7 +2149,10 @@ export class ARCoreWeb extends WebPlugin {
       return { modelId: anchorId, anchorId };
     } catch (error) {
       this.anchors.delete(anchorId);
-      throw new Error(`Failed to load model: ${error.message}`);
+      // Already-coded errors (e.g. MODEL_LOAD_FAILED from loadModel)
+      // pass through untouched — no double wrapping (API-05)
+      if (error && typeof error.code === "string") throw error;
+      throw codedError("MODEL_LOAD_FAILED", `Failed to load model: ${error.message}`);
     }
   }
 
@@ -2194,7 +2244,7 @@ export class ARCoreWeb extends WebPlugin {
     let { position, rotation, scale } = options;
     const anchor = this.anchors.get(anchorId);
     if (!anchor) {
-      throw new Error(`Anchor ${anchorId} not found`);
+      throw codedError("MODEL_NOT_FOUND", `Anchor ${anchorId} not found`);
     }
 
     position = position === undefined ? undefined : normalizeVector3(position, undefined);
@@ -2304,7 +2354,7 @@ export class ARCoreWeb extends WebPlugin {
     const anchorId = resolveModelId(options);
     const { color } = options;
     const model = this.loadedModels.get(anchorId);
-    if (!model) throw new Error(`Model with anchorId ${anchorId} not found`);
+    if (!model) throw codedError("MODEL_NOT_FOUND", `Model with anchorId ${anchorId} not found`);
 
     const threeColor = new THREE.Color(color);
 
@@ -2328,7 +2378,7 @@ export class ARCoreWeb extends WebPlugin {
     const anchorId = resolveModelId(options);
     const { metalness, roughness, opacity } = options;
     const model = this.loadedModels.get(anchorId);
-    if (!model) throw new Error(`Model with anchorId ${anchorId} not found`);
+    if (!model) throw codedError("MODEL_NOT_FOUND", `Model with anchorId ${anchorId} not found`);
 
     model.traverse((child) => {
       if (child.isMesh && child.material) {
@@ -2361,7 +2411,7 @@ export class ARCoreWeb extends WebPlugin {
     const { modelUrl, preserveMaterial = true } = options;
     const anchor = this.anchors.get(anchorId);
     const oldModel = this.loadedModels.get(anchorId);
-    if (!anchor || !oldModel) throw new Error(`Anchor ${anchorId} not found`);
+    if (!anchor || !oldModel) throw codedError("MODEL_NOT_FOUND", `Anchor ${anchorId} not found`);
     const next = await this.loadModel(modelUrl);
     // No material cloning: the new model shares its cache's materials
     // (LEAK-01); the preservation below clones on write per material.
@@ -2431,7 +2481,7 @@ export class ARCoreWeb extends WebPlugin {
     const anchorId = resolveModelId(options);
     const { textureUrl, materialName } = options;
     const model = this.loadedModels.get(anchorId);
-    if (!model) throw new Error(`Model with anchorId ${anchorId} not found`);
+    if (!model) throw codedError("MODEL_NOT_FOUND", `Model with anchorId ${anchorId} not found`);
     const texture = await this.textureLoader.loadAsync(textureUrl);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.flipY = false;
@@ -2539,7 +2589,7 @@ export class ARCoreWeb extends WebPlugin {
    */
   async takeScreenshot(options = {}) {
     if (!this.renderer || !this.scene || !this.camera || !this.session) {
-      return { success: false, error: 'AR session not active' };
+      return { success: false, code: 'SESSION_NOT_ACTIVE', error: 'AR session not active' };
     }
     if (!this.xrGlBinding || typeof this.xrGlBinding.getCameraImage !== 'function') {
       // The overwhelmingly common cause is that the session was started

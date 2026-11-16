@@ -409,7 +409,7 @@ export function useARCore(options = {}) {
     async (x, y) => {
       // Guard: require active session for hit testing
       if (!isSessionActive) {
-        return { hit: false, error: "Session not active" };
+        return { hit: false, code: "SESSION_NOT_ACTIVE", error: "Session not active" };
       }
 
       try {
@@ -417,7 +417,7 @@ export function useARCore(options = {}) {
       } catch (err) {
         const errorMsg = err.message || "Unknown error";
         setError(errorMsg);
-        return { hit: false, error: errorMsg };
+        return { hit: false, code: err.code || "HIT_TEST_FAILED", error: errorMsg };
       }
     },
     [isSessionActive]
@@ -461,7 +461,7 @@ export function useARCore(options = {}) {
     async (modelUrl, position, rotation, scale) => {
       // Guard: require active session for placing models
       if (!isSessionActive) {
-        return { error: "Session not active" };
+        return { error: "Session not active", code: "SESSION_NOT_ACTIVE" };
       }
 
       try {
@@ -475,7 +475,7 @@ export function useARCore(options = {}) {
       } catch (err) {
         const errorMsg = err.message || "Unknown error";
         setError(errorMsg);
-        return { error: errorMsg };
+        return { error: errorMsg, code: err.code || "PLACE_MODEL_FAILED" };
       }
     },
     [isSessionActive]
@@ -772,7 +772,7 @@ export function useARCore(options = {}) {
   const takeScreenshot = useCallback(
     async (options = {}) => {
       if (!isSessionActive) {
-        return { success: false, error: "Session not active" };
+        return { success: false, code: "SESSION_NOT_ACTIVE", error: "Session not active" };
       }
 
       const result = await arCore.takeScreenshot(options);

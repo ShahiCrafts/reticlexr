@@ -94,6 +94,8 @@ export interface ARCorePlacedModel {
 export interface ARCoreSupportResult {
   supported: boolean;
   reason: string;
+  /** Machine-readable failure code, e.g. 'INSECURE_CONTEXT' (API-05). */
+  code?: string;
 }
 
 /**
@@ -120,6 +122,13 @@ export type ARCoreEventType =
   | 'modelMoved'
   | 'error';
 
+/**
+ * The Capacitor facade. Every async method follows the package's
+ * one error convention (API-05): failures reject with an `Error`
+ * carrying a stable `code` — a runtime code when one exists (e.g.
+ * the WebXR engine's `MODEL_NOT_FOUND`), otherwise a per-method
+ * `*_FAILED` fallback.
+ */
 export interface ARCoreFacade {
   startSession(
     options?: ARCoreStartSessionOptions
@@ -186,10 +195,12 @@ export declare function setupEventBridge(
 // hook expose engine types in their signatures, and the engine itself
 // (ARCHITECTURE.md §2.4) is part of the verified surface. The
 // engine's own entry point is `reticlexr/web` (PKG-03 exports map).
+export { ARError, codedError } from './web.js';
 export type {
   AnchorData,
   ARConfig,
   ARCoreWeb,
+  ARErrorCode,
   ARSessionOptions,
   ARSessionResult,
   ARSupportResult,

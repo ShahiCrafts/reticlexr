@@ -59,6 +59,19 @@ the remediation programme and will be completed before release._
   follows the ownership rule. The Android plugin methods land with
   the native remediation phase; the facade methods reject on
   Android until then.
+- **One coded-error convention (API-05).** Every public failure
+  now carries a stable, machine-readable `code`. Async methods
+  reject with `ARError` (an `Error` subclass, exported from the
+  package root and `reticlexr/web`); result-object APIs
+  (`hitTest`, `takeScreenshot`, `ARView.placeModel`) resolve with
+  the same `code` beside the human-readable `error`/`reason`.
+  Codes include `MODEL_NOT_FOUND`, `MODEL_URL_REQUIRED`,
+  `MODEL_LOAD_FAILED`, `NO_SURFACE`, `SESSION_NOT_ACTIVE`,
+  `SESSION_START_FAILED` and the pre-existing
+  `CAMERA_CAPTURE_UNAVAILABLE` / `INSECURE_CONTEXT`. Error
+  *messages* are unchanged, and the facade preserves runtime codes
+  (falling back to a per-method `*_FAILED` code). The hook's
+  failure results (`{ error }`) now also carry `code`.
 
 ### Deprecated
 

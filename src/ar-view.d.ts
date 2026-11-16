@@ -59,7 +59,9 @@ export interface ARViewPlaceResult {
   anchorId?: string;
   /** Present on `switchModel` results. */
   modelUrl?: string;
-  /** Failure reason, e.g. 'NO_SURFACE'. */
+  /** Stable failure code, e.g. 'NO_SURFACE' (API-05). */
+  code?: string;
+  /** Deprecated alias for `code` — the same string. */
   reason?: string;
 }
 

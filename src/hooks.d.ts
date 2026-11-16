@@ -67,7 +67,10 @@ export interface UseARCoreReturn {
     position?: Vector3Input,
     rotation?: RotationInput,
     scale?: ScaleInput
-  ) => Promise<{ modelId: string; anchorId: string } | { error: string }>;
+  ) => Promise<
+    | { modelId: string; anchorId: string }
+    | { error: string; code?: string }
+  >;
   removeModel: (modelId: string) => Promise<void>;
   /** List the currently placed models, read live from the engine (API-03). */
   getPlacedModels: () => PlacedModel[];

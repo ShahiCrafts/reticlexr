@@ -25,6 +25,19 @@
 
 import { registerPlugin } from '@capacitor/core';
 
+// One error convention (API-05): facade failures reject with an
+// Error carrying a stable `code`. A code arriving from the runtime
+// (the WebXR engine's ARError codes, Capacitor's own codes) is
+// preserved; otherwise the per-method fallback applies. Messages
+// keep their historical 'Failed to …: <cause>' shape.
+function facadeError(prefix, e, fallbackCode) {
+  const err = /** @type {Error & { code?: string }} */ (
+    new Error(prefix + (e && e.message ? e.message : String(e)))
+  );
+  err.code = (e && typeof e.code === 'string' && e.code) || fallbackCode;
+  return err;
+}
+
 // Event emitter for native events
 const eventListeners = {};
 
@@ -55,7 +68,7 @@ export const ARCore = {
       const result = await ARCoreNative.startSession(options);
       return result;
     } catch (e) {
-      throw new Error('Failed to start AR session: ' + e.message);
+      throw facadeError('Failed to start AR session: ', e, 'SESSION_START_FAILED');
     }
   },
 
@@ -68,7 +81,7 @@ export const ARCore = {
     try {
       await ARCoreNative.stopSession();
     } catch (e) {
-      throw new Error('Failed to stop AR session: ' + e.message);
+      throw facadeError('Failed to stop AR session: ', e, 'SESSION_STOP_FAILED');
     }
   },
 
@@ -85,7 +98,7 @@ export const ARCore = {
       const result = await ARCoreNative.hitTest(options);
       return result;
     } catch (e) {
-      throw new Error('Hit test failed: ' + e.message);
+      throw facadeError('Hit test failed: ', e, 'HIT_TEST_FAILED');
     }
   },
 
@@ -115,7 +128,7 @@ export const ARCore = {
       const result = await ARCoreNative.placeModel(normalized);
       return result;
     } catch (e) {
-      throw new Error('Failed to place model: ' + e.message);
+      throw facadeError('Failed to place model: ', e, 'PLACE_MODEL_FAILED');
     }
   },
 
@@ -132,7 +145,7 @@ export const ARCore = {
     try {
       await ARCoreNative.setTransform(options);
     } catch (e) {
-      throw new Error('Failed to update transform: ' + e.message);
+      throw facadeError('Failed to update transform: ', e, 'TRANSFORM_FAILED');
     }
   },
 
@@ -148,7 +161,7 @@ export const ARCore = {
     try {
       await ARCoreNative.setMaterial(options);
     } catch (e) {
-      throw new Error('Failed to update material: ' + e.message);
+      throw facadeError('Failed to update material: ', e, 'MATERIAL_FAILED');
     }
   },
 
@@ -166,7 +179,7 @@ export const ARCore = {
       const result = await ARCoreNative.moveModel(options);
       return result;
     } catch (e) {
-      throw new Error('Failed to move model: ' + e.message);
+      throw facadeError('Failed to move model: ', e, 'MOVE_MODEL_FAILED');
     }
   },
 
@@ -181,7 +194,7 @@ export const ARCore = {
     try {
       await ARCoreNative.removeModel(options);
     } catch (e) {
-      throw new Error('Failed to remove model: ' + e.message);
+      throw facadeError('Failed to remove model: ', e, 'REMOVE_MODEL_FAILED');
     }
   },
 
@@ -200,7 +213,7 @@ export const ARCore = {
       const result = await ARCoreNative.getPlacedModels();
       return result;
     } catch (e) {
-      throw new Error('Failed to list placed models: ' + e.message);
+      throw facadeError('Failed to list placed models: ', e, 'GET_PLACED_MODELS_FAILED');
     }
   },
 
@@ -214,7 +227,7 @@ export const ARCore = {
     try {
       await ARCoreNative.clearModels();
     } catch (e) {
-      throw new Error('Failed to clear models: ' + e.message);
+      throw facadeError('Failed to clear models: ', e, 'CLEAR_MODELS_FAILED');
     }
   },
 
@@ -261,14 +274,18 @@ export const ARCore = {
   /**
    * Check AR support on this device.
    *
-   * @returns {Promise<{supported: boolean, reason: string}>}
+   * @returns {Promise<{supported: boolean, reason: string, code?: string}>}
    */
   checkSupport: async () => {
     try {
       const result = await ARCoreNative.checkSupport();
       return result;
     } catch (e) {
-      return { supported: false, reason: e.message };
+      return {
+        supported: false,
+        reason: e.message,
+        code: (e && typeof e.code === 'string' && e.code) || 'SUPPORT_CHECK_FAILED',
+      };
     }
   },
 
@@ -360,6 +377,9 @@ export default ARCore;
 export { useARCore } from './hooks.js';
 
 export { createARGestureController } from './gestures.js';
+
+// The coded-error type thrown across the public API (API-05).
+export { ARError, codedError } from './web.js';
 
 // High-level abstraction API. Prefer this for application code.
 export { ARView, createARView, takeScreenshot, enableCustomization, addTextures, switchModel, placeModel } from './ar-view.js';

@@ -60,6 +60,40 @@ export declare const SCALE_MIN: number;
 export declare const SCALE_MAX: number;
 export declare function clampScale(scale: Vector3Array): Vector3Array;
 
+/** Stable machine-readable error codes used across the package (API-05). */
+export type ARErrorCode =
+  | 'SESSION_START_FAILED'
+  | 'SESSION_NOT_ACTIVE'
+  | 'SESSION_ENDED'
+  | 'HIT_TEST_FAILED'
+  | 'HIT_TEST_TIMEOUT'
+  | 'HIT_TEST_UNAVAILABLE'
+  | 'NO_VIEWER_POSE'
+  | 'MODEL_NOT_FOUND'
+  | 'MODEL_URL_REQUIRED'
+  | 'MODEL_LOAD_FAILED'
+  | 'NO_SURFACE'
+  | 'NO_ACTIVE_MODEL'
+  | 'OVERLAY_REQUIRED'
+  | 'CAMERA_CAPTURE_UNAVAILABLE'
+  | 'CAPTURE_BUSY'
+  | 'INSECURE_CONTEXT'
+  | (string & {});
+
+/**
+ * The one error type thrown by reticlexr's public APIs (API-05):
+ * an `Error` with a stable, machine-readable `code`. Result-object
+ * APIs (hitTest, takeScreenshot) resolve with the same `code` on
+ * their failure results instead of rejecting.
+ */
+export declare class ARError extends Error {
+  code: string;
+  constructor(code: string, message: string);
+}
+
+/** Build an {@link ARError} (API-05). */
+export declare function codedError(code: string, message: string): ARError;
+
 export declare function rayFromScreenPoint(
   viewerTransform: {
     position: { x: number; y: number; z: number };
@@ -134,6 +168,8 @@ export interface HitTestResult {
   position?: Vector3Array;
   rotation?: QuaternionArray;
   planeType?: string;
+  /** Stable failure code when `hit` is false (API-05). */
+  code?: string;
   error?: string;
 }
 
