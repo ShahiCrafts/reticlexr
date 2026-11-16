@@ -468,12 +468,14 @@ Phase 4 harness suite (23/23) is unaffected.
   resolved fictional success), as do the native `getPlacedModels` /
   `clearModels` methods the Phase 4 facade calls. The native scope
   (session + hit-testing only) is documented in docs/API.md and the
-  CHANGELOG. Deliberately left, flagged for the owner: native
-  `setTransform` / `setMaterial` / `removeModel` still operate on the
-  ARModelManager metadata registry — they were outside the
-  enumerated Option B rejection set, and with `placeModel` rejecting,
-  no model can enter that registry; whether they should also reject
-  NOT_IMPLEMENTED is an owner decision.
+  CHANGELOG. Resolved after Phase 5 (owner decision, implemented in
+  Phase 6): native `setTransform` / `setMaterial` / `removeModel` —
+  which still operated on the ARModelManager metadata registry —
+  now reject `NOT_IMPLEMENTED` too; ARModelManager is kept with a
+  comment noting Option A would reuse it. Verification for this
+  follow-up is "code-verified, device TODO": the CI workflow has
+  not yet been pushed by the owner, so no compile verification
+  exists yet.
 - **NAT-02 / NAT-08 / LEAK-05 / NAT-10 (commit 65ee322):** the plugin
   overrides `handleOnPause` / `handleOnResume` / `handleOnDestroy`
   and forwards to the session manager and renderer. NAT-08: loop stop

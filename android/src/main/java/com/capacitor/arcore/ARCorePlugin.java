@@ -499,108 +499,44 @@ public class ARCorePlugin extends Plugin {
   /**
    * Update model transform (position, rotation, scale).
    *
+   * NOT implemented natively (Option B; owner decision recorded after
+   * Phase 5): this previously applied the transform to the
+   * ARModelManager metadata registry and resolved success — but since
+   * placeModel rejects (NAT-01), no model can ever exist in that
+   * registry, and nothing was ever rendered. Like placeModel /
+   * moveModel it now rejects honestly with a coded NOT_IMPLEMENTED.
+   * ARModelManager is kept: Option A (real native rendering) would
+   * reuse it.
+   *
    * @param call contains: modelId, rotation (array [x, y, z] in degrees), scale
    */
   @PluginMethod
   public void setTransform(PluginCall call) {
-    if (!isSessionActive || modelManager == null || anchorManager == null) {
-      call.reject("Session not active or model manager not ready");
-      return;
-    }
-
-    try {
-      String modelId = call.getString("modelId");
-      if (modelId == null) {
-        call.reject("modelId is required");
-        return;
-      }
-
-      float scale = call.getFloat("scale", 1.0f);
-
-      // Get rotation Euler angles
-      float[] rotationEuler = null;
-      com.getcapacitor.JSObject rotObj = call.getObject("rotation");
-      if (rotObj != null) {
-        try {
-          rotationEuler = new float[]{
-              (float) rotObj.getDouble("x"),
-              (float) rotObj.getDouble("y"),
-              (float) rotObj.getDouble("z")
-          };
-        } catch (Exception e) {
-          rotationEuler = new float[]{0, 0, 0};
-        }
-      }
-
-      // Get anchor for this model and its pose
-      // (In a real implementation, we'd track model->anchor association)
-      // For now, we'll just apply the transform
-      modelManager.setTransform(modelId, null, rotationEuler, scale);
-
-      call.resolve();
-
-      // Emit event
-      JSObject eventData = new JSObject();
-      eventData.put("modelId", modelId);
-      eventData.put("scale", scale);
-      if (rotationEuler != null) {
-        com.getcapacitor.JSObject rotEvent = new com.getcapacitor.JSObject();
-        rotEvent.put("x", rotationEuler[0]);
-        rotEvent.put("y", rotationEuler[1]);
-        rotEvent.put("z", rotationEuler[2]);
-        eventData.put("rotation", rotEvent);
-      }
-      eventEmitter.emit("modelTransformed", eventData);
-
-      Log.d(TAG, "Transform updated for model: " + modelId);
-
-    } catch (Exception e) {
-      Log.e(TAG, "Error updating transform", e);
-      call.reject("Failed to update transform: " + e.getMessage());
-    }
+    call.reject(
+        "setTransform is not implemented in the native Android runtime: "
+            + "native is scoped to session + hit-testing (Option B) and places no models",
+        "NOT_IMPLEMENTED");
   }
 
   /**
    * Set model material/color.
    *
+   * NOT implemented natively (Option B; owner decision recorded after
+   * Phase 5): this previously set a colour on the ARModelManager
+   * metadata registry and resolved success — but since placeModel
+   * rejects (NAT-01), no model can ever exist in that registry, and
+   * nothing was ever rendered. Like placeModel / moveModel it now
+   * rejects honestly with a coded NOT_IMPLEMENTED. ARModelManager is
+   * kept: Option A (real native rendering) would reuse it.
+   *
    * @param call contains: modelId, color (hex string like "#7D8B67")
    */
   @PluginMethod
   public void setMaterial(PluginCall call) {
-    if (!isSessionActive || modelManager == null) {
-      call.reject("Session not active or model manager not ready");
-      return;
-    }
-
-    try {
-      String modelId = call.getString("modelId");
-      String color = call.getString("color");
-
-      if (modelId == null) {
-        call.reject("modelId is required");
-        return;
-      }
-
-      if (color == null) {
-        color = "#ffffff";
-      }
-
-      modelManager.setColor(modelId, color);
-
-      call.resolve();
-
-      // Emit event
-      JSObject eventData = new JSObject();
-      eventData.put("modelId", modelId);
-      eventData.put("color", color);
-      eventEmitter.emit("modelMaterialChanged", eventData);
-
-      Log.d(TAG, "Material updated for model: " + modelId + " color: " + color);
-
-    } catch (Exception e) {
-      Log.e(TAG, "Error updating material", e);
-      call.reject("Failed to update material: " + e.getMessage());
-    }
+    call.reject(
+        "setMaterial is not implemented in the native Android runtime: "
+            + "native is scoped to session + hit-testing (Option B) and places no models",
+        "NOT_IMPLEMENTED");
   }
 
   /**
@@ -625,37 +561,23 @@ public class ARCorePlugin extends Plugin {
   /**
    * Remove a model.
    *
+   * NOT implemented natively (Option B; owner decision recorded after
+   * Phase 5): this previously removed the model from the
+   * ARModelManager metadata registry and resolved success — but since
+   * placeModel rejects (NAT-01), no model can ever exist in that
+   * registry, and nothing was ever rendered. Like placeModel /
+   * moveModel it now rejects honestly with a coded NOT_IMPLEMENTED.
+   * ARModelManager is kept: Option A (real native rendering) would
+   * reuse it.
+   *
    * @param call contains: modelId
    */
   @PluginMethod
   public void removeModel(PluginCall call) {
-    if (!isSessionActive || modelManager == null) {
-      call.reject("Session not active or model manager not ready");
-      return;
-    }
-
-    try {
-      String modelId = call.getString("modelId");
-      if (modelId == null) {
-        call.reject("modelId is required");
-        return;
-      }
-
-      modelManager.removeModel(modelId);
-
-      call.resolve();
-
-      // Emit event
-      JSObject eventData = new JSObject();
-      eventData.put("modelId", modelId);
-      eventEmitter.emit("modelRemoved", eventData);
-
-      Log.d(TAG, "Model removed: " + modelId);
-
-    } catch (Exception e) {
-      Log.e(TAG, "Error removing model", e);
-      call.reject("Failed to remove model: " + e.getMessage());
-    }
+    call.reject(
+        "removeModel is not implemented in the native Android runtime: "
+            + "native is scoped to session + hit-testing (Option B) and places no models",
+        "NOT_IMPLEMENTED");
   }
 
   /**

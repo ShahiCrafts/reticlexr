@@ -16,6 +16,14 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * Manages model metadata and state tracking.
  *
+ * NOTE (Option B): the native Android runtime renders no models, so
+ * this registry is currently unreachable from the plugin's model
+ * methods — placeModel, moveModel, setTransform, setMaterial,
+ * removeModel, getPlacedModels and clearModels all reject with a
+ * coded NOT_IMPLEMENTED (see ARCorePlugin). The class is kept
+ * deliberately: Option A (real native glTF rendering) would build on
+ * this metadata / model-anchor bookkeeping.
+ *
  * For this integration test, maintains:
  * - Model metadata (transforms, colors, anchors)
  * - Model-anchor associations

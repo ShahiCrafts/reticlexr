@@ -135,6 +135,11 @@ export const ARCore = {
   /**
    * Update model transform (position, rotation, scale).
    *
+   * Implemented by the WebXR runtime. On Android the native plugin
+   * rejects with code `NOT_IMPLEMENTED`: the native runtime is
+   * scoped to session + hit-testing (Option B) and places no models,
+   * so there is nothing to transform.
+   *
    * @param {Object} options
    * @param {string} [options.modelId] - Model identifier (required by the plugin)
    * @param {Object} [options.rotation] - Euler angles {x, y, z} in degrees
@@ -151,6 +156,10 @@ export const ARCore = {
 
   /**
    * Set model material/color.
+   *
+   * Implemented by the WebXR runtime. On Android the native plugin
+   * rejects with code `NOT_IMPLEMENTED` (Option B: the native
+   * runtime places no models, so there is nothing to restyle).
    *
    * @param {Object} options
    * @param {string} [options.modelId] - Model identifier (required by the plugin)
@@ -186,6 +195,10 @@ export const ARCore = {
   /**
    * Remove a model.
    *
+   * Implemented by the WebXR runtime. On Android the native plugin
+   * rejects with code `NOT_IMPLEMENTED` (Option B: the native
+   * runtime places no models, so there is nothing to remove).
+   *
    * @param {Object} options
    * @param {string} [options.modelId] - Model identifier (required by the plugin)
    * @returns {Promise<void>}
@@ -202,9 +215,10 @@ export const ARCore = {
    * List the currently placed models (API-03).
    *
    * On web this returns the engine's placed models
-   * (`{modelId, modelUrl, position, rotation, scale}` entries). The
-   * Android plugin method lands with the native remediation phase;
-   * until then this rejects on Android.
+   * (`{modelId, modelUrl, position, rotation, scale}` entries). On
+   * Android the native plugin method rejects with code
+   * `NOT_IMPLEMENTED` (Option B: the native runtime places no
+   * models, so there is nothing to enumerate).
    *
    * @returns {Promise<Array<Object>>}
    */
@@ -218,8 +232,8 @@ export const ARCore = {
   },
 
   /**
-   * Remove every placed model (API-03). Same Android caveat as
-   * `getPlacedModels`.
+   * Remove every placed model (API-03). On Android this rejects
+   * with code `NOT_IMPLEMENTED`, like `getPlacedModels`.
    *
    * @returns {Promise<void>}
    */
