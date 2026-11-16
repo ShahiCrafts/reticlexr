@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "baseUrl": ".",
+    "paths": { "reticlexr": ["../../src/index.d.ts"] }
+  },
+  "include": ["types-smoke.ts"]
+}
