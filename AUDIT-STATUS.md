@@ -48,17 +48,17 @@ findings plus the 3 TODO items SEC-01, COMPAT-03, COMPAT-06).
 | NAT-11 | low | open | — | — |
 | NAT-12 | low | open | — | — |
 | NAT-13 | low | open | — | — |
-| API-01 | high | open | — | — |
-| API-02 | high | open | — | — |
-| API-03 | medium | open | — | — |
-| API-04 | medium | open | — | — |
-| API-05 | medium | open | — | — |
+| API-01 | high | fixed | b1851a701744963e96cd4d758275464f980afe9c | tested |
+| API-02 | high | fixed | 8a0b86784f431cf59845d29bfd0ec98491ab1096 | tested |
+| API-03 | medium | fixed | e38086976d7fb06ec25246a8f0677e43a21bce24 | tested |
+| API-04 | medium | fixed | 4dae82b87b9025b9092a22a919213c9e576e4a2c | tested |
+| API-05 | medium | fixed | 0e07e920f89f0332e028f058515dda2d7286c703 | tested |
 | API-06 | medium | fixed | 1865dcd5f2176baaba608e353e8cb8c4ad75f368 | tested |
 | API-07 | low | fixed | 128b8b92fbcd82af404519606f8f3fb0b0b02003 | code-verified |
 | API-08 | low | fixed | 21cd817a2aa68f09db669cebad0baee19c0583d1 | tested |
 | COMPAT-01 | medium | fixed | 15d15b47be380299f97f1724bccbf855cd691293 | tested |
 | COMPAT-02 | medium | fixed | 1d072ba413e3d547613d3e5bcd855682e1931fab | tested |
-| COMPAT-03 | TODO | TODO | — | — |
+| COMPAT-03 | TODO | fixed | 83fe0fc05acdc7fd14d3fb3e8d4ef26ec6599caf | tested (scratch; framework prerender TODO) |
 | COMPAT-04 | low | open | — | — |
 | COMPAT-05 | low | open | — | — |
 | COMPAT-06 | TODO | TODO | — | — |
@@ -66,11 +66,11 @@ findings plus the 3 TODO items SEC-01, COMPAT-03, COMPAT-06).
 | SEC-02 | medium | fixed | e4bc492e9bbc575fdf9ac47772d115fcc43160f2 | tested |
 | SEC-03 | low | open | — | — |
 | SEC-04 | low | fixed | 6d3d0da9af8e897d88382a41905ec08b85e6b845 | tested |
-| PKG-01 | high | open | — | — |
+| PKG-01 | high | fixed | ab2cc94b45b074d1514495c656870dc259a68e36 | tested (scratch cap sync; Gradle assemble SDK-TODO) |
 | PKG-02 | high | fixed | 1865dcd5f2176baaba608e353e8cb8c4ad75f368 | tested |
-| PKG-03 | medium | open | 6af682ef21320ce4d0ed5200e6b1e8a990d7c178 | tested (partial) |
-| PKG-04 | medium | open | — | — |
-| PKG-05 | low | open | — | — |
+| PKG-03 | medium | fixed | bddd4cc2823d3f99e9730883be042f5b9f5bbb90 | tested |
+| PKG-04 | medium | fixed | 093f1bf96742d4a95176573e80834fd2a5d7d58f | tested |
+| PKG-05 | low | fixed | 713639b8d1ceeadcae532799d740cafd2901418f | code-verified |
 | TEST-01 | high | open | — | — |
 | TEST-02 | medium | open | — | — |
 | TEST-03 | low | open | — | — |
@@ -272,3 +272,123 @@ findings plus the 3 TODO items SEC-01, COMPAT-03, COMPAT-06).
   Phase 3 adds the disposal/cache/teardown machinery).
 - LEAK-05 and LEAK-06 are native (Filament/ARCore) and remain open
   for Phase 5.
+
+## Phase 4 notes
+
+- **PKG-01 (commit ab2cc94):** `capacitor: { android: { src: "android" } }`
+  added. Scratch verification in a throwaway Capacitor 8.5.2 app
+  (`npm create @capacitor/app`-equivalent scaffold in /tmp, package
+  installed via `file:` symlink): BEFORE the fix, `npx cap sync android`
+  generated a `capacitor.settings.gradle` containing only
+  `:capacitor-android` — the plugin was silently skipped. AFTER: sync
+  reports "Found 1 Capacitor plugin for android: reticlexr@1.0.0",
+  settings include `:reticlexr`, the app module gains
+  `implementation project(':reticlexr')`, and `capacitor.plugins.json`
+  registers classpath `com.capacitor.arcore.ARCorePlugin`. Remaining
+  TODO (needs an Android SDK, absent here): `./gradlew
+  :reticlexr:assembleDebug` inside such a scratch app.
+- **API-02 (commit 8a0b867):** `src/react.js` + `src/react.d.ts` provide
+  the `reticlexr/react` entry. The facade's event bridge is now lazy
+  and idempotent: exported `setupEventBridge(plugin, bus)` guarded by a
+  `WeakSet`, installed on the first `ARCore.on()`; harness api02 proves
+  single delivery after repeated installs and per-plugin independence.
+  **Decision flagged for the owner:** the root entry still re-exports
+  `useARCore` — removing it in 1.1.0 would be a breaking change with no
+  possible alias, so it is kept and marked `@deprecated` (JSDoc +
+  index.d.ts) for removal in the next major. Consequence: importing
+  the root still pulls React in 1.1.0; `reticlexr/react` is the clean
+  entry.
+- **PKG-03 (commit bddd4cc):** `"type": "module"` + full exports map
+  (`.`, `./react`, `./web`, `./ar-view`, `./gestures`, `./package.json`,
+  each `types`/`import`/`default`); `main`/`module` kept for older
+  resolvers. Verified against Node's strict resolver in the scratch
+  app: every subpath resolves; deep imports outside the map
+  (`reticlexr/src/web.js`) are now blocked with
+  ERR_PACKAGE_PATH_NOT_EXPORTED — acceptable because the package has
+  never been published (no external consumers exist), noted in the
+  CHANGELOG. `sideEffects: ["./src/index.js"]` — verified by reading
+  the modules: index.js is the only one with an import-time effect
+  (`registerPlugin` mutates Capacitor's registry); hooks.js was
+  removed from the list by API-04 (its singleton became lazy).
+- **PKG-04 (commit 093f1bf):** `three` and `@capacitor/core` moved
+  from dependencies to peerDependencies (ranges unchanged) and kept
+  as devDependencies; react/react-dom added as devDependencies for
+  local hook verification. Justification: a duplicated `three` breaks
+  GLTF class identity across app/plugin copies, and `@capacitor/core`
+  is a singleton bridge — the host app must own the single copy of
+  each. Lockfile regenerated (root entry carries peers + devDeps, no
+  `dependencies`).
+- **PKG-05 (commit 713639b):** audit-vs-code note — the README's
+  `docs/*.md` relative links had already been replaced by docs-site
+  URLs in the docs phase; the remaining relative links (banner image,
+  LICENSE badge, AUDIT/ARCHITECTURE/CHANGELOG/CONTRIBUTING/LICENSE)
+  were converted to absolute GitHub URLs (raw URL for the banner,
+  blob/main for files). Zero relative links remain in README.md.
+- **API-04 (commit 4dae82b):** the hook's module singleton became a
+  lazy `getSharedEngine()`; `useARCore({ engine })` captures the given
+  engine at mount (useRef) and closes over it. Existing no-arg callers
+  are unchanged. Harness api04 (react-dom/server probes): per-instance
+  config isolation, default consumers share exactly one engine.
+- **API-01 (commit b1851a7):** `modelId` is canonical across engine,
+  ARView, facade, hook and event payloads (value unchanged — the
+  engine anchor id). Deprecated aliases, each with a one-time
+  `[reticlexr] DEPRECATED:` warning: engine input key `anchorId`,
+  engine `placeModel` input key `modelPath`, facade `placeModel`
+  option `modelUrl` (accepted; the facade forwards both keys — native
+  reads `modelPath`, the engine prefers `modelUrl`, so the facade
+  path itself never warns). `anchorId` remains present in results and
+  event payloads. Facade place options are a .d.ts union (exactly one
+  of modelPath/modelUrl required). Harness api01: 25 assertions
+  including the facade flow through the real Capacitor proxy; the
+  native-side key translation is code-verified (Phase 5 scope).
+- **API-03 (commit e380869):** engine `getPlacedModels()` /
+  `clearModels()` (clear goes through the Phase 3 ownership rule —
+  harness proves a clone-on-write material is disposed while
+  cache-shared geometry is not, and the cache survives). `ARView`
+  tracks its own placements in a registry so two views on one engine
+  enumerate/clear only their own. Facade + hook expose both. The
+  Android plugin has no such methods yet — on Android the facade
+  calls reject until Phase 5 adds them (documented in JSDoc, .d.ts,
+  CHANGELOG and the API reference).
+- **API-05 (commit 0e07e92):** one coded-error convention. `ARError`
+  (Error subclass with `.code`) + `codedError()` exported from web.js,
+  the package root and `reticlexr/web`; an `ARErrorCode` union type in
+  web.d.ts. Every public failure path now carries a code: engine
+  throws (SESSION_START_FAILED, MODEL_URL_REQUIRED, NO_SURFACE,
+  MODEL_NOT_FOUND, MODEL_LOAD_FAILED), hit-test result objects
+  (SESSION_NOT_ACTIVE, SESSION_ENDED, HIT_TEST_TIMEOUT,
+  NO_VIEWER_POSE, HIT_TEST_UNAVAILABLE — `error` keeps equalling the
+  code, `code` mirrors it), ARView (`code: 'NO_SURFACE'` on the
+  placeModel failure result with `reason` kept as a deprecated alias;
+  NO_ACTIVE_MODEL; OVERLAY_REQUIRED), hook results, and the facade
+  (runtime codes preserved; `*_FAILED` fallbacks; checkSupport gains
+  `code`). **All existing error message strings are unchanged.**
+  Harness api05: 20 assertions.
+- **COMPAT-03 (scratch, no code change needed):** `npm pack` tarball
+  installed as a real copy into /tmp/compat03 (files field verified:
+  LICENSE/README/android/package.json/src; peers auto-installed).
+  A DOM-less Node test imported all five entries with `window`/
+  `document` absent before and after, constructed the engine and
+  ARView DOM-free, resolved `checkSupport()` DOM-free, and
+  server-rendered `useARCore()` (default and `{ engine }`) via
+  react-dom/server — 13/13 checks pass. Remaining TODO: a full
+  framework prerender (e.g. Next.js) was not run; the known-issues
+  page states exactly this.
+- **Consistency sweep (commits 83fe0fc + 5fb0638):** website docs updated for
+  every Phase 4 change (getting-started peers/types/react-entry,
+  api.mdx identifiers + error conventions + new methods + subpaths,
+  known-issues fixed markers + roadmap, react-integration and
+  colors-and-textures guides), docs/INSTALLATION.md peer wording, and
+  ARCHITECTURE.md synced (§1 module map incl. src/react.js, §2
+  surfaces, §3.2 session features, §4 React note, §5 package table).
+  The sweep also fixed one pre-existing stale row (api.mdx claimed
+  hit-test coordinates were ignored — untrue since BUG-03).
+  Reviewed and deliberately left: example/src StatusPanel's "Anchor
+  ID" label reads the example app's own state field, which no SDK
+  payload populates (always rendered 'N/A'); it is app-internal, not
+  an SDK surface.
+- **Regression:** 23/23 harnesses green (18 prior + api01–api05),
+  `npm run check-types` clean, strict consumer smoke (tsc --strict
+  against types-smoke.ts) clean, example build passes.
+- **Bundle:** example 784.30 kB min / 212.79 kB gzip vs Phase 3's
+  782.62 / 213.29 (+0.21% / −0.23% — effectively flat).
