@@ -202,6 +202,107 @@ export function clampScale(scale) {
 // copy-into-target work, never retained.
 const _scratchMatrix4 = new THREE.Matrix4();
 
+// ============================================================
+// Resource ownership and disposal (LEAK-01/02/03/04/07)
+// ============================================================
+// OWNERSHIP RULE — two resource lifetimes, kept strictly apart:
+//
+//   * CACHE-OWNED (shared): geometries, materials and textures of a
+//     loaded GLTF belong to the model cache. Every placement of that
+//     model SHARES them (Object3D.clone shares them by reference), so
+//     they are disposed ONLY when the cache entry goes away — LRU
+//     eviction, clearModelCache(), or engine.dispose().
+//   * PER-INSTANCE: materials cloned on write for one placement (see
+//     _ownMaterial), textures applied to one placement, shadow planes,
+//     plane visualisations, the reticle. These are disposed as soon as
+//     their owner goes away (removeModel, switchModel, plane removal,
+//     stopSession).
+//
+// disposeObject() enforces the split: callers pass the cache-owned
+// registry as `skip`, so scene teardown can never free a resource the
+// cache still owns. Disposal in three.js only releases GPU memory —
+// CPU-side data survives — so a resource rendered again after
+// disposal is transparently re-uploaded; disposal is never a
+// correctness hazard for a resource that turns out to still be
+// referenced, only a potential re-upload cost.
+
+/**
+ * Invoke `cb` for a material and every texture it references (any
+ * texture-valued property, plus ShaderMaterial uniform textures).
+ *
+ * @param {THREE.Material} material
+ * @param {(resource: Object) => void} cb
+ */
+function eachMaterialResource(material, cb) {
+  cb(material);
+  for (const value of Object.values(material)) {
+    if (value && value.isTexture) cb(value);
+  }
+  const uniforms = /** @type {*} */ (material).uniforms;
+  if (uniforms) {
+    for (const uniform of Object.values(uniforms)) {
+      if (uniform && uniform.value && uniform.value.isTexture) cb(uniform.value);
+    }
+  }
+}
+
+/**
+ * Collect every GPU resource (geometry, materials, textures) in an
+ * Object3D subtree into a Set. Exported for tests.
+ *
+ * @param {THREE.Object3D} root
+ * @returns {Set<Object>}
+ */
+export function collectResources(root) {
+  const resources = new Set();
+  if (!root || typeof root.traverse !== "function") return resources;
+  root.traverse((child) => {
+    if (child.geometry) resources.add(child.geometry);
+    const materials = Array.isArray(child.material)
+      ? child.material
+      : child.material
+        ? [child.material]
+        : [];
+    for (const material of materials) {
+      eachMaterialResource(material, (r) => resources.add(r));
+    }
+  });
+  return resources;
+}
+
+/**
+ * Dispose the GPU resources of an Object3D subtree: geometries,
+ * materials and their textures, plus InstancedMesh instance buffers.
+ * Resources in `skip` (the cache-owned registry) are left alone —
+ * see the OWNERSHIP RULE above. Exported for tests.
+ *
+ * @param {THREE.Object3D} root
+ * @param {Set<Object>} [skip]
+ */
+export function disposeObject(root, skip = null) {
+  if (!root || typeof root.traverse !== "function") return;
+  const seen = new Set();
+  const disposeResource = (resource) => {
+    if (!resource || typeof resource.dispose !== "function") return;
+    if (seen.has(resource)) return;
+    seen.add(resource);
+    if (skip && skip.has(resource)) return;
+    resource.dispose();
+  };
+  root.traverse((child) => {
+    if (child.isInstancedMesh) child.dispose();
+    if (child.geometry) disposeResource(child.geometry);
+    const materials = Array.isArray(child.material)
+      ? child.material
+      : child.material
+        ? [child.material]
+        : [];
+    for (const material of materials) {
+      eachMaterialResource(material, disposeResource);
+    }
+  });
+}
+
 export class ARCoreWeb extends WebPlugin {
   constructor() {
     super();
@@ -217,9 +318,20 @@ export class ARCoreWeb extends WebPlugin {
     // Model management
     this.anchors = new Map();
     this.loadedModels = new Map();
+    // url -> { gltf, resources } — `resources` is the entry's
+    // cache-owned resource set (OWNERSHIP RULE above)
     this.modelCache = new Map();
+    // Registry of every cache-owned geometry/material/texture,
+    // passed as the skip set to disposeObject so scene teardown
+    // never frees shared resources early
+    this._sharedResources = new Set();
     this.modelShadows = new Map();
     this.modelBaseRings = new Map();
+    // Engine-shared plane-dot geometry (PERF-01): one CircleGeometry
+    // reused by every plane's InstancedMesh; disposed only by
+    // engine.dispose(), per the ownership rule
+    this._dotGeometry = null;
+    this._dotGeometrySize = null;
 
     // Plane visualization - using WebXR Plane Detection API
     this.detectedPlanes = new Map(); // Map<XRPlane, { mesh, dots, orientation }>
@@ -291,6 +403,10 @@ export class ARCoreWeb extends WebPlugin {
       // plane processing run per frame and must stay silent in
       // production.
       debug: false,
+      // Model cache cap (LEAK-04): at most this many loaded GLTFs are
+      // kept, least-recently-used first; entries with live placements
+      // are never evicted. Set to Infinity (or 0) to disable the cap.
+      modelCacheLimit: 20,
     };
 
     // Render loop state
@@ -619,14 +735,15 @@ export class ARCoreWeb extends WebPlugin {
     // Remove planes that are no longer detected
     for (const [xrPlane, planeData] of this.detectedPlanes) {
       if (!currentPlanes.has(xrPlane)) {
-        // Remove mesh and dots from scene
+        // Remove mesh and dots from scene, disposing them (LEAK-02;
+        // the shared dot geometry survives via the skip set)
         if (planeData.mesh) {
           this.planesMeshGroup.remove(planeData.mesh);
-          planeData.mesh.geometry.dispose();
-          planeData.mesh.material.dispose();
+          disposeObject(planeData.mesh, this._sharedResources);
         }
         if (planeData.dots) {
           this.planeDotsGroup.remove(planeData.dots);
+          disposeObject(planeData.dots, this._sharedResources);
         }
         this.detectedPlanes.delete(xrPlane);
         this.debugLog(`[ARCore] Plane removed: ${planeData.orientation}`);
@@ -669,14 +786,14 @@ export class ARCoreWeb extends WebPlugin {
         if (plane.lastChangedTime !== planeData.lastChangedTime) {
           this.debugLog(`[ARCore] Plane updated: ${orientation}`);
 
-          // Remove old visualization
+          // Remove old visualization (disposing it — LEAK-02)
           if (planeData.mesh) {
             this.planesMeshGroup.remove(planeData.mesh);
-            planeData.mesh.geometry.dispose();
-            planeData.mesh.material.dispose();
+            disposeObject(planeData.mesh, this._sharedResources);
           }
           if (planeData.dots) {
             this.planeDotsGroup.remove(planeData.dots);
+            disposeObject(planeData.dots, this._sharedResources);
           }
 
           // Create new visualization
@@ -1275,23 +1392,34 @@ export class ARCoreWeb extends WebPlugin {
   async stopSession() {
     this.stopRendering();
 
-    this.loadedModels.forEach((model) => this.scene.remove(model));
-    this.modelShadows.forEach((shadow) => this.scene.remove(shadow));
-    this.modelBaseRings.forEach((ring) => this.scene.remove(ring));
+    // Dispose per-instance resources on the way out (LEAK-03);
+    // cache-owned resources survive for the next session
+    this.loadedModels.forEach((model) => {
+      this.scene.remove(model);
+      disposeObject(model, this._sharedResources);
+    });
+    this.modelShadows.forEach((shadow) => {
+      this.scene.remove(shadow);
+      disposeObject(shadow, this._sharedResources);
+    });
+    this.modelBaseRings.forEach((ring) => {
+      this.scene.remove(ring);
+      disposeObject(ring, this._sharedResources);
+    });
 
     this.loadedModels.clear();
     this.modelShadows.clear();
     this.modelBaseRings.clear();
 
-    // Clear plane visualizations
+    // Clear plane visualizations (disposing them — LEAK-02)
     this.detectedPlanes.forEach((planeData) => {
       if (planeData.mesh) {
         this.planesMeshGroup.remove(planeData.mesh);
-        planeData.mesh.geometry.dispose();
-        planeData.mesh.material.dispose();
+        disposeObject(planeData.mesh, this._sharedResources);
       }
       if (planeData.dots) {
         this.planeDotsGroup.remove(planeData.dots);
+        disposeObject(planeData.dots, this._sharedResources);
       }
     });
     this.detectedPlanes.clear();
@@ -1316,6 +1444,77 @@ export class ARCoreWeb extends WebPlugin {
         this.renderer.domElement
       );
     }
+  }
+
+  /**
+   * Release every GPU resource the engine owns (LEAK-03): the scene's
+   * contents (placed models' per-instance resources, plane
+   * visualisations, the reticle), the model cache, the shared dot
+   * geometry, and finally the WebGL renderer and its GL context.
+   *
+   * Afterwards the engine is back to its pre-`initThreeJS` state —
+   * renderer/scene/camera and related fields are null — so a later
+   * `startSession()` on the SAME engine instance re-initialises from
+   * scratch. Safe to call more than once.
+   */
+  async dispose() {
+    this.stopRendering();
+
+    if (this.session) {
+      try {
+        await this.session.end();
+      } catch (_) {
+        // Session already ending/ended — teardown continues regardless
+      }
+      this.session = null;
+      this.hitTestSource = null;
+      this.referenceSpace = null;
+      this.viewerSpace = null;
+    }
+
+    if (this.scene) {
+      disposeObject(this.scene, this._sharedResources);
+    }
+    this.loadedModels.clear();
+    this.modelShadows.clear();
+    this.modelBaseRings.clear();
+    this.anchors.clear();
+    this.detectedPlanes.clear();
+
+    // Cache-owned resources are disposed only now (OWNERSHIP RULE)
+    this.clearModelCache();
+
+    // The engine-shared dot geometry (PERF-01) outlives individual
+    // planes but not the engine
+    if (this._dotGeometry) {
+      this._sharedResources.delete(this._dotGeometry);
+      this._dotGeometry.dispose();
+      this._dotGeometry = null;
+      this._dotGeometrySize = null;
+    }
+
+    if (this.renderer) {
+      if (this.renderer.domElement && this.renderer.domElement.parentElement) {
+        this.renderer.domElement.parentElement.removeChild(
+          this.renderer.domElement
+        );
+      }
+      this.renderer.dispose();
+      this.renderer.forceContextLoss();
+      this.renderer = null;
+    }
+
+    this.scene = null;
+    this.camera = null;
+    this.reticle = null;
+    this.planesMeshGroup = null;
+    this.planeDotsGroup = null;
+    this.gltfLoader = null;
+    this.modelPlaced = false;
+    this.reticleVisible = false;
+    this._lastSurfaceNotify.hasSurface = null;
+    this._lastSurfaceNotify.planeType = null;
+    this._lastSurfaceNotify.time = -Infinity;
   }
 
   /**
@@ -1579,16 +1778,126 @@ export class ARCoreWeb extends WebPlugin {
     }
   }
 
-  async loadModel(modelUrl) {
+  /**
+   * Register a freshly loaded GLTF in the model cache, recording its
+   * cache-owned resources (OWNERSHIP RULE above).
+   *
+   * @param {string} modelUrl
+   * @param {*} gltf - The GLTFLoader result
+   */
+  _registerModelCache(modelUrl, gltf) {
     if (this.modelCache.has(modelUrl)) {
-      return this.modelCache.get(modelUrl).scene.clone();
+      this._disposeModelCacheEntry(modelUrl);
+    }
+    const resources = collectResources(gltf.scene);
+    resources.forEach((r) => this._sharedResources.add(r));
+    this.modelCache.set(modelUrl, { gltf, resources });
+    this._evictModelCache();
+  }
+
+  /**
+   * Dispose one cache entry: its resources leave the shared registry
+   * and are disposed for real. Callers must not evict URLs with live
+   * placements (see _evictModelCache); explicit disposal via
+   * clearModelCache()/dispose() accepts the re-upload cost for any
+   * still-placed model (three.js disposal semantics — see the
+   * OWNERSHIP RULE).
+   *
+   * @param {string} modelUrl
+   */
+  _disposeModelCacheEntry(modelUrl) {
+    const entry = this.modelCache.get(modelUrl);
+    if (!entry) return;
+    this.modelCache.delete(modelUrl);
+    entry.resources.forEach((r) => this._sharedResources.delete(r));
+    disposeObject(entry.gltf.scene, this._sharedResources);
+  }
+
+  /**
+   * Evict least-recently-used cache entries beyond
+   * `config.modelCacheLimit` (LEAK-04). Entries whose model is
+   * currently placed are NEVER evicted — the cache may exceed the
+   * cap while placements are live rather than disposing resources
+   * out from under a visible model.
+   */
+  _evictModelCache() {
+    const limit = this.config.modelCacheLimit;
+    if (!Number.isFinite(limit) || limit <= 0) return;
+    const liveUrls = new Set();
+    this.anchors.forEach((anchor) => {
+      if (anchor.modelUrl) liveUrls.add(anchor.modelUrl);
+    });
+    while (this.modelCache.size > limit) {
+      let evicted = false;
+      for (const url of this.modelCache.keys()) {
+        if (!liveUrls.has(url)) {
+          this._disposeModelCacheEntry(url);
+          evicted = true;
+          break;
+        }
+      }
+      if (!evicted) return; // Everything cached is placed live
+    }
+  }
+
+  /**
+   * Empty the model cache, disposing every cached model's GPU
+   * resources (LEAK-04). Models placed from the cache keep working:
+   * disposal only releases GPU memory, and three.js re-uploads a
+   * resource if it is rendered again.
+   */
+  clearModelCache() {
+    for (const url of Array.from(this.modelCache.keys())) {
+      this._disposeModelCacheEntry(url);
+    }
+  }
+
+  /**
+   * Clone-on-write for materials (LEAK-01): placements share the
+   * cache's materials, so the first per-anchor mutation of a material
+   * swaps in a per-instance clone and mutates that instead — the
+   * change can then neither leak into the cache nor into other
+   * placements of the same model, and the clone is disposed with its
+   * placement.
+   *
+   * @param {THREE.Material} material
+   * @returns {THREE.Material}
+   */
+  _ownMaterial(material) {
+    if (!this._sharedResources.has(material)) return material;
+    return material.clone();
+  }
+
+  /**
+   * Apply {@link _ownMaterial} to every material slot of a mesh.
+   *
+   * @param {THREE.Mesh} mesh
+   * @returns {THREE.Material[]}
+   */
+  _ownMeshMaterials(mesh) {
+    if (!mesh.material) return [];
+    if (Array.isArray(mesh.material)) {
+      mesh.material = mesh.material.map((m) => this._ownMaterial(m));
+      return mesh.material;
+    }
+    mesh.material = this._ownMaterial(mesh.material);
+    return [mesh.material];
+  }
+
+  async loadModel(modelUrl) {
+    const cached = this.modelCache.get(modelUrl);
+    if (cached) {
+      // Refresh LRU recency (LEAK-04)
+      this.modelCache.delete(modelUrl);
+      this.modelCache.set(modelUrl, cached);
+      return cached.gltf.scene.clone();
     }
 
     return new Promise((resolve, reject) => {
       this.gltfLoader.load(
         modelUrl,
         (gltf) => {
-          this.modelCache.set(modelUrl, gltf);
+          this._registerModelCache(modelUrl, gltf);
           resolve(gltf.scene.clone());
         },
         (progress) => {
@@ -1651,12 +1960,10 @@ export class ARCoreWeb extends WebPlugin {
 
     try {
       const model = await this.loadModel(modelUrl);
-      model.traverse(child => {
-        if (!child.isMesh || !child.material) return;
-        child.material = Array.isArray(child.material)
-          ? child.material.map(material => material.clone())
-          : child.material.clone();
-      });
+      // No material cloning at placement: the clone shares the
+      // cache's geometries/materials/textures (LEAK-01 OWNERSHIP
+      // RULE). Per-anchor material changes clone on write instead
+      // (see _ownMaterial).
 
       model.position.set(position[0], position[1], position[2]);
       model.quaternion.set(rotation[0], rotation[1], rotation[2], rotation[3]);
@@ -1701,18 +2008,23 @@ export class ARCoreWeb extends WebPlugin {
     const model = this.loadedModels.get(anchorId);
     if (model) {
       this.scene.remove(model);
+      // Dispose per-instance resources; cache-owned shared resources
+      // are skipped per the OWNERSHIP RULE (LEAK-01)
+      disposeObject(model, this._sharedResources);
       this.loadedModels.delete(anchorId);
     }
 
     const shadow = this.modelShadows.get(anchorId);
     if (shadow) {
       this.scene.remove(shadow);
+      disposeObject(shadow, this._sharedResources);
       this.modelShadows.delete(anchorId);
     }
 
     const baseRing = this.modelBaseRings.get(anchorId);
     if (baseRing) {
       this.scene.remove(baseRing);
+      disposeObject(baseRing, this._sharedResources);
       this.modelBaseRings.delete(anchorId);
     }
 
@@ -1852,15 +2164,12 @@ export class ARCoreWeb extends WebPlugin {
 
     model.traverse((child) => {
       if (child.isMesh && child.material) {
-        if (Array.isArray(child.material)) {
-          child.material.forEach((mat) => {
-            mat.color = threeColor;
-            mat.needsUpdate = true;
-          });
-        } else {
-          child.material.color = threeColor;
-          child.material.needsUpdate = true;
-        }
+        // Clone on write: the colour change must not leak into the
+        // shared cache materials (LEAK-01)
+        this._ownMeshMaterials(child).forEach((mat) => {
+          mat.color = threeColor;
+          mat.needsUpdate = true;
+        });
       }
     });
 
@@ -1875,11 +2184,8 @@ export class ARCoreWeb extends WebPlugin {
 
     model.traverse((child) => {
       if (child.isMesh && child.material) {
-        const materials = Array.isArray(child.material)
-          ? child.material
-          : [child.material];
-
-        materials.forEach((mat) => {
+        // Clone on write, as in setModelColor (LEAK-01)
+        this._ownMeshMaterials(child).forEach((mat) => {
           if (metalness !== undefined) mat.metalness = metalness;
           if (roughness !== undefined) mat.roughness = roughness;
           if (opacity !== undefined) {
@@ -1898,29 +2204,33 @@ export class ARCoreWeb extends WebPlugin {
     const oldModel = this.loadedModels.get(anchorId);
     if (!anchor || !oldModel) throw new Error(`Anchor ${anchorId} not found`);
     const next = await this.loadModel(modelUrl);
-    next.traverse(child => {
-      if (!child.isMesh || !child.material) return;
-      child.material = Array.isArray(child.material)
-        ? child.material.map(material => material.clone())
-        : child.material.clone();
-    });
+    // No material cloning: the new model shares its cache's materials
+    // (LEAK-01); the preservation below clones on write per material.
     next.position.copy(oldModel.position);
     next.quaternion.copy(oldModel.quaternion);
     next.scale.copy(oldModel.scale);
+    // Texture adopted by the new model from the old one: it must
+    // survive the old model's disposal below
+    let preservedMap = null;
     if (preserveMaterial) {
       let sourceMaterial = null;
       oldModel.traverse(c => { if (!sourceMaterial && c.isMesh && c.material) sourceMaterial = Array.isArray(c.material) ? c.material[0] : c.material; });
       if (sourceMaterial) next.traverse(c => { if (c.isMesh && c.material) {
-        const mats = Array.isArray(c.material) ? c.material : [c.material];
-        mats.forEach(m => { if (m.color && sourceMaterial.color) m.color.copy(sourceMaterial.color); if (sourceMaterial.map) m.map = sourceMaterial.map; m.needsUpdate = true; });
+        const mats = this._ownMeshMaterials(c);
+        mats.forEach(m => { if (m.color && sourceMaterial.color) m.color.copy(sourceMaterial.color); if (sourceMaterial.map) { m.map = sourceMaterial.map; preservedMap = sourceMaterial.map; } m.needsUpdate = true; });
       }});
     }
     this.scene.add(next);
     this.scene.remove(oldModel);
+    // Dispose the old model's per-instance resources (LEAK-01) and
+    // its shadow (LEAK-07); cache-owned resources are skipped
+    const skip = new Set(this._sharedResources);
+    if (preservedMap) skip.add(preservedMap);
+    disposeObject(oldModel, skip);
     this.loadedModels.set(anchorId, next);
     anchor.modelUrl = modelUrl;
     const oldShadow = this.modelShadows.get(anchorId);
-    if (oldShadow) { this.scene.remove(oldShadow); this.modelShadows.delete(anchorId); }
+    if (oldShadow) { this.scene.remove(oldShadow); disposeObject(oldShadow, this._sharedResources); this.modelShadows.delete(anchorId); }
     if (this.config.showShadow) {
       const shadow = this.createShadowPlane(this.getModelFootprint(next));
       shadow.position.set(anchor.position[0], anchor.position[1] + .001, anchor.position[2]);
