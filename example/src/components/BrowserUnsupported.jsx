@@ -7,62 +7,48 @@ function BrowserUnsupported() {
       <div className="unsupported-container">
         <h1>📱 AR Integration Playground</h1>
         <div className="unsupported-icon">⚠️</div>
-        
-        <h2>Native AR Not Available</h2>
+
+        <h2>WebXR AR Not Available</h2>
         <p className="subtitle">
-          This application requires native ARCore capabilities that are only available on Android devices.
+          This demo places furniture in your space with WebXR immersive-AR, and this browser does not offer it — so the AR view can't start here.
         </p>
 
         <div className="info-box">
-          <h3>To Test This App:</h3>
+          <h3>To Run This Demo:</h3>
           <ol>
-            <li>Build the APK using Capacitor</li>
-            <li>Install on an ARCore-capable Android device</li>
-            <li>Open the app from your device</li>
+            <li>Use Chrome on an ARCore-capable Android phone</li>
+            <li>Open this page over HTTPS (AR needs a secure context)</li>
+            <li>Tap "View in your room" to start the AR view</li>
             <li>Grant camera permissions when prompted</li>
-            <li>Click "Check Support" to verify ARCore is available</li>
           </ol>
         </div>
 
         <div className="browser-info">
-          <h3>ℹ️ Browser Limitations</h3>
+          <h3>ℹ️ What the Demo Needs</h3>
           <p>
-            While this React application runs in the browser, the native AR functionality requires:
+            The reticlexr web runtime is built on WebXR, which in practice means:
           </p>
           <ul>
-            <li>Android OS (API level 21+)</li>
-            <li>ARCore library installed</li>
+            <li>Android Chrome with WebXR and ARCore support</li>
+            <li>An ARCore-compatible device</li>
+            <li>A secure context (HTTPS or localhost)</li>
             <li>Camera permission granted</li>
-            <li>Capacitor native bridge</li>
-            <li>Filament rendering engine</li>
           </ul>
         </div>
 
-        <div className="code-box">
-          <h3>📦 Build Instructions</h3>
-          <pre>{`npm run build
-npx cap sync android
-cd android
-./gradlew assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk`}</pre>
-        </div>
-
         <div className="features-box">
-          <h3>✨ Features When Running on Android</h3>
+          <h3>✨ What the WebXR Demo Does</h3>
           <ul>
-            <li>✓ Real-time ARCore surface detection</li>
-            <li>✓ Camera feed with Filament rendering</li>
-            <li>✓ GLB model loading and placement</li>
-            <li>✓ Model transformation (rotate, scale, move)</li>
-            <li>✓ Material/color customization</li>
-            <li>✓ Hit testing on detected surfaces</li>
-            <li>✓ Real-world anchor persistence</li>
-            <li>✓ Transparent React UI overlay</li>
+            <li>✓ Real-time surface detection (WebXR hit-test)</li>
+            <li>✓ GLB model loading and tap-to-place</li>
+            <li>✓ Pinch to scale, twist to rotate</li>
+            <li>✓ Colour and texture customization</li>
+            <li>✓ Screenshots of the AR view</li>
           </ul>
         </div>
 
         <p className="footer">
-          Running on: <strong>Browser</strong> (Unsupported for AR)
+          Running on: <strong>Browser</strong> (WebXR AR unsupported here)
         </p>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { createARView } from 'reticlexr';
+import BrowserUnsupported from './BrowserUnsupported';
 import './ARPlayground.css';
 
 const MODELS = [
@@ -18,11 +18,15 @@ export default function ARPlayground() {
   const secure=window.isSecureContext;
 
   useEffect(()=>{ modelIndexRef.current=modelIndex; },[modelIndex]);
-  useEffect(()=>{ const v=createARView({overlay:overlayRef.current}); viewRef.current=v; v.checkSupport().then(r=>setSupported(r.supported)); return()=>{ if(viewRef.current===v) v.destroy().catch(()=>{}); }; },[]);
+  useEffect(()=>{ if(!navigator.xr||!navigator.xr.isSessionSupported){setSupported(false);return;} navigator.xr.isSessionSupported('immersive-ar').then(ok=>setSupported(!!ok)).catch(()=>setSupported(false)); },[]);
 
   const start=async()=>{
-    setBusy(true); const v=viewRef.current;
+    setBusy(true);
     try {
+      if(!viewRef.current){ const sdk=await import('reticlexr'); viewRef.current=sdk.createARView({overlay:overlayRef.current}); }
+      const v=viewRef.current;
+      const support=await v.checkSupport();
+      if(!support.supported){ setSupported(false); setBusy(false); return; }
       await v.create({overlay:overlayRef.current,showReticle:true,showPlaneDots:true,dotSpacing:.14,lightEstimation:true,enableScreenshots:true});
       v.onFrame(e=>{ if(e.type==='surfaceDetected') setSurface(true); if(e.type==='surfaceLost') setSurface(false); if(e.type==='sessionEnded'){setSurface(false);setNeedsResume(true);} });
       await v.preloadModels(MODELS.map(m=>m.url));
@@ -50,7 +54,7 @@ export default function ARPlayground() {
   const close=async()=>{await viewRef.current.destroy();setActive(false);setPlaced(false);setSurface(false);};
 
   return <div ref={overlayRef} className="ar-shell">
-    {!active?<main className="launch"><div className="brandmark">AR</div><div className="eyebrow">Furniture preview</div><h1>See it in<br/>your space.</h1><p>Scan a surface, tap to place, pinch to resize and twist to rotate.</p><button className="launch-btn" disabled={!secure||supported===false||busy} onClick={start}>{busy?'Opening camera…':'View in your room'}</button><small>{!secure?'Trusted HTTPS is required.':supported===false?'This browser does not support immersive WebXR AR.':'Android Chrome • ARCore compatible device'}</small></main>:<>
+    {supported===false?<BrowserUnsupported/>:!active?<main className="launch"><div className="brandmark">AR</div><div className="eyebrow">Furniture preview</div><h1>See it in<br/>your space.</h1><p>Scan a surface, tap to place, pinch to resize and twist to rotate.</p><button className="launch-btn" disabled={!secure||supported===false||busy} onClick={start}>{busy?'Opening camera…':'View in your room'}</button><small>{!secure?'Trusted HTTPS is required.':supported===false?'This browser does not support immersive WebXR AR.':'Android Chrome • ARCore compatible device'}</small></main>:<>
       <header className="ar-top" data-ui="true"><button className="circle" onClick={close}>×</button><div className="mode-pill"><b>◇</b><span>AR View</span></div><button className="circle" onClick={()=>setToast('Dots = detected surface • tap = place • pinch = scale • twist = rotate')}>?</button></header>
       <div className={`scan-state ${surface?'ready':''}`}><i></i>{surface?'Surface ready':'Scanning your space…'}</div>
       {toast&&<div className="gesture-hint">{toast}</div>}
