@@ -2542,6 +2542,14 @@ export class ARCoreWeb extends WebPlugin {
   }
 
   _composeScreenshot(cameraPixels, virtualPixels, width, height, options = {}) {
+    // PERF-05 (wontfix, with evidence): this per-pixel loop is NOT
+    // replaced by a canvas drawImage composite because the two are
+    // not byte-identical. A canvas backing store is premultiplied,
+    // so routing the virtual layer through a canvas rounds every
+    // channel to round(c * a / 255) before blending even starts;
+    // this loop blends in float and rounds once. On the known frame
+    // in tests/harness/perf05.mjs, 622 of 3072 pixels differ. The
+    // loop runs once per explicit user capture, so it stays.
     const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;const ctx=canvas.getContext('2d');
     const out=ctx.createImageData(width,height), dst=out.data;
     // Both readbacks originate at the GL bottom-left. Flip rows while composing.
