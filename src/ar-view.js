@@ -83,16 +83,19 @@ export class ARView {
 
   async setScale(scale) {
     if (!this.activeModelId) return;
-    this.transform.scale = Math.max(.1, Math.min(5, scale));
-    const s = this.transform.scale;
+    const s = Math.max(.1, Math.min(5, scale));
     await this.engine.transformModel({ anchorId: this.activeModelId, scale: [s,s,s] });
+    // Commit local state only after the engine accepts it, so a failed
+    // call cannot leave the facade's transform ahead of the scene (BUG-11)
+    this.transform.scale = s;
   }
 
   async rotateBy(radians) {
     if (!this.activeModelId) return;
-    this.transform.rotationY += radians;
-    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, this.transform.rotationY, 0)).toArray();
+    const rotationY = this.transform.rotationY + radians;
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rotationY, 0)).toArray();
     await this.engine.transformModel({ anchorId: this.activeModelId, rotation: q });
+    this.transform.rotationY = rotationY;
   }
 
   async setColor(color) {
