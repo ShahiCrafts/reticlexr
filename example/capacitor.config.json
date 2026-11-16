@@ -5,10 +5,5 @@
   "server": {
     "androidScheme": "https"
   },
-  "plugins": {
-    "ARCore": {
-      "startOnLoad": false
-    }
-  },
   "includedPlugins": ["@capacitor/app", "reticlexr"]
 }
