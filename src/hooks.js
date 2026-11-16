@@ -276,10 +276,11 @@ export function useARCore() {
       // Set up plane listener for real-time plane detection feedback
       const removePlaneListener = arCore.addPlaneListener((data) => {
         if (data.type === "planesUpdated") {
+          // Engine emits counts as numbers: { total, horizontal, vertical }
           setDetectedPlanes({
-            horizontal: data.horizontalPlanes?.length || 0,
-            vertical: data.verticalPlanes?.length || 0,
-            total: data.planes?.length || 0,
+            horizontal: data.horizontal || 0,
+            vertical: data.vertical || 0,
+            total: data.total || 0,
           });
         }
       });
