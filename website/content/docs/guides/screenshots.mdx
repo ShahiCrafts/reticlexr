@@ -33,6 +33,17 @@ Options (all optional):
 The same call exists as a functional helper,
 `takeScreenshot(view, options)`, and on the `useARCore` hook.
 
+Screenshots need camera access, which is **opt-in**: start the session
+with `enableScreenshots: true` —
+
+```js
+await ar.create({ enableScreenshots: true });
+// engine equivalent: startSession({ enableScreenshots: true })
+```
+
+Without it, `takeScreenshot` returns `CAMERA_CAPTURE_UNAVAILABLE`.
+`lightEstimation` does not enable it.
+
 ## Saving the image
 
 A data URL is all you get back — turning it into a download or an upload
@@ -58,12 +69,13 @@ needs the WebXR `camera-access` feature. Two failure codes exist:
 | `CAPTURE_BUSY` | Another capture is already in flight |
 
 <Warning>
-Camera access is requested as a side effect of light estimation: when a
-session starts with `lightEstimation: true` (the default in
-`ARView.create()`), the engine also adds `camera-access` to the session's
-optional features. On browsers that don't grant it, sessions still run —
-but `takeScreenshot` returns `CAMERA_CAPTURE_UNAVAILABLE`. Design your UI
-to treat screenshots as best-effort, and always branch on `shot.success`.
+Camera access is requested only when the session starts with
+`enableScreenshots: true` — it is NOT a side effect of light estimation
+(`lightEstimation: true`, the default in `ARView.create()`, never
+requests it). On browsers that don't grant `camera-access`, sessions
+still run — but `takeScreenshot` returns
+`CAMERA_CAPTURE_UNAVAILABLE`. Design your UI to treat screenshots as
+best-effort, and always branch on `shot.success`.
 </Warning>
 
 <Note>

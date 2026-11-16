@@ -23,7 +23,7 @@ export default function ARPlayground() {
   const start=async()=>{
     setBusy(true); const v=viewRef.current;
     try {
-      await v.create({overlay:overlayRef.current,showReticle:true,showPlaneDots:true,dotSpacing:.14,lightEstimation:true});
+      await v.create({overlay:overlayRef.current,showReticle:true,showPlaneDots:true,dotSpacing:.14,lightEstimation:true,enableScreenshots:true});
       v.onFrame(e=>{ if(e.type==='surfaceDetected') setSurface(true); if(e.type==='surfaceLost') setSurface(false); if(e.type==='sessionEnded'){setSurface(false);setNeedsResume(true);} });
       await v.preloadModels(MODELS.map(m=>m.url));
       v.enableCustomization({

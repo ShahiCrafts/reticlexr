@@ -206,6 +206,7 @@ export class ARCoreWeb extends WebPlugin {
     this.hitTestSource = null;
     this.xrGlBinding = null;
     this.pendingScreenshot = null;
+    this._screenshotHintWarned = false;
 
     // Model management
     this.anchors = new Map();
@@ -1151,7 +1152,7 @@ export class ARCoreWeb extends WebPlugin {
         this.pendingScreenshot = null;
         this._captureXRFrame(frame, request.options)
           .then(request.resolve)
-          .catch((error) => request.resolve({ success: false, error: error.message || "Screenshot failed" }));
+          .catch((error) => request.resolve({ success: false, code: error.code, error: error.message || "Screenshot failed" }));
       }
     });
   }
@@ -1976,10 +1977,15 @@ export class ARCoreWeb extends WebPlugin {
       return { success: false, error: 'AR session not active' };
     }
     if (!this.xrGlBinding || typeof this.xrGlBinding.getCameraImage !== 'function') {
+      // The overwhelmingly common cause is that the session was started
+      // without the opt-in camera access (SEC-04). Say so once per
+      // engine instance in the console, and in every error message, so
+      // the fix is discoverable instead of a dead end.
+      this._warnScreenshotHintOnce();
       return {
         success: false,
         code: 'CAMERA_CAPTURE_UNAVAILABLE',
-        error: 'This browser does not expose WebXR camera frames. AR remains active.',
+        error: 'This browser does not expose WebXR camera frames. AR remains active. — pass enableScreenshots: true to startSession to enable screenshots',
       };
     }
     if (this.pendingScreenshot) {
@@ -1988,10 +1994,33 @@ export class ARCoreWeb extends WebPlugin {
     return new Promise((resolve) => { this.pendingScreenshot = { resolve, options }; });
   }
 
+  /**
+   * Explain the SEC-04 opt-in once per engine instance: screenshots
+   * fail with CAMERA_CAPTURE_UNAVAILABLE when the session was started
+   * without `enableScreenshots: true`, and nothing else in the error
+   * path tells the developer that. Repeated failures stay quiet.
+   */
+  _warnScreenshotHintOnce() {
+    if (this._screenshotHintWarned) return;
+    this._screenshotHintWarned = true;
+    console.warn(
+      '[ARCore] takeScreenshot: no WebXR camera access in this session. ' +
+      'Screenshots need enableScreenshots: true at startSession (camera-access ' +
+      'is opt-in and is NOT implied by lightEstimation).'
+    );
+  }
+
   async _captureXRFrame(frame, options = {}) {
     const pose = frame.getViewerPose(this.referenceSpace);
     const view = pose?.views?.find(v => v.camera) || pose?.views?.[0];
-    if (!view?.camera) throw new Error('WebXR camera access was not granted');
+    if (!view?.camera) {
+      // Same root cause as the coded path in takeScreenshot: the
+      // session never granted camera-access (SEC-04 opt-in missing).
+      this._warnScreenshotHintOnce();
+      const err = new Error('WebXR camera access was not granted — pass enableScreenshots: true to startSession to enable screenshots');
+      err.code = 'CAMERA_CAPTURE_UNAVAILABLE';
+      throw err;
+    }
 
     const gl = this.renderer.getContext();
     const texture = this.xrGlBinding.getCameraImage(view.camera);
