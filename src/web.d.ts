@@ -367,7 +367,7 @@ export declare class ARCoreWeb extends WebPlugin {
   ): () => void;
 
   /** The live XRSession, or null when no session is running. */
-  getSession(): any;
+  getSession(): XRSession | null;
   getAnchors(): Map<string, AnchorData>;
   getRenderer(): THREE.WebGLRenderer | null;
   getScene(): THREE.Scene | null;

@@ -115,7 +115,7 @@ export interface ARCoreFacade {
    */
   on(
     eventType: ARCoreEventType,
-    callback: (data: any) => void
+    callback: (data: unknown) => void
   ): () => void;
   /**
    * Register a Capacitor plugin listener directly.
@@ -123,7 +123,7 @@ export interface ARCoreFacade {
    */
   addListener(
     eventType: string,
-    callback: (data: any) => void
+    callback: (data: unknown) => void
   ): Promise<PluginListenerHandle>;
 }
 
