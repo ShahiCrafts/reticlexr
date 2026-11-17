@@ -139,12 +139,12 @@ export default function DemoClient() {
         onError: (e) =>
           setToast(
             /surface/i.test(e?.message || '')
-              ? 'No surface there — aim at the dots and tap'
+              ? 'No surface there. Aim at the dots and tap'
               : e?.message || 'Something went wrong',
           ),
       });
       setActive(true);
-      setToast('Move slowly — dots show detected surfaces');
+      setToast('Move slowly. Dots show detected surfaces');
       v.preloadModels(MODELS.map((m) => m.url)).catch(() => {});
     } catch (e) {
       setToast(e.message);
@@ -364,7 +364,7 @@ export default function DemoClient() {
                 explains the current state. */}
             <div className="flex justify-center">
               {placed ? (
-                <div className="rounded-full bg-black/50 px-4 py-2 text-xs">Model placed — tap a product above to switch it in place</div>
+                <div className="rounded-full bg-black/50 px-4 py-2 text-xs">Model placed. Tap a product above to switch it in place</div>
               ) : (
                 <div className="rounded-full bg-black/50 px-4 py-2 text-xs">
                   {surface

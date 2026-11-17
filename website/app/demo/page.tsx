@@ -35,7 +35,7 @@ export default function DemoPage() {
             <strong className="font-semibold text-slate-900 dark:text-white">HTTPS required</strong>
             <p className="mt-1 text-slate-600 dark:text-slate-300">
               WebXR only runs in secure contexts. This site is served over HTTPS, so you&rsquo;re
-              covered — a plain-HTTP copy of the demo will refuse to start.
+              covered. A plain-HTTP copy of the demo will refuse to start.
             </p>
           </div>
           <div className="rounded-xl border border-slate-200 p-4 text-sm dark:border-slate-800">
@@ -64,16 +64,16 @@ export default function DemoPage() {
           <a href="https://sketchfab.com/3d-models/model-56a-southern-white-rhino-8e97b62a90f44ce19ea9e3fd421f55b4" className="underline hover:text-slate-600 dark:hover:text-slate-300" target="_blank" rel="noreferrer">
             DigitalLife3D
           </a>{' '}
-          (CC BY-NC 4.0). The astronaut and the rhino are animated — the library plays the clips
+          (CC BY-NC 4.0). The astronaut and the rhino are animated. The library plays the clips
           embedded in their files.
         </p>
 
         {/* Owner-supplied recording slot — intentionally empty. */}
         <div className="mt-10 rounded-2xl border-2 border-dashed border-slate-300 p-8 text-center dark:border-slate-700" aria-label="Demo recording placeholder">
-          <p className="font-semibold text-slate-700 dark:text-slate-200">Demo GIF — slot reserved</p>
+          <p className="font-semibold text-slate-700 dark:text-slate-200">Demo GIF: slot reserved</p>
           <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-500 dark:text-slate-400">
-            TODO (site owner): record the real demo on a device — tap-to-place, pinch, twist,
-            in-place switching — and drop the GIF here. Nothing on this page is a mock screenshot;
+            TODO (site owner): record the real demo on a device (tap-to-place, pinch, twist,
+            in-place switching) and drop the GIF here. Nothing on this page is a mock screenshot;
             the demo above is live.
           </p>
         </div>

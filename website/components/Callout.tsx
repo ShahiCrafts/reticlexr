@@ -66,7 +66,7 @@ export function Callout({
         <p className="callout-head m-0 text-[15px] font-bold">
           {s.label}
           {title && (
-            <span className="font-semibold text-slate-900 dark:text-white"> — {title}</span>
+            <span className="font-semibold text-slate-900 dark:text-white">: {title}</span>
           )}
         </p>
       </div>
@@ -122,7 +122,7 @@ export function Todo({ children }: { children: ReactNode }) {
     >
       <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
         <AlertIcon />
-        <p className="callout-head m-0 text-[15px] font-bold">TODO — unverified</p>
+        <p className="callout-head m-0 text-[15px] font-bold">TODO: unverified</p>
       </div>
       <div className={`mt-1.5 ${BODY}`}>{children}</div>
     </div>

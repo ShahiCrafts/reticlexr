@@ -1,15 +1,15 @@
 ---
 title: React integration
-description: Two ways to use the SDK from React — an ARView held in a ref for product viewers, and the useARCore hook when you want engine state in React state.
+description: "Two ways to use the SDK from React: an ARView held in a ref for product viewers, and the useARCore hook when you want engine state in React state."
 ---
 
 There are two React-shaped ways to use the SDK. Pick based on how much of
 the engine you want mirrored into React state:
 
-- **`createARView()` in a ref** — the pattern the repository's example uses.
+- **`createARView()` in a ref**, the pattern the repository's example uses.
   Best for product viewers: the engine runs imperatively, React only tracks
   UI state (active product, placed or not, current scale).
-- **[`useARCore()`](/docs/api#usearcore)** — a hook that wraps the engine
+- **[`useARCore()`](/docs/api#usearcore)**, a hook that wraps the engine
   and mirrors support, session, placed models, planes, surface state and
   errors into React state.
 
@@ -47,7 +47,7 @@ export default function ProductAR() {
 
   async function switchTo(name) {
     setActive(name);
-    // switchModel — NOT placeModel — keeps placement, scale and rotation.
+    // switchModel, NOT placeModel, keeps placement, scale and rotation.
     await arRef.current?.switchModel(MODELS[name]);
   }
 
@@ -70,15 +70,15 @@ Three details matter:
 
 1. **One `ARView` per mount, destroyed in the cleanup.** `destroy()` ends
    the XR session and removes the placed models. Under React StrictMode's
-   dev double-mount you will build a throwaway engine instance — harmless
+   dev double-mount you will build a throwaway engine instance, harmless
    in production, noticeable as extra startup cost in dev.
 2. **`data-ui` on interactive overlay children.** The gesture layer
    ignores pointer events on elements matching `[data-ui]`, so buttons
    don't also place or drag the model.
 3. **`switchModel` for switching.** The older README example used
-   `placeModel` here with a comment claiming state carries over — it does
+   `placeModel` here with a comment claiming state carries over; it does
    not. `placeModel` performs a fresh centre hit test and adds a new model
-   (the old one stays placed — list them with `getPlacedModels()`, remove
+   (the old one stays placed: list them with `getPlacedModels()`, remove
    them with `clearModels()`). See
    [Model preloading & switching](/docs/guides/model-preloading-and-switching).
 
@@ -116,7 +116,7 @@ export default function HookExample({ overlayRef }) {
 
 The hook returns state (`isSupported`, `isSessionActive`, `placedModels`,
 `detectedPlanes`, `surfaceState`, `error`) and methods mirroring the
-engine — the full list is in the [API reference](/docs/api#usearcore).
+engine; the full list is in the [API reference](/docs/api#usearcore).
 
 <Warning>
 Two hook facts to design around:
@@ -125,14 +125,14 @@ Two hook facts to design around:
   lazily-constructed engine instance. When any one consumer unmounts,
   its cleanup stops the session for all of them. Mount the hook in
   exactly one place in your tree (or lift it into a provider you
-  control) — or pass a dedicated engine per view:
+  control), or pass a dedicated engine per view:
   `useARCore({ engine })` with a `new ARCoreWeb()` from
   `reticlexr/web`.
 - **Transform argument shapes are normalised.** The hook's
   `placeModel(modelUrl, position, rotation, scale)` accepts arrays
   (`[x, y, z]`, quaternion `[x, y, z, w]`, `[sx, sy, sz]`) **or**
   `{x, y, z}` objects, and Euler-radian rotations; scales clamp to
-  [0.1, 5]. (In v1.0.0, objects produced `NaN` transforms — fixed
+  [0.1, 5]. (In v1.0.0, objects produced `NaN` transforms, fixed
   in 1.1.0.)
 </Warning>
 
@@ -140,18 +140,18 @@ Two hook facts to design around:
 
 Overlay children are regular React DOM rendered into the element you pass
 as `overlay`; the same element is handed to the XR session as its
-DOM overlay. Styling, routing and state inside it are entirely yours —
+DOM overlay. Styling, routing and state inside it are entirely yours,
 see [Overlays](/docs/guides/overlays).
 
 <Todo>
 SSR: import-time side effects were removed in 1.1.0 (the event
 bridge installs lazily on first subscription; the shared hook
 engine is constructed lazily), and all five entry points pass
-DOM-less import checks — importing them touches no
+DOM-less import checks, importing them touches no
 `window`/`document`, and the hook renders to string. A full
 framework prerender (e.g. Next.js) has **not** been exercised yet,
 so that remains TODO: until it is verified, loading AR components
 client-side only (e.g. Next.js `dynamic(..., { ssr: false })`) is
-the safe default — which is what this site's own [demo](/demo)
+the safe default, which is what this site's own [demo](/demo)
 does.
 </Todo>

@@ -1,6 +1,6 @@
 ---
 title: Known issues & roadmap
-description: What the v1.0.0 audit found, what 1.1.0 fixed, and what is still open — in plain language.
+description: What the v1.0.0 audit found, what 1.1.0 fixed, and what is still open, in plain language.
 ---
 
 This page summarises a full code audit of v1.0.0 (68 rated findings
@@ -24,7 +24,7 @@ open **by decision** rather than by oversight.
 - **Plane dots are one `InstancedMesh` per plane** instead of one
   mesh per dot, and surface notifications fire on change at ≤10 Hz
   instead of per frame.
-- **The reticle setting is honoured** — `showReticle: false` is no
+- **The reticle setting is honoured**, `showReticle: false` is no
   longer forced back on at session start, placement or removal.
 - **Session-start failures clean up** (no leaked live session), and
   the fallback hit test always settles, including on session end.
@@ -35,12 +35,12 @@ open **by decision** rather than by oversight.
 
 - **One model identifier:** `modelId` everywhere (`anchorId` is a
   deprecated alias), and transform inputs are normalised at the
-  engine boundary — `{x, y, z}` objects no longer produce `NaN`
+  engine boundary, `{x, y, z}` objects no longer produce `NaN`
   transforms.
 - **Hook plane counts work** (the engine's numeric counts are read
   as numbers).
 - **`switchModel` material carry-over matches by material name,
-  then order** — multi-material models no longer flatten.
+  then order**, multi-material models no longer flatten.
 - **Enumeration exists:** `getPlacedModels()` / `clearModels()` on
   the engine, `ARView`, the facade and the hook.
 - **Per-instance hook engine:** `useARCore({ engine })` isolates a
@@ -90,7 +90,7 @@ open **by decision** rather than by oversight.
 
 ## Still open
 
-- **Native model rendering — scoped out by decision (Option B).**
+- **Native model rendering:** scoped out by decision (Option B).
   The native plugin provides session management, hit testing and
   events; `placeModel`, `moveModel`, `setTransform`, `setMaterial`,
   `removeModel`, `getPlacedModels` and `clearModels` reject with
@@ -99,7 +99,7 @@ open **by decision** rather than by oversight.
   rendering (Option A) remains an owner decision.
 - **Compatibility coverage is one device deep.** The WebXR runtime
   has a first recorded device test (Redmi Note 9S, Android 12,
-  Chrome 157 — see [Compatibility](/docs/compatibility)); the
+  Chrome 157, see [Compatibility](/docs/compatibility)); the
   native Capacitor runtime has not been device-tested yet.
 - **`npm audit` has never been run.** The audit environment's
   registry proxy refuses the audit endpoint (403), so no
@@ -109,7 +109,7 @@ open **by decision** rather than by oversight.
 - **SSR:** all entry points pass DOM-less import checks (no
   `window`/`document` access at import; the hook renders to string),
   but a full framework prerender (e.g. Next.js) has not been
-  exercised — still TODO.
+  exercised, still TODO.
 
 Still unverified anywhere: `npm audit` results and a full framework
 SSR prerender. Both are stated as such at their point of use on this

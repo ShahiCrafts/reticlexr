@@ -1,6 +1,6 @@
 ---
 title: Getting started
-description: Install reticlexr, wire it into a Capacitor app, and place your first model — then test on a real phone over HTTPS.
+description: Install reticlexr, wire it into a Capacitor app, and place your first model, then test on a real phone over HTTPS.
 ---
 
 <Info>
@@ -13,13 +13,13 @@ Install the package from npm with your package manager:
 
 <InstallTabs />
 
-The package ships as plain ESM source — there is no build step and no
+The package ships as plain ESM source; there is no build step and no
 transpilation. Its renderer/bridge dependencies are **peer
 dependencies** your app provides:
 
 | Package | Version (from `package.json`) | Why |
 | --- | --- | --- |
-| `@capacitor/core` | `^8.5.2` | The Capacitor bridge the native facade registers with — any Capacitor 8 app already has it |
+| `@capacitor/core` | `^8.5.2` | The Capacitor bridge the native facade registers with; any Capacitor 8 app already has it |
 | `three` | `^0.180.0` | The WebXR runtime's renderer, scene and GLTF loader |
 
 `react` (`>=16.8.0`) is a peer dependency for the
@@ -51,13 +51,13 @@ The package's `package.json` carries the
 `cap sync` discovers and registers the Android plugin automatically
 (`ARCorePlugin` in the generated `capacitor.plugins.json`, a
 `:reticlexr` project in the generated settings). No manual
-`settings.gradle` edit is needed — the clean consumer flow is
+`settings.gradle` edit is needed; the clean consumer flow is
 verified in a scratch Capacitor app.
 </Note>
 
 The native Android side, once wired, provides session management, hit
 testing and surface events through ARCore. Be aware of what it does
-**not** do yet: native model rendering is not implemented — models render
+**not** do yet: native model rendering is not implemented: models render
 in the WebXR runtime. Read
 [WebXR vs native ARCore](/docs/concepts/webxr-vs-native) before planning
 an Android-native-only experience.
@@ -77,7 +77,7 @@ npx cap sync
 <div>
 
 The high-level API is `createARView()`. It needs a DOM element to use as
-the immersive session's overlay — your buttons and product UI live there.
+the immersive session's overlay, your buttons and product UI live there.
 
 What happens next is covered by the guides:
 [React integration](/docs/guides/react-integration) for component-shaped
@@ -142,7 +142,7 @@ if (!result.success) {
 
 WebXR immersive AR only runs in a **secure context**: HTTPS, or
 `localhost`. A page served over plain HTTP on a LAN address will load, but
-session creation will fail — `checkSupport()` reports
+session creation will fail: `checkSupport()` reports
 `{ supported: false, code: 'INSECURE_CONTEXT' }` in that case, so check
 the `code` (and the URL scheme) first when AR refuses to start.
 
@@ -176,7 +176,7 @@ npm run dev:https   # serves https://<LAN-IP>:5173
 
 Then:
 
-1. Transfer **only** `example/certs/dev-ca.crt` to the phone — never the
+1. Transfer **only** `example/certs/dev-ca.crt` to the phone, never the
    `.key` file.
 2. Install it as a CA certificate (Settings → Security → Encryption &
    credentials; exact wording varies by vendor).
@@ -188,7 +188,7 @@ Then:
 <Tip>
 A self-signed certificate without the CA install also works for a quick
 look: Chrome will warn once per origin; choose **Advanced → Proceed**.
-Pages still count as secure contexts, so WebXR runs — but the warning
+Pages still count as secure contexts, so WebXR runs, but the warning
 returns on every new origin, which is why the CA flow is worth it for
 repeated testing.
 </Tip>

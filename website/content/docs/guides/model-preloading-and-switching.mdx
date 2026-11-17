@@ -1,6 +1,6 @@
 ---
 title: Model preloading & switching
-description: How the model cache works, why preloadModels makes switching fast, and why switchModel — never placeModel — is the switching call.
+description: How the model cache works, why preloadModels makes switching fast, and why switchModel, never placeModel, is the switching call.
 ---
 
 ## Preloading
@@ -23,11 +23,11 @@ Things to know about the cache:
   (`config.modelCacheLimit`, default 20); entries with live
   placements are never evicted, and the engine's
   `clearModelCache()` empties it explicitly. (In v1.0.0 there was
-  no eviction — every URL you loaded stayed resident.)
+  no eviction, every URL you loaded stayed resident.)
 - Preloading is a `Promise.all` over the URLs: one failing URL rejects
   the batch. Load stragglers individually if your catalogue has optional
   items.
-- Model files are fetched with the page's origin rules — cross-origin
+- Model files are fetched with the page's origin rules, cross-origin
   models need CORS headers from the host serving them, and URLs must be
   app-controlled (the loader parses whatever it is given).
 
@@ -51,7 +51,7 @@ await ar.switchModel('/models/chair.glb');
 
 <Warning>
 **Do not use `placeModel()` to switch.** `placeModel` always performs a
-fresh hit test and creates a *new* model alongside the previous one —
+fresh hit test and creates a *new* model alongside the previous one,
 the placement, scale and rotation you had do not carry over. (Both
 models stay tracked: `getPlacedModels()` lists them and
 `clearModels()` removes them.) An earlier version of the README's API
@@ -69,14 +69,14 @@ await ar.removeModel(); // removes the active model; no-op if none is placed
 `ARView` tracks every model placed through it, with a single **active
 model**. `removeModel()` removes the active one and clears the active
 id/URL. `getPlacedModels()` enumerates everything placed through the
-view and `clearModels()` removes all of it — but switching with
+view and `clearModels()` removes all of it, but switching with
 `switchModel()` is still the right tool for product changes: it reuses
 the placement instead of stacking models.
 
 ## Material carry-over
 
 With `preserveMaterial`, each material of the new model inherits the
-colour — and the map, when present — from its counterpart on the old
+colour, and the map, when present, from its counterpart on the old
 model, matched **by material name first, then by traversal order**
 (fixed in 1.1.0; before that, the first material was copied
 onto every material). Materials without a counterpart keep their own

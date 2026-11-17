@@ -1,6 +1,6 @@
 ---
 title: Screenshots
-description: Capture the composited AR view to a data URL — what the result contains, and why it can return CAMERA_CAPTURE_UNAVAILABLE.
+description: "Capture the composited AR view to a data URL: what the result contains, and why it can return CAMERA_CAPTURE_UNAVAILABLE."
 ---
 
 ## Taking a screenshot
@@ -15,10 +15,10 @@ await ar.create({ enableScreenshots: true }); // ARView
 const shot = await ar.takeScreenshot({ format: 'png', includeReticle: false });
 
 if (shot.success) {
-  // shot.dataUrl   — 'data:image/png;base64,…'
+  // shot.dataUrl: 'data:image/png;base64,…'
   // shot.width / shot.height
   // shot.timestamp
-  // shot.includesCamera — whether the camera feed is in the image
+  // shot.includesCamera: whether the camera feed is in the image
   const img = new Image();
   img.src = shot.dataUrl;
   document.body.appendChild(img);
@@ -41,7 +41,7 @@ The same call exists as a functional helper,
 
 ## Saving the image
 
-A data URL is all you get back — turning it into a download or an upload
+A data URL is all you get back, turning it into a download or an upload
 is your app's job:
 
 ```js title="save-shot.js"
@@ -60,7 +60,7 @@ needs the WebXR `camera-access` feature. Two failure codes exist:
 
 | Code | Meaning |
 | --- | --- |
-| `CAMERA_CAPTURE_UNAVAILABLE` | The browser/session has no camera access — the capture cannot include the camera feed |
+| `CAMERA_CAPTURE_UNAVAILABLE` | The browser/session has no camera access; the capture cannot include the camera feed |
 | `CAPTURE_BUSY` | Another capture is already in flight |
 
 <Warning>
@@ -68,8 +68,8 @@ Camera access is an explicit opt-in: the session must start with
 `enableScreenshots: true` (`ARView.create()` or the engine's
 `startSession()`), which adds `camera-access` to the session's
 optional features. It is **not** implied by `lightEstimation`
-(that coupling was removed in 1.1.0). Without the opt-in —
-or on browsers that don't grant camera access at all —
+(that coupling was removed in 1.1.0). Without the opt-in,
+or on browsers that don't grant camera access at all,
 `takeScreenshot` returns `CAMERA_CAPTURE_UNAVAILABLE` while AR
 keeps running. Design your UI to treat screenshots as best-effort,
 and always branch on `shot.success`.

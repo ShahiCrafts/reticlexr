@@ -1,11 +1,11 @@
 ---
 title: Overlays
-description: Your product UI as regular DOM on top of the immersive view — how the overlay element works and how data-ui keeps buttons out of the gesture layer.
+description: "Your product UI as regular DOM on top of the immersive view: how the overlay element works and how data-ui keeps buttons out of the gesture layer."
 ---
 
 ## The overlay element
 
-An `ARView` is bound to one DOM element — the **overlay**. You pass it to
+An `ARView` is bound to one DOM element, the **overlay**. You pass it to
 the constructor (or later to `create()`):
 
 ```js
@@ -16,7 +16,7 @@ await ar.create({ /* … */ });
 When the session starts, that element is handed to the browser as the XR
 session's DOM overlay: it stays visible and interactive on top of the
 camera view while the session is immersive. Everything inside it is
-ordinary DOM — your product cards, price tags, variant pickers and
+ordinary DOM, your product cards, price tags, variant pickers and
 checkout buttons, styled however you like.
 
 ```html title="overlay.html"
@@ -37,7 +37,7 @@ checkout buttons, styled however you like.
 
 The gesture controller ignores pointer events that land on elements
 matching `[data-ui]` (the `ignoreSelector` default). Mark every
-interactive overlay element — or a wrapper around them — with `data-ui`:
+interactive overlay element, or a wrapper around them, with `data-ui`:
 
 - Buttons, links, inputs, sheets and dialogs: **mark them.**
 - Empty areas of the overlay: leave unmarked, so taps, pinches and
@@ -57,8 +57,8 @@ the rest of the overlay surface drives gestures.
 
 `createARView()` can be constructed without an overlay. The session then
 runs without a DOM overlay (the renderer canvas is appended to
-`document.body`), and `enableCustomization()` — which needs an element
-to listen on — throws. If you want gestures, you need an overlay; if you
+`document.body`), and `enableCustomization()`, which needs an element
+to listen on, throws. If you want gestures, you need an overlay; if you
 only place models programmatically, you don't.
 
 ## The native path is different

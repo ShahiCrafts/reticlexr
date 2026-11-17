@@ -183,7 +183,7 @@ export function SiteFooter() {
     <footer className="border-t border-slate-200 py-8 dark:border-white/10">
       <div className="mx-auto flex max-w-[90rem] flex-col gap-2 px-4 text-sm text-slate-500 sm:px-6 dark:text-slate-400">
         <p>
-          <span className="font-semibold text-slate-700 dark:text-slate-200">reticlexr</span> — npm package{' '}
+          <span className="font-semibold text-slate-700 dark:text-slate-200">reticlexr</span> · npm package{' '}
           <code className="font-mono text-[0.85em]">reticlexr</code> · MIT © Saugat Shahi
         </p>
         <p>

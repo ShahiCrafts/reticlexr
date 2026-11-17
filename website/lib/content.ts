@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import matter from 'gray-matter';
-import { FLAT_PAGES } from './nav';
+import { FLAT_PAGES, sectionForSlug } from './nav';
 
 const CONTENT_DIR = path.join(process.cwd(), 'content', 'docs');
 
@@ -83,20 +83,64 @@ export function getAllDocPages(): DocPage[] {
 }
 
 export interface SearchEntry {
-  [key: string]: string | string[]; // FlexSearch Document requires an index signature
+  [key: string]: string; // FlexSearch Document requires an index signature
+  id: string; // slug for page entries, slug#anchor for section entries
   slug: string;
-  title: string;
-  headings: string[];
-  text: string;
+  anchor: string; // '' for the page-level entry
+  pageTitle: string;
+  section: string; // heading text for section entries, '' for page-level
+  group: string; // nav section title (Guides, API reference, …)
+  description: string;
+  text: string; // this section's full body text (plain)
+}
+
+/** Split an MDX body into one chunk per heading (plus the intro before
+ *  the first heading), pairing each chunk with its heading so section
+ *  text can be indexed and linked separately — deep search. */
+function splitByHeadings(
+  source: string,
+  headings: Heading[],
+): Array<{ heading: Heading | null; body: string }> {
+  const chunks: Array<{ heading: Heading | null; lines: string[] }> = [
+    { heading: null, lines: [] },
+  ];
+  let next = 0;
+  let inFence = false;
+  for (const line of source.split('\n')) {
+    if (/^\s*```/.test(line)) inFence = !inFence;
+    if (!inFence && next < headings.length) {
+      const m = /^(#{2,3})\s+(.+?)\s*$/.exec(line);
+      if (m && m[2].replace(/[`*_]/g, '') === headings[next].text) {
+        chunks.push({ heading: headings[next], lines: [] });
+        next += 1;
+        continue;
+      }
+    }
+    chunks[chunks.length - 1].lines.push(line);
+  }
+  return chunks.map((c) => ({ heading: c.heading, body: c.lines.join('\n') }));
 }
 
 export function getSearchIndex(): SearchEntry[] {
-  return getAllDocPages().map((p) => ({
-    slug: p.slug,
-    title: p.title,
-    headings: p.headings.map((h) => h.text),
-    text: p.plainText.slice(0, 6000),
-  }));
+  const entries: SearchEntry[] = [];
+  for (const page of getAllDocPages()) {
+    const group = sectionForSlug(page.slug)?.title ?? 'Docs';
+    const chunks = splitByHeadings(page.source, page.headings);
+    for (const chunk of chunks) {
+      const isPage = chunk.heading === null;
+      entries.push({
+        id: isPage ? page.slug : `${page.slug}#${chunk.heading!.id}`,
+        slug: page.slug,
+        anchor: isPage ? '' : chunk.heading!.id,
+        pageTitle: page.title,
+        section: isPage ? '' : chunk.heading!.text,
+        group,
+        description: page.description,
+        text: toPlainText(chunk.body).slice(0, 6000),
+      });
+    }
+  }
+  return entries;
 }
 
 export function editUrl(filePath: string): string {

@@ -366,6 +366,20 @@ figure[data-rehype-pretty-code-figure] [data-highlighted-line] {
   outline-offset: 2px;
 }
 
+/* Exception: the search dialog's input fills its own bordered header
+   row, so the global ring would double-frame it. */
+.search-input:focus-visible {
+  outline: none;
+}
+
+/* Hide scrollbars while keeping the element scrollable (search results). */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 /* Demo surface */
 .ar-demo-canvas-container canvas {
   display: block;

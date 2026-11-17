@@ -1,6 +1,6 @@
 ---
 title: Gestures
-description: Tap to place, drag, pinch to scale and two-finger twist to rotate — via ARView.enableCustomization or the standalone gesture controller.
+description: Tap to place, drag, pinch to scale and two-finger twist to rotate, via ARView.enableCustomization or the standalone gesture controller.
 ---
 
 ## The built-in wiring: `enableCustomization`
@@ -27,13 +27,13 @@ cleanup();
 | Gesture | Effect |
 | --- | --- |
 | One-finger tap | Places the current `modelUrl` at the tap point (only when no model is placed yet) |
-| Pinch (two fingers, in/out) | Scales the active model — `ARView.setScale` clamps to **[0.1, 5]** |
+| Pinch (two fingers, in/out) | Scales the active model, `ARView.setScale` clamps to **[0.1, 5]** |
 | Twist (two fingers, rotate) | Rotates the active model around Y |
 | Drag (one finger) | Available in the standalone controller (`onDrag`); `enableCustomization` does not bind it to the model |
 
 <Note>
 `modelUrl` accepts a plain URL string or a `() => string` function.
-The function form is called on every tap — use it when the model to
+The function form is called on every tap; use it when the model to
 place can change between taps (the example app reads the latest
 selected product from a ref). A plain string always places the same
 model. (Before 1.1.0 only the function form worked; a string threw a
@@ -57,8 +57,8 @@ const gestures = createARGestureController({
   onDrag: ({ dx, dy, x, y }) => { /* per-move deltas, px */ },
   onPinch: ({ factor, center }) => { /* factor is incremental */ },
   onRotate: ({ delta, center }) => { /* delta in radians, incremental */ },
-  tapMaxDuration: 260,   // ms — longer presses are not taps
-  tapMaxDistance: 12,    // px — further movement is not a tap
+  tapMaxDuration: 260,   // ms: longer presses are not taps
+  tapMaxDistance: 12,    // px: further movement is not a tap
   preventDefault: true,
   ignoreSelector: '[data-ui]',
 });
@@ -69,7 +69,7 @@ gestures.destroy();
 
 Payload semantics worth knowing:
 
-- `onPinch`'s `factor` is **incremental** — relative to the previous move
+- `onPinch`'s `factor` is **incremental**, relative to the previous move
   event, not the gesture start. Multiply your running scale by it.
 - `onRotate`'s `delta` is likewise incremental, in radians, wrapped to
   ±π.
@@ -90,5 +90,5 @@ ar.rotateBy(Math.PI / 8); // accumulates rotationY, radians
 
 One scale range everywhere since 1.1.0: [0.1, 5], enforced by the
 engine itself (the facade and the native registry use the same
-limits). In v1.0.0 the layers disagreed — facade [0.1, 5], engine
+limits). In v1.0.0 the layers disagreed: facade [0.1, 5], engine
 unclamped, native [0.25, 3].

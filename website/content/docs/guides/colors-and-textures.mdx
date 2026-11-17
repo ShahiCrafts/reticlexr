@@ -1,6 +1,6 @@
 ---
 title: Colors & textures
-description: Recolour the placed model, register and apply your own textures, and tune material properties — plus the multi-material caveats.
+description: Recolour the placed model, register and apply your own textures, and tune material properties, plus the multi-material caveats.
 ---
 
 ## Recolouring the active model
@@ -46,7 +46,7 @@ await ar.applyTexture('/textures/marble.jpg');      // or by URL
 await ar.applyTexture('oak', { materialName: 'Top' }); // one named material only
 ```
 
-- `applyTexture` **throws if no model is placed** — call it after a
+- `applyTexture` **throws if no model is placed**, call it after a
   successful `placeModel`/`switchModel`.
 - `materialName` targets a single material inside the GLB; without it the
   texture applies across the model's materials.
@@ -60,11 +60,11 @@ Two engine-level behaviours to design around:
   1.1.0 the replaced texture is disposed (unless it is the model's
   original, cache-owned map), so flipping through dozens of swatches in
   one session no longer leaks a GPU texture per application. (v1.0.0
-  leaked one texture per application — see
+  leaked one texture per application, see
   [known issues](/docs/known-issues).)
 - When `switchModel` carries material state over (`preserveMaterial`, the
   default), materials are matched by name, then by traversal order, so
-  multi-material products keep their per-material styling — see
+  multi-material products keep their per-material styling, see
   [Model preloading & switching](/docs/guides/model-preloading-and-switching#material-carry-over).
 </Note>
 
@@ -81,7 +81,7 @@ ar.setModelMaterial(modelId, { metalness: 0.1, roughness: 0.8, opacity: 1 });
 `setModelMaterial({ modelId, metalness?, roughness?, opacity? })` sets
 the given PBR properties on the anchored model's materials. All three
 properties are optional; omitted ones are left unchanged. There is no
-facade (`ARView`) wrapper for this — if you hold an `ARView`,
+facade (`ARView`) wrapper for this, if you hold an `ARView`,
 its engine is `ar.engine` and accepts the same call with an options
 object.
 
@@ -89,7 +89,7 @@ object.
 
 The native `ARCore` facade exposes `setMaterial({ modelId, color })`
 with the same `modelId` convention (the engine's old name, `anchorId`,
-still works as a deprecated alias) — but on Android the call rejects
+still works as a deprecated alias), but on Android the call rejects
 with `NOT_IMPLEMENTED`: colour and material changes are
 WebXR-runtime features. See the
 [API reference](/docs/api#arcore-native-facade).

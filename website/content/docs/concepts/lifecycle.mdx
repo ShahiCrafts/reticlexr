@@ -1,6 +1,6 @@
 ---
 title: Lifecycle
-description: How sessions are created, ended and torn down on both runtimes — and what is cleaned up in 1.1.0.
+description: How sessions are created, ended and torn down on both runtimes, and what is cleaned up in 1.1.0.
 ---
 
 ## WebXR path
@@ -8,8 +8,8 @@ description: How sessions are created, ended and torn down on both runtimes — 
 ### Create
 
 `ARView.create()` calls `engine.startSession()`. Three.js objects are
-created **once** — the first start builds the renderer, scene, camera,
-lights, loader, plane groups and reticle — and are reused across
+created **once**, the first start builds the renderer, scene, camera,
+lights, loader, plane groups and reticle, and are reused across
 sessions. The renderer canvas is inserted before your overlay element
 (or appended to `document.body` when there is no overlay).
 
@@ -29,7 +29,7 @@ to a clean state.
 ### Teardown
 
 `ARView.destroy()` destroys the gesture controller and awaits
-`engine.dispose()` — the full teardown (in 1.0.0 destroy only stopped
+`engine.dispose()`, the full teardown (in 1.0.0 destroy only stopped
 the session; the rest of this list is 1.1.0 behaviour). Disposal:
 
 - stops rendering and ends the XR session,
@@ -40,7 +40,7 @@ the session; the rest of this list is 1.1.0 behaviour). Disposal:
 - disposes plane dots and meshes,
 - hides the reticle and removes the canvas from the DOM,
 - disposes the model cache, the WebGL renderer and its context,
-  and nulls the renderer/scene/camera fields — the same engine
+  and nulls the renderer/scene/camera fields, the same engine
   instance can be started again afterwards.
 
 ### React
@@ -50,7 +50,7 @@ the session; the rest of this list is 1.1.0 behaviour). Disposal:
 - `useARCore`: checks support on mount; on unmount it stops the session
   if it started one and runs its listener cleanups. By default all
   consumers share one lazily-constructed engine, so that stop affects
-  **all** hook consumers — mount the hook once, or pass a dedicated
+  **all** hook consumers; mount the hook once, or pass a dedicated
   engine per view with `useARCore({ engine })`.
 
 ## Native path
@@ -67,7 +67,7 @@ WebView, which is made transparent.
 
 ### Pause and resume
 
-Wired in 1.1.0 (in v1.0.0 nothing called the pause/resume methods —
+Wired in 1.1.0 (in v1.0.0 nothing called the pause/resume methods,
 the gap this section used to describe). The plugin implements
 Capacitor's `handleOnPause` / `handleOnResume` / `handleOnDestroy`
 and forwards them to the session manager and renderer:
@@ -84,5 +84,5 @@ and forwards them to the session manager and renderer:
 session-closed → view removed and the WebView's real background
 restored → session closed. Plugin destroy goes further: it stops
 the render loop, **joins the render thread**, then destroys the
-Filament resources in dependency order — camera background, swap
+Filament resources in dependency order, camera background, swap
 chain, view, scene, renderer, camera entity, and the engine last.

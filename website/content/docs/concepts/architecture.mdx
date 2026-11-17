@@ -1,6 +1,6 @@
 ---
 title: Architecture
-description: Two independent AR runtimes behind three JS API layers — the module map, the public surface, and both data flows.
+description: "Two independent AR runtimes behind three JS API layers: the module map, the public surface, and both data flows."
 ---
 
 The package is a Capacitor plugin with **two independent AR runtimes**
@@ -17,7 +17,7 @@ entry is the raw ESM source, with hand-written TypeScript declarations
 
   {/* App */}
   <rect x="180" y="10" width="400" height="46" rx="8" fillOpacity="0.16" className="fill-violet-500 stroke-violet-500 dark:fill-[#8b7ff5] dark:stroke-[#8b7ff5]" />
-  <text x="380" y="39" textAnchor="middle" fontSize="15" fontWeight="600" className="fill-violet-600 dark:fill-[#a78bfa]">Your app — React or plain JS</text>
+  <text x="380" y="39" textAnchor="middle" fontSize="15" fontWeight="600" className="fill-violet-600 dark:fill-[#a78bfa]">Your app, React or plain JS</text>
 
   {/* Facade */}
   <rect x="30" y="100" width="320" height="58" rx="8" fillOpacity="0.12" className="fill-slate-500 stroke-slate-400 dark:fill-[#64748b] dark:stroke-[#64748b]" />
@@ -52,7 +52,7 @@ entry is the raw ESM source, with hand-written TypeScript declarations
 
   {/* Device note */}
   <text x="380" y="420" textAnchor="middle" fontSize="12.5" className="fill-slate-500 dark:fill-[#94a3b8]">Left path: Android app only · Right path: browser, and the web platform inside Capacitor</text>
-  <text x="380" y="442" textAnchor="middle" fontSize="12.5" className="fill-slate-500 dark:fill-[#94a3b8]">The two runtimes do not share code below the facade — and are not at feature parity.</text>
+  <text x="380" y="442" textAnchor="middle" fontSize="12.5" className="fill-slate-500 dark:fill-[#94a3b8]">The two runtimes do not share code below the facade, and are not at feature parity.</text>
 
   {/* Arrows */}
   <line x1="300" y1="56" x2="200" y2="96" stroke="#8b7ff5" strokeWidth="1.6" markerEnd="url(#arr)" />
@@ -63,18 +63,18 @@ entry is the raw ESM source, with hand-written TypeScript declarations
   <line x1="570" y1="255" x2="570" y2="301" stroke="#8b7ff5" strokeWidth="1.6" markerEnd="url(#arr)" />
 </svg>
 
-*Diagram — the two runtimes of reticlexr 1.1.0 and the layers above them.*
+*Diagram: the two runtimes of reticlexr 1.1.0 and the layers above them.*
 
 ## The three JS layers
 
 | Layer | Files | Sits on |
 | --- | --- | --- |
-| `ARCore` facade — session/hit-test/model methods plus a local event bus (`on()`), bridging native events lazily, on first subscription | `src/index.js` (13.4 KB) | Capacitor plugin named `ARCore` |
-| `ARView` / `createARView` + functional helpers — single active model, transform state, texture registry, gesture wiring | `src/ar-view.js` (9.8 KB) | WebXR engine only |
+| `ARCore` facade: session/hit-test/model methods plus a local event bus (`on()`), bridging native events lazily, on first subscription | `src/index.js` (13.4 KB) | Capacitor plugin named `ARCore` |
+| `ARView` / `createARView` + functional helpers: single active model, transform state, texture registry, gesture wiring | `src/ar-view.js` (9.8 KB) | WebXR engine only |
 | `useARCore` hook + `createARGestureController` | `src/hooks.js` (27.7 KB), `src/gestures.js` (4.7 KB) | WebXR engine only |
 
 The high-level layers **never call the native plugin**. If you use
-`createARView` or the hook, you are on the WebXR runtime everywhere —
+`createARView` or the hook, you are on the WebXR runtime everywhere,
 including inside a Capacitor app, where the WebView runs the same code.
 
 ## Data flow: JS → bridge → native ARCore
@@ -131,7 +131,7 @@ Eleven Java classes under `android/src/main/java/com/capacitor/arcore/`:
 the plugin facade, a session manager (sole owner of the ARCore
 `Session`), a Filament renderer with its own render thread, a surface
 manager, a coordinate mapper for hit tests, an event emitter, a view
-manager — plus an anchor manager that registers the real anchors
+manager, plus an anchor manager that registers the real anchors
 created by hit tests, and a model manager that is currently a
 registry only (native model rendering is not implemented). What
 that means in practice is the subject of
