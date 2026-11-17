@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { LuCheck, LuCopy } from 'react-icons/lu';
+import { LuCheck, LuCopy, LuTerminal } from 'react-icons/lu';
 
 /** The verified quick-start snippet, shown verbatim in the code window. */
 export const QUICK_START_SNIPPET = `npm install reticlexr
@@ -38,26 +38,36 @@ export function QuickStartCode() {
   }
 
   return (
-    /* Tailwind-docs terminal look: near-black outer panel, plain header row
-       with an icon-only copy button, code in an inset inner panel. */
-    <div className="overflow-hidden rounded-xl border border-slate-800 bg-[#05070d]">
-      <div className="flex items-center justify-between px-3 pb-1.5 pt-3">
-        <span className="text-xs leading-5 text-[#99A1AF]">Terminal</span>
+    /* macOS-style terminal window, flat: traffic-light dots, a Terminal
+       tab chip and a Copy button in the header; one dark panel of code
+       below — no inset panel, no shadow, no gradient. */
+    <div className="overflow-hidden rounded-2xl border border-slate-800 bg-[#05070d]">
+      <div className="flex items-center gap-3 px-4 py-3">
+        <span className="flex items-center gap-2" aria-hidden="true">
+          <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
+          <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
+          <span className="h-3 w-3 rounded-full bg-[#28c840]" />
+        </span>
+        <span className="inline-flex items-center gap-1.5 rounded-md bg-white/10 px-2.5 py-1 text-xs text-slate-300">
+          <LuTerminal size={12} strokeWidth={2} aria-hidden />
+          Terminal
+        </span>
         <button
           type="button"
           onClick={copy}
           aria-label="Copy quick start code"
           aria-live="polite"
-          className="inline-flex h-5 w-5 items-center justify-center rounded-md text-slate-400 hover:bg-white/10 hover:text-slate-100 focus-visible:outline-2 focus-visible:outline-blue-400"
+          className="ml-auto inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-slate-400 hover:text-slate-100 focus-visible:outline-2 focus-visible:outline-blue-400"
         >
           {copied ? (
-            <LuCheck size={15} strokeWidth={2.2} aria-hidden />
+            <LuCheck size={14} strokeWidth={2.2} aria-hidden />
           ) : (
-            <LuCopy size={15} strokeWidth={1.8} aria-hidden />
+            <LuCopy size={14} strokeWidth={1.8} aria-hidden />
           )}
+          {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
-      <pre className="m-1 overflow-x-auto rounded-lg border border-[#2f3542] bg-[#1d2029] px-5 py-5 font-mono text-sm leading-5">
+      <pre className="overflow-x-auto px-6 pb-6 pt-1 font-mono text-sm leading-6">
         <code>
           <span className="block">
             <span className={KW}>npm</span> <span className={STR}>install</span>{' '}

@@ -67,6 +67,15 @@ AR required is an opt-in from your own manifest — see the
 | Device | OS | Browser | Date | Result |
 | --- | --- | --- | --- | --- |
 | Redmi Note 9S | Android 12 | Chrome 157.0.8103.78 | 2026-11-17 | WebXR demo run — see notes below |
+| Samsung Galaxy A24 (SM-A245F) | Android 16 | Chrome 157.0.8103.50 | 2026-11-17 | WebXR demo run — tap-to-place confirmed |
+
+Follow-up the same day: when the demo moved to tap-only placement,
+tap-to-place failed on the Redmi — the per-tap hit test gave up on
+its first (still empty) results frame, so taps missed silently.
+Fixed in the library (the point hit test now tolerates a short
+grace of empty frames and falls back to the reticle hit, and a
+missed tap now surfaces an on-screen hint), and confirmed working
+on both devices above.
 
 Notes from the Redmi Note 9S run (the library's first recorded device
 test, against the live demo):

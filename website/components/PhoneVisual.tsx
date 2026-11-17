@@ -6,7 +6,7 @@
  */
 export function PhoneVisual() {
   return (
-    <div className="relative mx-auto w-[290px] sm:w-[330px]" aria-hidden="true">
+    <div className="relative mx-auto w-full" aria-hidden="true">
       {/* Orbit ellipses */}
       <svg
         className="absolute left-1/2 top-1/2 -z-0 h-[112%] w-[135%] -translate-x-1/2 -translate-y-1/2"
