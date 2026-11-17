@@ -125,17 +125,17 @@ figure[data-rehype-pretty-code-figure] figcaption[data-rehype-pretty-code-title]
   height: 15px;
 }
 
-/* Inner code panel: inset 4px inside the outer figure. IBM Plex Mono
+/* Inner code panel: inset 8px inside the outer figure. IBM Plex Mono
    14px / 20px, 20px padding on all sides, as measured on the reference
    terminal. */
 figure[data-rehype-pretty-code-figure] pre {
   overflow-x: auto;
-  margin: 0.25rem; /* 4px */
+  margin: 0.5rem; /* 8px */
   padding: 1.25rem 0; /* 20px vertical; horizontal comes from [data-line] */
   font-size: 0.875rem; /* 14px */
   line-height: 1.25rem; /* 20px */
   background: #1d2029;
-  border: 1px solid #2f3542;
+  border: 0;
   border-radius: 0.5rem; /* 8px */
 }
 
@@ -157,10 +157,10 @@ figure[data-rehype-pretty-code-figure] [data-highlighted-line] {
 
 /* InstallTabs' inner panel sits inside .prose, where the typography
    rules would otherwise zero its padding and give it 24px vertical
-   margins. Pin it to the shared editor geometry: 4px inset, 20px
+   margins. Pin it to the shared editor geometry: 8px inset, 20px
    padding on all sides (its 8px radius comes from rounded-lg). */
 .prose pre.editor-inner {
-  margin: 0.25rem;
+  margin: 0.5rem; /* 8px */
   padding: 1.25rem;
 }
 

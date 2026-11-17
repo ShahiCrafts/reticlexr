@@ -86,7 +86,7 @@ export function InstallTabs({ pkg = 'reticlexr' }: { pkg?: string }) {
             )}
           </button>
         </div>
-        <pre className="editor-inner m-1 overflow-x-auto rounded-lg border border-[#2f3542] bg-[#1d2029] px-5 py-5 font-mono text-sm leading-5">
+        <pre className="editor-inner m-1 overflow-x-auto rounded-lg bg-[#1d2029] px-5 py-5 font-mono text-sm leading-5">
           <code>
             <span className="text-[#f97583]">{verb}</span>{' '}
             <span className="text-[#74d4ff]">{rest.join(' ')}</span>

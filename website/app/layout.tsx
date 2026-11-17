@@ -21,7 +21,7 @@ const plexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: {
     default: 'Reticle XR - High-Level AR SDK for React & Capacitor',
-    template: '%s · reticlexr docs',
+    template: '%s - Reticle XR',
   },
   description:
     'Documentation for reticlexr (npm: reticlexr), a high-level AR SDK for React + Capacitor with WebXR and native ARCore.',
