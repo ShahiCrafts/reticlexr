@@ -14,29 +14,30 @@ const NAV_LINKS: Array<{ label: string; href: string; icon?: ReactNode }> = [
   { label: 'Demo', href: '/demo', icon: <LuBox size={16} strokeWidth={1.9} aria-hidden /> },
 ];
 
-/** Reticle / target logo mark: white crosshair target on a blue tile. */
-export function LogoMark({ size = 34 }: { size?: number }) {
+/** Logo mark: a solid theme-blue hexagon with a white reticle inside —
+ *  four arc segments around a centre dot, gaps at the cardinal points.
+ *  32px in the header lockup (the wordmark beside it runs 22px). */
+export function LogoMark({ size = 32 }: { size?: number }) {
   return (
-    <span
-      className="flex shrink-0 items-center justify-center rounded-[9px] bg-blue-600"
-      style={{ width: size, height: size }}
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 48 48"
+      className="shrink-0"
       aria-hidden="true"
     >
-      <svg
-        width={size * 0.68}
-        height={size * 0.68}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="#ffffff"
-        strokeWidth="1.9"
-        strokeLinecap="round"
-        aria-hidden="true"
-      >
-        <circle cx="12" cy="12" r="5.4" />
-        <path d="M12 2.6v3.6M12 17.8v3.6M2.6 12h3.6M17.8 12h3.6" />
-        <circle cx="12" cy="12" r="1.25" fill="#ffffff" stroke="none" />
-      </svg>
-    </span>
+      <path
+        d="M22.00 2.65 Q24.00 1.50 26.00 2.65 L41.49 11.60 Q43.49 12.75 43.49 15.06 L43.49 32.94 Q43.49 35.25 41.49 36.40 L26.00 45.35 Q24.00 46.50 22.00 45.35 L6.51 36.40 Q4.51 35.25 4.51 32.94 L4.51 15.06 Q4.51 12.75 6.51 11.60 L22.00 2.65 Z"
+        fill="#2563eb"
+      />
+      <g fill="none" stroke="#ffffff" strokeWidth="3.3">
+        <path d="M32.53 27.45 A9.2 9.2 0 0 1 27.45 32.53" />
+        <path d="M20.55 32.53 A9.2 9.2 0 0 1 15.47 27.45" />
+        <path d="M15.47 20.55 A9.2 9.2 0 0 1 20.55 15.47" />
+        <path d="M27.45 15.47 A9.2 9.2 0 0 1 32.53 20.55" />
+      </g>
+      <circle cx="24" cy="24" r="2.5" fill="#ffffff" />
+    </svg>
   );
 }
 
@@ -57,7 +58,7 @@ export function TopBar({
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950">
-      <div className="mx-auto flex h-14 max-w-[90rem] items-center justify-between gap-3 px-4 sm:gap-8 sm:px-6">
+      <div className="mx-auto flex h-16 max-w-[90rem] items-center justify-between gap-3 px-4 sm:gap-8 sm:px-6">
         <div className="flex items-center gap-3">
           {!breadcrumb && (
             <button
@@ -71,9 +72,9 @@ export function TopBar({
             </button>
           )}
 
-          <Link href="/" className="flex items-center gap-2.5 focus-visible:outline-2 focus-visible:outline-blue-500" aria-label="reticlexr documentation home">
+          <Link href="/" className="flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-blue-500" aria-label="reticlexr documentation home">
             <LogoMark />
-            <span className="text-[17px] font-bold tracking-tight text-slate-950 dark:text-white">
+            <span className="text-[22px] font-bold tracking-tight text-slate-950 dark:text-white">
               reticlexr
             </span>
             <span className="hidden items-center gap-1 rounded-2xl bg-[rgb(3_7_18/0.075)] pb-0.5 pl-2.5 pr-1.5 pt-0.5 text-xs font-medium leading-5 text-[#030712] min-[420px]:inline-flex dark:bg-white/10 dark:text-slate-100">
@@ -150,7 +151,7 @@ export function TopBar({
       {drawer && (
         <div
           className={`fixed inset-x-0 bottom-0 lg:hidden ${
-            breadcrumb ? 'top-[104px] z-40' : 'top-0 z-[60]'
+            breadcrumb ? 'top-[112px] z-40' : 'top-0 z-[60]'
           }`}
           role="dialog"
           aria-modal="true"

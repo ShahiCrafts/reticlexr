@@ -10,8 +10,8 @@ const TERMINAL_LANGS = new Set(['bash', 'sh', 'shell', 'zsh', 'console']);
  * Gives every Shiki code block inside the article a header row + copy button:
  * - blocks with a filename keep their <figcaption> (the button joins it);
  * - terminal/bash blocks without a filename get an injected "Terminal" header;
- * - any other block gets a floating ghost copy button in the same header
- *   zone (top 2px, right 12px — where a header-row button would sit).
+ * - any other block (a code snippet that is neither a file nor a terminal
+ *   command) gets an injected "Editor" header.
  * The button is an icon-only clipboard (20px, Vite-docs style) that swaps
  * to a check icon briefly after copying; the glyphs are react-icons
  * components rendered into the button through a small React root, since
@@ -67,21 +67,14 @@ export function CopyEnhancer() {
 
       if (caption) {
         caption.appendChild(btn);
-      } else if (TERMINAL_LANGS.has(lang)) {
+      } else {
         const header = document.createElement('div');
         header.className = 'code-panel-header';
         const label = document.createElement('span');
-        label.textContent = 'Terminal';
+        label.textContent = TERMINAL_LANGS.has(lang) ? 'Terminal' : 'Editor';
         header.appendChild(label);
         header.appendChild(btn);
         figure.insertBefore(header, figure.firstChild);
-      } else {
-        // No header row: float the button in the header zone — top 2px and
-        // right 12px, exactly where a header-row button sits (the <pre> is
-        // inset 4px inside the figure, so the button overlaps the inner
-        // panel's top-right corner; its #1d2029 bg matches that panel).
-        btn.classList.add('absolute', 'right-3', 'top-0.5', 'z-10', 'bg-[#1d2029]');
-        figure.appendChild(btn);
       }
     });
 

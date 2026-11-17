@@ -73,7 +73,7 @@ npx cap sync
 </div>
 </Step>
 
-<Step number="02" title="Your first AR view" id="your-first-ar-view">
+<Step number="02" title="Your first AR view" id="your-first-ar-view" stacked>
 <div>
 
 The high-level API is `createARView()`. It needs a DOM element to use as
@@ -137,7 +137,7 @@ if (!result.success) {
 </div>
 </Step>
 
-<Step number="03" title="HTTPS and phone testing" id="https-and-phone-testing">
+<Step number="03" title="HTTPS and phone testing" id="https-and-phone-testing" stacked>
 <div>
 
 WebXR immersive AR only runs in a **secure context**: HTTPS, or
@@ -160,6 +160,19 @@ Requirements (from the repository's phone-testing guide):
 - Phone and development computer on the same Wi-Fi
 
 The example app ships LAN HTTPS tooling with a self-signed development CA:
+
+</div>
+<div>
+
+```bash title="Terminal"
+cd example
+npm install
+npm run cert        # generates a private dev CA + server cert for your LAN IP
+npm run dev:https   # serves https://<LAN-IP>:5173
+```
+
+</div>
+<div>
 
 Then:
 
@@ -191,16 +204,6 @@ these keys in production.
 iOS Safari does not expose the immersive-ar WebXR flow this SDK's browser
 runtime is built on. The WebXR path is an Android Chrome path; plan a
 separate implementation for iOS if you need it.
-
-</div>
-<div>
-
-```bash title="Terminal"
-cd example
-npm install
-npm run cert        # generates a private dev CA + server cert for your LAN IP
-npm run dev:https   # serves https://<LAN-IP>:5173
-```
 
 </div>
 </Step>

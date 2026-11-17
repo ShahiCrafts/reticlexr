@@ -62,7 +62,7 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
       <div className="flex">
         {/* Left sidebar — plain text nav, own scroll (scrollbar hidden),
             sticky under the top bar. 320px wide, 24px padding. */}
-        <aside className="no-scrollbar sticky top-[72px] hidden max-h-[calc(100vh-72px)] w-80 shrink-0 overflow-y-auto p-6 lg:block">
+        <aside className="no-scrollbar sticky top-[80px] hidden max-h-[calc(100vh-80px)] w-80 shrink-0 overflow-y-auto p-6 lg:block">
           <SidebarNav currentSlug={slugStr} />
         </aside>
 
@@ -119,7 +119,7 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
             rel="noreferrer"
             aria-label="Edit this page on GitHub"
             title="Edit this page on GitHub"
-            className="fixed right-6 top-[7.5rem] z-30 flex h-12 w-12 items-center justify-center rounded-full bg-[#030712] text-white shadow-lg shadow-slate-950/25 transition hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 lg:top-20 dark:bg-white dark:text-slate-950 dark:shadow-black/40 dark:hover:bg-slate-200"
+            className="fixed bottom-6 right-6 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-[#030712] text-white shadow-lg shadow-slate-950/25 transition hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:bg-white dark:text-slate-950 dark:shadow-black/40 dark:hover:bg-slate-200"
           >
             <LuPencil size={19} strokeWidth={1.9} aria-hidden />
           </a>
@@ -154,7 +154,7 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
         </main>
 
         {/* Right TOC */}
-        <aside className="no-scrollbar sticky top-14 hidden max-h-[calc(100vh-56px)] w-56 shrink-0 overflow-y-auto pt-12 pr-6 pb-2 lg:pt-14 xl:block">
+        <aside className="no-scrollbar sticky top-16 hidden max-h-[calc(100vh-64px)] w-56 shrink-0 overflow-y-auto pt-12 pr-6 pb-2 lg:pt-14 xl:block">
           <Toc headings={page.headings} />
         </aside>
       </div>
