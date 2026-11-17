@@ -82,7 +82,7 @@ open **by decision** rather than by oversight.
   `exports` map with subpaths; `three` and `@capacitor/core` are
   peer dependencies; lockfiles are committed and the CI workflow
   installs with `npm ci`.
-- **Tests exist:** the Vitest suite (24 files, 25 tests) passes
+- **Tests exist:** the Vitest suite (27 files, 28 tests) passes
   locally, and the committed CI workflow defines jobs for it
   alongside the type-check, the example build and a Gradle
   `:reticlexr:assembleDebug` build. The workflow has not yet had a
@@ -97,9 +97,10 @@ open **by decision** rather than by oversight.
   `NOT_IMPLEMENTED` on native instead of pretending to work.
   Models render in the WebXR runtime. Implementing native
   rendering (Option A) remains an owner decision.
-- **Compatibility values are unverified.** No device/browser
-  version has been recorded as tested — see
-  [Compatibility](/docs/compatibility). Device testing is TODO.
+- **Compatibility coverage is one device deep.** The WebXR runtime
+  has a first recorded device test (Redmi Note 9S, Android 12,
+  Chrome 157 — see [Compatibility](/docs/compatibility)); the
+  native Capacitor runtime has not been device-tested yet.
 - **`npm audit` has never been run.** The audit environment's
   registry proxy refuses the audit endpoint (403), so no
   vulnerability counts exist. The CI workflow defines the audit as a
@@ -110,8 +111,6 @@ open **by decision** rather than by oversight.
   but a full framework prerender (e.g. Next.js) has not been
   exercised — still TODO.
 
-<Todo>
-Not yet verifiable anywhere: `npm audit` results, a full framework
-SSR prerender, and all compatibility-matrix values. Each is marked
-TODO at its point of use on this site rather than asserted.
-</Todo>
+Still unverified anywhere: `npm audit` results and a full framework
+SSR prerender. Both are stated as such at their point of use on this
+site rather than asserted.

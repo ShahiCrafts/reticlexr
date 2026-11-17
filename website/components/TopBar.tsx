@@ -188,7 +188,7 @@ export function SiteFooter() {
         </p>
         <p>
           Docs for v1.1.0. Every API on this site was checked against the source; anything unverified is
-          marked TODO.
+          stated as such.
         </p>
       </div>
     </footer>

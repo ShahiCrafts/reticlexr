@@ -98,6 +98,11 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **GLB animation playback.** Models whose files carry animation
+  clips (skeletal or node animation, e.g. Sketchfab exports) now
+  play them on loop in the WebXR runtime: each placement gets an
+  `AnimationMixer` over its own skeleton-correct clone, stepped
+  from the XR frame loop. Static models are unaffected.
 - **`reticlexr/react` subpath (API-02).** React applications can
   import `useARCore` from `reticlexr/react`, the supported React
   entry point.

@@ -7,11 +7,24 @@
 // website/sdk-src by scripts/sync-sdk.mjs — see website/README.md.
 
 import React, { useEffect, useRef, useState } from 'react';
+import {
+  LuBird,
+  LuCamera,
+  LuCircleHelp,
+  LuFootprints,
+  LuRocket,
+  LuScaling,
+  LuTrash2,
+  LuX,
+} from 'react-icons/lu';
 
+// Sketchfab models supplied by the site owner (credits and
+// licences on the demo page below the player). The astronaut and
+// the rhino carry animation clips, which the library now plays.
 const MODELS = [
-  { id: 'sofa', label: 'Sofa', url: '/models/sofa.glb', emoji: '🛋️' },
-  { id: 'chair', label: 'Chair', url: '/models/chair.glb', emoji: '🪑' },
-  { id: 'table', label: 'Table', url: '/models/table.glb', emoji: '▰' },
+  { id: 'astronaut', label: 'Astronaut', url: '/models/astronaut.glb', Icon: LuRocket },
+  { id: 'duck', label: 'Duck', url: '/models/duck.glb', Icon: LuBird },
+  { id: 'rhino', label: 'Rhino', url: '/models/rhino.glb', Icon: LuFootprints },
 ];
 const SWATCHES = [
   ['Beige', '#c8b49b'],
@@ -25,6 +38,20 @@ export default function DemoClient() {
   const overlayRef = useRef(null);
   const viewRef = useRef(null);
   const modelIndexRef = useRef(0);
+  // Gesture callbacks fire at pointer-event rate; pushing each one
+  // through React state re-rendered the whole demo dozens of times a
+  // second on a mid-range phone and the frame drops read as gesture
+  // glitch. Latest values are queued here and flushed once per frame.
+  const readoutRef = useRef({ raf: 0, scale: null, rotation: null });
+  const queueReadout = (patch) => {
+    Object.assign(readoutRef.current, patch);
+    if (readoutRef.current.raf) return;
+    readoutRef.current.raf = requestAnimationFrame(() => {
+      readoutRef.current.raf = 0;
+      if (readoutRef.current.scale !== null) setScale(readoutRef.current.scale);
+      if (readoutRef.current.rotation !== null) setRotation(readoutRef.current.rotation);
+    });
+  };
   const [supported, setSupported] = useState(null);
   const [supportReason, setSupportReason] = useState('');
   const [active, setActive] = useState(false);
@@ -65,6 +92,7 @@ export default function DemoClient() {
     })();
     return () => {
       cancelled = true;
+      cancelAnimationFrame(readoutRef.current.raf);
       if (viewRef.current === view && view) view.destroy().catch(() => {});
     };
   }, []);
@@ -80,6 +108,10 @@ export default function DemoClient() {
         showPlaneDots: true,
         dotSpacing: 0.14,
         lightEstimation: true,
+        // The demo has a screenshot button, so camera access is
+        // requested up front: WebXR grants session features only at
+        // requestSession — there is no way to ask later, mid-session.
+        enableScreenshots: true,
       });
       v.onFrame((e) => {
         if (e.type === 'surfaceDetected') setSurface(true);
@@ -89,30 +121,33 @@ export default function DemoClient() {
           setNeedsResume(true);
         }
       });
-      await v.preloadModels(MODELS.map((m) => m.url));
+      // The models total ~12 MB: preload only the selected one so
+      // the AR view opens promptly, then warm the cache with the
+      // rest in the background (they load on first use regardless).
+      await v.preloadModels([MODELS[modelIndexRef.current].url]);
       v.enableCustomization({
         modelUrl: () => MODELS[modelIndexRef.current].url,
-        onTap: () => setTimeout(() => setPlaced(!!v.activeModelId), 0),
-        onScale: (s) => setScale(s),
-        onRotate: (r) => setRotation(r),
+        onTap: () =>
+          setTimeout(() => {
+            if (v.activeModelId) {
+              setPlaced(true);
+              setToast('Pinch to scale • twist to rotate');
+            }
+          }, 0),
+        onScale: (s) => queueReadout({ scale: s }),
+        onRotate: (r) => queueReadout({ rotation: r }),
+        onError: (e) =>
+          setToast(
+            /surface/i.test(e?.message || '')
+              ? 'No surface there — aim at the dots and tap'
+              : e?.message || 'Something went wrong',
+          ),
       });
       setActive(true);
       setToast('Move slowly — dots show detected surfaces');
+      v.preloadModels(MODELS.map((m) => m.url)).catch(() => {});
     } catch (e) {
       setToast(e.message);
-    }
-    setBusy(false);
-  };
-
-  const place = async () => {
-    if (!surface || busy) return;
-    setBusy(true);
-    const r = await viewRef.current.placeModel(MODELS[modelIndex].url);
-    if (r.success) {
-      setPlaced(true);
-      setToast('Pinch to scale • twist to rotate');
-    } else {
-      setToast('No surface found yet — keep scanning.');
     }
     setBusy(false);
   };
@@ -188,7 +223,7 @@ export default function DemoClient() {
           <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-lg font-bold" aria-hidden="true">
             AR
           </div>
-          <p className="font-mono text-xs font-medium uppercase tracking-widest text-blue-300">Furniture preview</p>
+          <p className="font-mono text-xs font-medium uppercase tracking-widest text-blue-300">Live WebXR demo</p>
           <h2 className="mt-3 text-3xl font-bold leading-tight">
             See it in
             <br />
@@ -235,9 +270,17 @@ export default function DemoClient() {
         </main>
       ) : (
         <>
-          <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-between p-4" data-ui="true">
-            <button type="button" onClick={close} aria-label="Close AR" className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-xl focus-visible:outline-2 focus-visible:outline-blue-300">
-              ×
+          {/* The in-AR header sits over the camera feed, where the
+              phone's status bar / camera cutout also lives — drop it
+              below that zone (safe-area inset when the device
+              reports one, a fixed extra drop otherwise). */}
+          <header
+            className="absolute inset-x-0 top-0 z-10 flex items-center justify-between p-4"
+            style={{ paddingTop: 'max(1.75rem, calc(1rem + env(safe-area-inset-top, 0px)))' }}
+            data-ui="true"
+          >
+            <button type="button" onClick={close} aria-label="Close AR" className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 focus-visible:outline-2 focus-visible:outline-blue-300">
+              <LuX size={20} aria-hidden="true" />
             </button>
             <div className="rounded-full bg-black/50 px-3 py-1.5 text-sm font-medium">AR View</div>
             <button
@@ -246,17 +289,24 @@ export default function DemoClient() {
               onClick={() => setToast('Dots = detected surface • tap = place • pinch = scale • twist = rotate')}
               className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 focus-visible:outline-2 focus-visible:outline-blue-300"
             >
-              ?
+              <LuCircleHelp size={20} aria-hidden="true" />
             </button>
           </header>
 
-          <div className="pointer-events-none absolute inset-x-0 top-20 z-10 flex justify-center">
-            <span className={`rounded-full px-3 py-1 text-xs font-medium ${surface ? 'bg-emerald-500/80' : 'bg-black/50'}`}>
-              {surface ? '● Surface ready' : '○ Scanning your space…'}
+          <div
+            className="pointer-events-none absolute inset-x-0 z-10 flex justify-center"
+            style={{ top: 'calc(5rem + max(0.75rem, env(safe-area-inset-top, 0px)))' }}
+          >
+            <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${surface ? 'bg-emerald-500/80' : 'bg-black/50'}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${surface ? 'bg-white' : 'bg-slate-300'}`} aria-hidden="true" />
+              {surface ? 'Surface ready' : 'Scanning your space…'}
             </span>
           </div>
           {toast && (
-            <div className="pointer-events-none absolute inset-x-0 top-32 z-10 flex justify-center px-4">
+            <div
+              className="pointer-events-none absolute inset-x-0 z-10 flex justify-center px-4"
+              style={{ top: 'calc(8rem + max(0.75rem, env(safe-area-inset-top, 0px)))' }}
+            >
               <span className="rounded-full bg-black/60 px-3 py-1.5 text-center text-xs">{toast}</span>
             </div>
           )}
@@ -265,9 +315,9 @@ export default function DemoClient() {
 
           {placed && (
             <div className="absolute right-4 top-1/2 z-10 flex -translate-y-1/2 flex-col gap-2" data-ui="true">
-              <button type="button" onClick={screenshot} aria-label="Take screenshot" className="flex h-11 w-11 items-center justify-center rounded-full bg-black/50 focus-visible:outline-2 focus-visible:outline-blue-300">▧</button>
-              <button type="button" onClick={() => setToast(`${scale.toFixed(2)}× scale`)} aria-label="Show scale" className="flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-xs focus-visible:outline-2 focus-visible:outline-blue-300">1:1</button>
-              <button type="button" onClick={reset} aria-label="Remove model" className="flex h-11 w-11 items-center justify-center rounded-full bg-black/50 focus-visible:outline-2 focus-visible:outline-blue-300">↶</button>
+              <button type="button" onClick={screenshot} aria-label="Take screenshot" className="flex h-11 w-11 items-center justify-center rounded-full bg-black/50 focus-visible:outline-2 focus-visible:outline-blue-300"><LuCamera size={20} aria-hidden="true" /></button>
+              <button type="button" onClick={() => setToast(`${scale.toFixed(2)}× scale`)} aria-label="Show scale" className="flex h-11 w-11 items-center justify-center rounded-full bg-black/50 focus-visible:outline-2 focus-visible:outline-blue-300"><LuScaling size={20} aria-hidden="true" /></button>
+              <button type="button" onClick={reset} aria-label="Remove model" className="flex h-11 w-11 items-center justify-center rounded-full bg-black/50 focus-visible:outline-2 focus-visible:outline-blue-300"><LuTrash2 size={20} aria-hidden="true" /></button>
             </div>
           )}
 
@@ -283,7 +333,7 @@ export default function DemoClient() {
                     i === modelIndex ? 'bg-blue-600 text-white' : 'bg-black/50 text-slate-200'
                   }`}
                 >
-                  <span className="text-lg" aria-hidden="true">{m.emoji}</span>
+                  <m.Icon size={22} aria-hidden="true" />
                   {m.label}
                 </button>
               ))}
@@ -291,7 +341,7 @@ export default function DemoClient() {
 
             {placed && (
               <div className="flex flex-wrap items-center justify-center gap-2">
-                <span className="text-xs text-slate-300">Fabric:</span>
+                <span className="text-xs text-slate-300">Colour:</span>
                 {SWATCHES.map(([name, c]) => (
                   <button
                     key={c}
@@ -308,19 +358,19 @@ export default function DemoClient() {
               </div>
             )}
 
+            {/* No dedicated place button: placement is a tap on a
+                detected surface (the gesture controller places the
+                selected model at the tap point). This pill only
+                explains the current state. */}
             <div className="flex justify-center">
-              {!placed ? (
-                <button
-                  type="button"
-                  disabled={!surface || busy}
-                  onClick={place}
-                  className={`h-16 w-16 rounded-full border-4 focus-visible:outline-2 focus-visible:outline-blue-300 ${
-                    surface ? 'border-white bg-blue-600' : 'border-white/40 bg-white/20'
-                  }`}
-                  aria-label="Place model"
-                />
-              ) : (
+              {placed ? (
                 <div className="rounded-full bg-black/50 px-4 py-2 text-xs">Model placed — tap a product above to switch it in place</div>
+              ) : (
+                <div className="rounded-full bg-black/50 px-4 py-2 text-xs">
+                  {surface
+                    ? `Tap a dotted surface to place the ${MODELS[modelIndex].label.toLowerCase()}`
+                    : 'Aim at a flat surface until dots appear, then tap to place'}
+                </div>
               )}
             </div>
           </div>

@@ -12,6 +12,7 @@
 import { WebPlugin } from "@capacitor/core";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { clone as cloneSkinnedScene } from "three/examples/jsm/utils/SkeletonUtils.js";
 
 // ============================================================
 // Transform input normalisation (BUG-01)
@@ -404,6 +405,8 @@ export class ARCoreWeb extends WebPlugin {
     // Model management
     this.anchors = new Map();
     this.loadedModels = new Map();
+    this.modelMixers = new Map();
+    this._lastMixerTimestamp = null;
     // url -> { gltf, resources } — `resources` is the entry's
     // cache-owned resource set (OWNERSHIP RULE above)
     this.modelCache = new Map();
@@ -1434,6 +1437,9 @@ export class ARCoreWeb extends WebPlugin {
       // Update model positions
       this.updateModelPositions(frame);
 
+      // Advance GLB animation clips (walking characters and the like)
+      this._updateModelAnimations(timestamp);
+
       // Render
       this.renderer.render(this.scene, this.camera);
 
@@ -1541,6 +1547,12 @@ export class ARCoreWeb extends WebPlugin {
     });
 
     this.loadedModels.clear();
+    this.modelMixers.forEach((mixer) => {
+      mixer.stopAllAction();
+      mixer.uncacheRoot(mixer.getRoot());
+    });
+    this.modelMixers.clear();
+    this._lastMixerTimestamp = null;
     this.modelShadows.clear();
     this.modelBaseRings.clear();
 
@@ -1609,6 +1621,8 @@ export class ARCoreWeb extends WebPlugin {
       disposeObject(this.scene, this._sharedResources);
     }
     this.loadedModels.clear();
+    this.modelMixers.clear();
+    this._lastMixerTimestamp = null;
     this.modelShadows.clear();
     this.modelBaseRings.clear();
     this.anchors.clear();
@@ -1759,8 +1773,10 @@ export class ARCoreWeb extends WebPlugin {
    * On the next frame, the viewer pose supplies the camera's position,
    * orientation and projection; `rayFromScreenPoint` turns (x, y) into
    * a ray in reference space; a dedicated hit-test source is registered
-   * with that ray as its `offsetRay`; the following frame's hit results
-   * settle the promise.
+   * with that ray as its `offsetRay`; subsequent frames' hit results
+   * settle the promise (a fresh source commonly delivers nothing on
+   * its first frame or two, so a bounded grace of empty frames is
+   * tolerated before the point is called a miss).
    *
    * The one-off source is cancelled on EVERY settle path — results
    * consumed, no hit, error, timeout, or session end (including a
@@ -1778,6 +1794,12 @@ export class ARCoreWeb extends WebPlugin {
     return new Promise((resolve) => {
       let settled = false;
       let raySource = null;
+      let emptyFrames = 0;
+      // A freshly created source commonly delivers nothing on its
+      // first frame or two (the runtime raycasts asynchronously), so
+      // empty frames are tolerated up to this bound before the tap
+      // is called a genuine miss.
+      const MAX_EMPTY_FRAMES = 6;
 
       const settle = (result) => {
         if (settled) return;
@@ -1835,7 +1857,19 @@ export class ARCoreWeb extends WebPlugin {
             return;
           }
         }
-        settle({ hit: false });
+        // No usable result on this frame: a freshly created source
+        // commonly delivers its first results a frame or two late
+        // (the runtime raycasts asynchronously), and a pose can be
+        // null for a frame. Settling { hit: false } on the FIRST
+        // empty frame made every tap miss. Keep listening for a
+        // bounded grace of empty frames; the timeout and
+        // session-end paths still bound the wait overall.
+        emptyFrames++;
+        if (emptyFrames >= MAX_EMPTY_FRAMES) {
+          settle({ hit: false });
+          return;
+        }
+        session.requestAnimationFrame(onResultsFrame);
       };
 
       const onPoseFrame = async (time, frame) => {
@@ -2017,13 +2051,86 @@ export class ARCoreWeb extends WebPlugin {
     return [mesh.material];
   }
 
+  // ==========================================================
+  // Animation playback
+  // ==========================================================
+  // Animation clips ship inside the GLB and GLTFLoader parses them
+  // into `gltf.animations`, but nothing moves until a mixer steps
+  // them. Placements therefore get an AnimationMixer over their own
+  // cloned scene (loadModel clones with SkeletonUtils so each
+  // placement's skeleton is its own — a plain Object3D.clone()
+  // shares the cache scene's skeleton, which would freeze skinned
+  // placements in bind pose and couple them together). All clips
+  // play on loop: files exported per-object (e.g. from Blender via
+  // Sketchfab) split one performance into several clips that must
+  // run together. Mixers are stepped from the XR frame loop with
+  // the frame timestamp, so playback is frame-rate independent and
+  // stays in sync with tracking.
+
+  /**
+   * Start looping animation for a placed model, if its GLB carries
+   * clips. No-op for static models.
+   *
+   * @param {string} anchorId
+   * @param {*} model - The placed scene clone
+   * @param {string} modelUrl
+   */
+  _startModelAnimation(anchorId, model, modelUrl) {
+    const entry = this.modelCache.get(modelUrl);
+    const clips = entry && entry.gltf ? entry.gltf.animations : null;
+    if (!clips || clips.length === 0) return;
+    const mixer = new THREE.AnimationMixer(model);
+    clips.forEach((clip) => {
+      mixer.clipAction(clip).setLoop(THREE.LoopRepeat, Infinity).play();
+    });
+    this.modelMixers.set(anchorId, mixer);
+  }
+
+  /**
+   * Stop and release a placed model's animation mixer.
+   *
+   * @param {string} anchorId
+   */
+  _stopModelAnimation(anchorId) {
+    const mixer = this.modelMixers.get(anchorId);
+    if (!mixer) return;
+    mixer.stopAllAction();
+    mixer.uncacheRoot(mixer.getRoot());
+    this.modelMixers.delete(anchorId);
+  }
+
+  /**
+   * Advance every live mixer by the elapsed frame time. Called once
+   * per XR frame, before render. Mixers whose placement has gone
+   * away are pruned here as a backstop to the explicit stops in
+   * removeModel/switchModel.
+   *
+   * @param {number} timestamp - The XR frame timestamp (ms)
+   */
+  _updateModelAnimations(timestamp) {
+    if (this._lastMixerTimestamp == null) this._lastMixerTimestamp = timestamp;
+    const delta = Math.min(
+      Math.max((timestamp - this._lastMixerTimestamp) / 1000, 0),
+      0.1
+    );
+    this._lastMixerTimestamp = timestamp;
+    if (delta === 0 || this.modelMixers.size === 0) return;
+    this.modelMixers.forEach((mixer, anchorId) => {
+      if (!this.loadedModels.has(anchorId)) {
+        this._stopModelAnimation(anchorId);
+        return;
+      }
+      mixer.update(delta);
+    });
+  }
+
   async loadModel(modelUrl) {
     const cached = this.modelCache.get(modelUrl);
     if (cached) {
       // Refresh LRU recency (LEAK-04)
       this.modelCache.delete(modelUrl);
       this.modelCache.set(modelUrl, cached);
-      return cached.gltf.scene.clone();
+      return cloneSkinnedScene(cached.gltf.scene);
     }
 
     return new Promise((resolve, reject) => {
@@ -2031,7 +2138,7 @@ export class ARCoreWeb extends WebPlugin {
         modelUrl,
         (gltf) => {
           this._registerModelCache(modelUrl, gltf);
-          resolve(gltf.scene.clone());
+          resolve(cloneSkinnedScene(gltf.scene));
         },
         (progress) => {
           const percent = ((progress.loaded / progress.total) * 100).toFixed(0);
@@ -2120,6 +2227,7 @@ export class ARCoreWeb extends WebPlugin {
       // Add to scene and track
       this.scene.add(model);
       this.loadedModels.set(anchorId, model);
+      this._startModelAnimation(anchorId, model, modelUrl);
 
       const footprint = this.getModelFootprint(model);
 
@@ -2160,6 +2268,7 @@ export class ARCoreWeb extends WebPlugin {
     const anchorId = resolveModelId(options);
     const model = this.loadedModels.get(anchorId);
     if (model) {
+      this._stopModelAnimation(anchorId);
       this.scene.remove(model);
       // Dispose per-instance resources; cache-owned shared resources
       // are skipped per the OWNERSHIP RULE (LEAK-01)
@@ -2459,12 +2568,14 @@ export class ARCoreWeb extends WebPlugin {
     }
     this.scene.add(next);
     this.scene.remove(oldModel);
+    this._stopModelAnimation(anchorId);
     // Dispose the old model's per-instance resources (LEAK-01) and
     // its shadow (LEAK-07); cache-owned resources are skipped
     const skip = new Set(this._sharedResources);
     preservedMaps.forEach((t) => skip.add(t));
     disposeObject(oldModel, skip);
     this.loadedModels.set(anchorId, next);
+    this._startModelAnimation(anchorId, next, modelUrl);
     anchor.modelUrl = modelUrl;
     const oldShadow = this.modelShadows.get(anchorId);
     if (oldShadow) { this.scene.remove(oldShadow); disposeObject(oldShadow, this._sharedResources); this.modelShadows.delete(anchorId); }

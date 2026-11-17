@@ -1,34 +1,32 @@
 ---
 title: Compatibility
-description: What the code requires, what is known to work, and — stated plainly — what has never been recorded as tested.
+description: What the code requires, and the devices and browsers it has actually been run on.
 ---
 
-<Todo>
-**Unverified:** no tested-device or tested-browser data exists
-anywhere in this repository: no test matrix, no recorded device
-sessions, no minimum browser versions. The tables below separate
-**code-level requirements** (verified by reading the source) from
-**tested support** (which is TODO until someone runs real devices
-and records the results). Do not read a requirement as a support
-promise.
-</Todo>
+The tables below separate **code-level requirements** (verified by
+reading the source) from **tested support** (real device runs,
+recorded in [Devices](#devices)). Do not read a requirement as a
+support promise: a feature is only "tested" once it has been run on
+a recorded device.
 
 ## WebXR runtime (browser)
 
-| Requirement | Source | Tested versions |
+| Requirement | Source | Tested |
 | --- | --- | --- |
 | Secure context (HTTPS or `localhost`) | WebXR platform rule; `checkSupport()` reports it with a distinct `INSECURE_CONTEXT` code | — |
-| `immersive-ar` session support | `navigator.xr.requestSession('immersive-ar', …)` | TODO |
-| `hit-test` feature | Required feature at session creation | TODO |
-| `local-floor` feature | Requested first at session creation; falls back to `local`, then `viewer` when unavailable | TODO |
-| `plane-detection` | Optional feature; dots/meshes appear when granted | TODO |
-| `light-estimation` | Optional; requested when light estimation is on | TODO |
-| `camera-access` | Optional; requested **only** when the session starts with `enableScreenshots: true` (for screenshots — not implied by light estimation) | TODO |
-| `dom-overlay` | Optional; requested when an overlay element is provided | TODO |
+| `immersive-ar` session support | `navigator.xr.requestSession('immersive-ar', …)` | Chrome 157 · Android 12 ✓ |
+| `hit-test` feature | Required feature at session creation | Chrome 157 · Android 12 ✓ |
+| `local-floor` feature | Requested first at session creation; falls back to `local`, then `viewer` when unavailable | — |
+| `plane-detection` | Optional feature; dots/meshes appear when granted | Chrome 157 · Android 12 ✓ |
+| `light-estimation` | Optional; requested when light estimation is on | — |
+| `camera-access` | Optional; requested **only** when the session starts with `enableScreenshots: true` (for screenshots — not implied by light estimation) | See the device notes |
+| `dom-overlay` | Optional; requested when an overlay element is provided | Chrome 157 · Android 12 ✓ |
 
 The documented test path is **Chrome on an ARCore-capable Android phone**
 (see [Phone testing](/docs/getting-started#https-and-phone-testing)).
-Specific Chrome versions: **TODO**.
+Chrome versions tested so far: **157.0.8103.78** on Android 12. No
+minimum Chrome version is established — only versions actually run
+are listed.
 
 iOS Safari does not expose the immersive-ar WebXR flow — the browser
 runtime is not an iOS path.
@@ -43,7 +41,8 @@ runtime is not an iOS path.
 | Filament | 1.52.0 | Camera-background rendering |
 | Java | 21 | Source/target compatibility |
 
-Tested Android versions and devices: **TODO** — none are recorded.
+The native Capacitor runtime has not been device-tested yet. The
+WebXR runtime has — see [Devices](#devices).
 
 <Note>
 The library's Android manifest declares the AR feature (and the
@@ -65,9 +64,27 @@ AR required is an opt-in from your own manifest — see the
 
 ## Devices
 
-<Todo>
-Device matrix is empty by honesty, not by oversight: no device has been
-recorded as tested with any release. If you run the demo on your phone,
-reporting the device model, Android version and Chrome version (in a
-GitHub issue) directly fills this table.
-</Todo>
+| Device | OS | Browser | Date | Result |
+| --- | --- | --- | --- | --- |
+| Redmi Note 9S | Android 12 | Chrome 157.0.8103.78 | 2026-11-17 | WebXR demo run — see notes below |
+
+Notes from the Redmi Note 9S run (the library's first recorded device
+test, against the live demo):
+
+- Session start, surface detection, tap-to-place and in-place model
+  switching all worked; switching was smooth.
+- Pinch-to-scale and twist-to-rotate worked but were jittery and
+  hard to control. Root causes found in the gesture pipeline the
+  same day — no `touch-action: none` on the overlay, unsmoothed
+  digitizer samples, and transform state committed only after an
+  async engine call — and fixed in the library source. A confirming
+  re-test is pending.
+- Screenshots failed with `CAMERA_CAPTURE_UNAVAILABLE`: the demo
+  did not start its session with `enableScreenshots: true`, so
+  camera access was never requested (WebXR can only grant it at
+  session start). The demo now opts in; a confirming re-test is
+  pending.
+
+If you run the demo on your phone, reporting the device model,
+Android version and Chrome version (in a GitHub issue) directly
+extends this table.

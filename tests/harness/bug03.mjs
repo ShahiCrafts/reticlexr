@@ -137,14 +137,16 @@ function engineWith(session) {
   check('2a source cancelled after consume', session.sources[0].cancelled === true);
 }
 
-// 2b: no hit on results frame
+// 2b: no hit across the empty-frame grace -> {hit:false}
 {
   const session = new FakeSession();
   const e = engineWith(session);
   const p = e.hitTest({ x: 0.25, y: 0.75 });
   session.pump(frameWith({ pose: viewerPose }));
   await tick();
-  session.pump(frameWith({ results: [] }));
+  // A fresh source's first frames are commonly empty (async raycast);
+  // the engine tolerates a bounded grace of them before calling a miss.
+  for (let i = 0; i < 6; i++) session.pump(frameWith({ results: [] }));
   const res = await p;
   check('2b resolves {hit:false}', res.hit === false && !res.error);
   check('2b source cancelled after no-hit', session.sources[0].cancelled === true);

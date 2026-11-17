@@ -51,6 +51,23 @@ export default function DemoPage() {
           <DemoMount />
         </div>
 
+        <p className="mt-4 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
+          Models from Sketchfab: Astronaut by{' '}
+          <a href="https://sketchfab.com/3d-models/astronaut-482bf87662fd4b378bcb3a2931d59ca3" className="underline hover:text-slate-600 dark:hover:text-slate-300" target="_blank" rel="noreferrer">
+            Antropik
+          </a>{' '}
+          (CC BY 4.0) · Cute Little Duck by{' '}
+          <a href="https://sketchfab.com/3d-models/cute-little-duck-7d731ce780534a01b5a11f72f7e93fd2" className="underline hover:text-slate-600 dark:hover:text-slate-300" target="_blank" rel="noreferrer">
+            TadenStar
+          </a>{' '}
+          (CC BY 4.0) · Southern White Rhino by{' '}
+          <a href="https://sketchfab.com/3d-models/model-56a-southern-white-rhino-8e97b62a90f44ce19ea9e3fd421f55b4" className="underline hover:text-slate-600 dark:hover:text-slate-300" target="_blank" rel="noreferrer">
+            DigitalLife3D
+          </a>{' '}
+          (CC BY-NC 4.0). The astronaut and the rhino are animated — the library plays the clips
+          embedded in their files.
+        </p>
+
         {/* Owner-supplied recording slot — intentionally empty. */}
         <div className="mt-10 rounded-2xl border-2 border-dashed border-slate-300 p-8 text-center dark:border-slate-700" aria-label="Demo recording placeholder">
           <p className="font-semibold text-slate-700 dark:text-slate-200">Demo GIF — slot reserved</p>

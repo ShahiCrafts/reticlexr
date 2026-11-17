@@ -77,7 +77,15 @@ export class ARView {
    * uniform numeric scale — the engine normalises them (BUG-01).
    */
   async placeModel(modelUrl, options = {}) {
-    const hit = options.position ? { hit: true, position: options.position, rotation: options.rotation } : await this.engine.hitTest({ x: options.x ?? .5, y: options.y ?? .5 });
+    const pointTest = !options.position && ((options.x ?? .5) !== .5 || (options.y ?? .5) !== .5);
+    let hit = options.position ? { hit: true, position: options.position, rotation: options.rotation } : await this.engine.hitTest({ x: options.x ?? .5, y: options.y ?? .5 });
+    if (!hit.hit && pointTest) {
+      // The per-tap ray test can still miss on a good surface (its
+      // one-off source races the runtime's raycast). Fall back to the
+      // centre hit — the reticle path the render loop keeps warm —
+      // before reporting no surface.
+      hit = await this.engine.hitTest({ x: .5, y: .5 });
+    }
     if (!hit.hit) return { success: false, code: 'NO_SURFACE', reason: 'NO_SURFACE' };
     const scale = options.scale ?? this.transform.scale;
     const rotation = options.rotation || hit.rotation || [0,0,0,1];
@@ -138,18 +146,35 @@ export class ARView {
   async setScale(scale) {
     if (!this.activeModelId) return;
     const s = Math.max(SCALE_MIN, Math.min(SCALE_MAX, scale));
-    await this.engine.transformModel({ modelId: this.activeModelId, scale: [s,s,s] });
-    // Commit local state only after the engine accepts it, so a failed
-    // call cannot leave the facade's transform ahead of the scene (BUG-11)
+    const previous = this.transform.scale;
+    // Commit BEFORE awaiting the engine. Gesture handlers compose the
+    // next increment from this.transform at pointer-event rate; when
+    // the commit waited for the engine, in-flight events composed from
+    // the same stale value and increments were lost or replayed —
+    // a visible pinch judder. On engine failure the previous value is
+    // restored, so BUG-11's guarantee (a failed call never leaves the
+    // facade's transform ahead of the scene) still holds.
     this.transform.scale = s;
+    try {
+      await this.engine.transformModel({ modelId: this.activeModelId, scale: [s,s,s] });
+    } catch (error) {
+      this.transform.scale = previous;
+      throw error;
+    }
   }
 
   async rotateBy(radians) {
     if (!this.activeModelId) return;
-    const rotationY = this.transform.rotationY + radians;
-    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rotationY, 0)).toArray();
-    await this.engine.transformModel({ modelId: this.activeModelId, rotation: q });
+    const previous = this.transform.rotationY;
+    const rotationY = previous + radians;
     this.transform.rotationY = rotationY;
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rotationY, 0)).toArray();
+    try {
+      await this.engine.transformModel({ modelId: this.activeModelId, rotation: q });
+    } catch (error) {
+      this.transform.rotationY = previous;
+      throw error;
+    }
   }
 
   async setColor(color) {
@@ -180,7 +205,11 @@ export class ARView {
           try {
             // modelUrl accepts a plain string or a () => string (BUG-05)
             const modelUrl = typeof options.modelUrl === 'function' ? options.modelUrl() : options.modelUrl;
-            await this.placeModel(modelUrl, { x: x / innerWidth, y: y / innerHeight });
+            const result = await this.placeModel(modelUrl, { x: x / innerWidth, y: y / innerHeight });
+            // placeModel reports a missed hit test as a result, not a
+            // throw — convert it, so the failure reaches onError
+            // instead of the tap silently doing nothing.
+            if (!result.success) throw codedError('NO_SURFACE', 'No surface found at the tap point');
           } catch (error) {
             // The gesture controller never awaits this handler, so a
             // rejection here would be unhandled. Route placement failures
