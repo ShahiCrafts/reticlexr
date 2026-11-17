@@ -68,15 +68,24 @@ export default function DemoPage() {
           embedded in their files.
         </p>
 
-        {/* Owner-supplied recording slot — intentionally empty. */}
-        <div className="mt-10 rounded-2xl border-2 border-dashed border-slate-300 p-8 text-center dark:border-slate-700" aria-label="Demo recording placeholder">
-          <p className="font-semibold text-slate-700 dark:text-slate-200">Demo GIF: slot reserved</p>
-          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-500 dark:text-slate-400">
-            TODO (site owner): record the real demo on a device (tap-to-place, pinch, twist,
-            in-place switching) and drop the GIF here. Nothing on this page is a mock screenshot;
-            the demo above is live.
-          </p>
-        </div>
+        {/* The owner's own recording of the live demo on a phone. */}
+        <figure className="mt-10">
+          <video
+            className="mx-auto w-full max-w-[320px] rounded-2xl border border-slate-200 dark:border-white/10"
+            autoPlay
+            muted
+            loop
+            playsInline
+            poster="/demo-shot-poster.jpg"
+            aria-label="Screen recording of the live demo: surface scanning, tap-to-place, then pinch to scale and twist to rotate the rhino"
+          >
+            <source src="/demo-shot.mp4" type="video/mp4" />
+          </video>
+          <figcaption className="mx-auto mt-3 max-w-md text-center text-sm leading-relaxed text-slate-500 dark:text-slate-400">
+            The demo above, recorded on a phone: scanning for a surface, tap-to-place, then pinch
+            to scale and twist to rotate.
+          </figcaption>
+        </figure>
 
         <p className="mt-8 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
           Want the code? The playground source is{' '}

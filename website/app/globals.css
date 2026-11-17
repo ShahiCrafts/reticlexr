@@ -43,11 +43,21 @@
 
 html {
   scroll-behavior: smooth;
+  /* Fixed, not bouncy: no rubber-band overscroll past the page edges,
+     and the canvas behind the page carries the theme colour, so the
+     area revealed while scrolling matches the site (never white). */
+  overscroll-behavior: none;
+  background-color: #ffffff;
+}
+
+html.dark {
+  background-color: #05070d;
 }
 
 body {
   font-family: var(--font-sans);
   text-rendering: optimizeLegibility;
+  overscroll-behavior: none;
 }
 
 /* ---------- Shiki / rehype-pretty-code ----------
@@ -372,6 +382,35 @@ figure[data-rehype-pretty-code-figure] [data-highlighted-line] {
   outline: none;
 }
 
+/* Exception: the footer newsletter input sits inside a label whose
+   border lights up on focus-within, so the global ring would draw a
+   second, offset box inside the field. */
+.newsletter-input:focus-visible {
+  outline: none;
+}
+
+/* Footer toast entrance: rises and settles, no bounce. */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.toast-in {
+  animation: toast-in 0.25s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast-in {
+    animation: none;
+  }
+}
+
 /* Hide scrollbars while keeping the element scrollable (search results). */
 .scrollbar-none {
   scrollbar-width: none;
@@ -379,6 +418,7 @@ figure[data-rehype-pretty-code-figure] [data-highlighted-line] {
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
 
 /* Demo surface */
 .ar-demo-canvas-container canvas {
