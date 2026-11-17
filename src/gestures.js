@@ -26,6 +26,7 @@
  *   Fired for a short, stationary pointerup; payload is the pointer
  *   position in pixels
  * @param {(drag: {dx: number, dy: number, x: number, y: number}) => void} [options.onDrag]
+ * @param {(point: {x: number, y: number}) => void} [options.onDragEnd]
  * @param {(pinch: {factor: number, center: {x: number, y: number}}) => void} [options.onPinch]
  * @param {(rotate: {delta: number, center: {x: number, y: number}}) => void} [options.onRotate]
  * @param {number} [options.tapMaxDuration=260] - Max tap duration (ms)

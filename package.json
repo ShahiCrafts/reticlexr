@@ -1,6 +1,6 @@
 {
   "name": "reticlexr",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "High-level AR abstraction for Capacitor and React with WebXR, ARCore, Three.js, gestures, model customization, and DOM overlays.",
   "type": "module",
   "main": "src/index.js",
