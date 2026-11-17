@@ -71,6 +71,17 @@ export interface ARViewPlaceResult {
   reason?: string;
 }
 
+export interface ARViewDebugEntry {
+  type: 'tap' | 'placed' | 'moved' | 'switched' | 'drag' | 'dragend';
+  modelId?: string;
+  modelUrl?: string;
+  pixel?: { x: number; y: number };
+  normalised?: { x: number; y: number };
+  hit?: { x: number; y: number; z: number } | number[];
+  centre?: { x: number; y: number; z: number } | null;
+  baseCentre?: { x: number; y: number; z: number } | null;
+}
+
 export interface CustomizationOptions {
   /** Model to place on tap: a URL string or a () => string. */
   modelUrl: string | (() => string);
@@ -83,6 +94,8 @@ export interface CustomizationOptions {
    */
   onDrag?: (event: { dx: number; dy: number; x: number; y: number }) => void;
   onDragEnd?: (event: { x: number; y: number }) => void;
+  debug?: boolean;
+  onDebug?: (entry: ARViewDebugEntry) => void;
   onScale?: (scale: number) => void;
   onRotate?: (rotationY: number) => void;
   /** Receives placement errors from tap-to-place (BUG-05). */

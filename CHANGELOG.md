@@ -151,7 +151,35 @@ The project follows [Semantic Versioning](https://semver.org/).
   (falling back to a per-method `*_FAILED` code). The hook's
   failure results (`{ error }`) now also carry `code`.
 
+
+- ARView debug readout: `enableCustomization` accepts `debug`
+  and `onDebug`. Entries report each tap's pixel and normalised
+  point, the hit coordinate, the model's measured base centre,
+  and where its centre lies after the tap, so placement accuracy
+  can be verified on a phone. The live demo shows them in an
+  on-screen panel during AR.
+
 ### Fixed
+- Tap and drag accuracy: tap-to-place, tap-to-move and drag
+  coordinates are now normalised against the overlay element's
+  own bounding rect instead of the window size, so any
+  difference between the two (insets, embedding, a resized
+  overlay root) no longer displaces the model from the touched
+  point. A new end-to-end harness verifies the whole chain
+  against an analytic floor: taps land within 0.0001 m of the
+  predicted point and project back to the tapped pixel within
+  half a pixel.
+- Overlapping plane dots: when the same surface is reported as
+  overlapping planes, their dot fields no longer overlap. All
+  planes' dots are rebuilt in one pass over a shared occupancy
+  grid (largest plane first), so each surface shows a single
+  clean dot grid.
+- Placement centre hardening: the base centre is measured from
+  the model's main mesh cluster, so detached stray geometry in
+  a GLB (a leftover mesh sitting away from the body) can no
+  longer drag the measured centre, and with it the tap point,
+  off the model. The footprint used for shadows and base rings
+  is measured the same way.
 
 - **WebXR engine correctness (BUG-01…BUG-12).** Hook/engine
   transform shapes are normalised at the engine boundary (objects

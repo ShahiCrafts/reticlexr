@@ -63,6 +63,28 @@ export default function DemoClient() {
   const [rotation, setRotation] = useState(0);
   const [color, setColor] = useState(SWATCHES[0][1]);
   const [toast, setToast] = useState('');
+  const [debugEntries, setDebugEntries] = useState([]);
+  const [debugVisible, setDebugVisible] = useState(true);
+  const dbgLastOf = (types) => {
+    for (let i = debugEntries.length - 1; i >= 0; i--) {
+      if (types.includes(debugEntries[i].type)) return debugEntries[i];
+    }
+    return null;
+  };
+  const dbgFmt = (v) => {
+    if (!v) return '—';
+    const a = Array.isArray(v) ? v : [v.x, v.y, v.z];
+    return `(${a.map((n) => Number(n).toFixed(3)).join(', ')})`;
+  };
+  const dbgTap = dbgLastOf(['tap', 'dragend']);
+  const dbgPlace = dbgLastOf(['placed', 'moved']);
+  const dbgBase = dbgLastOf(['placed', 'switched']);
+  const dbgDeltaMm = (() => {
+    if (!dbgPlace?.hit || !dbgPlace?.centre) return null;
+    const h = Array.isArray(dbgPlace.hit) ? dbgPlace.hit : [dbgPlace.hit.x, dbgPlace.hit.y, dbgPlace.hit.z];
+    const c = [dbgPlace.centre.x, dbgPlace.centre.y, dbgPlace.centre.z];
+    return Math.hypot(h[0] - c[0], h[1] - c[1], h[2] - c[2]) * 1000;
+  })();
   const [shot, setShot] = useState(null);
   const [needsResume, setNeedsResume] = useState(false);
   const [loadError, setLoadError] = useState('');
@@ -104,7 +126,7 @@ export default function DemoClient() {
     try {
       await v.create({
         overlay: overlayRef.current,
-        showReticle: true,
+        showReticle: false,
         showPlaneDots: true,
         dotSpacing: 0.14,
         lightEstimation: true,
@@ -132,6 +154,8 @@ export default function DemoClient() {
       await v.preloadModels([MODELS[modelIndexRef.current].url]);
       v.enableCustomization({
         modelUrl: () => MODELS[modelIndexRef.current].url,
+        debug: true,
+        onDebug: (entry) => setDebugEntries((prev) => [...prev.slice(-7), entry]),
         onTap: () =>
           setTimeout(() => {
             if (v.activeModelId) {
@@ -323,6 +347,28 @@ export default function DemoClient() {
           )}
 
           <div className="flex-1" />
+
+          {debugVisible ? (
+            <div className="absolute left-3 top-1/2 z-10 w-[272px] -translate-y-1/2 rounded-xl bg-black/70 px-3 py-2 font-mono text-[11px] leading-5 text-emerald-300 backdrop-blur-sm" data-ui="true">
+              <div className="flex items-center justify-between">
+                <span className="font-bold tracking-wide text-emerald-200">AR DEBUG</span>
+                <button type="button" aria-label="Hide debug panel" onClick={() => setDebugVisible(false)} className="flex h-6 w-6 items-center justify-center rounded-full bg-white/10 focus-visible:outline-2 focus-visible:outline-blue-300">
+                  <LuX size={14} aria-hidden="true" />
+                </button>
+              </div>
+              <div>model: {dbgBase?.modelUrl ? dbgBase.modelUrl.split('/').pop() : '—'}</div>
+              <div>base centre: {dbgFmt(dbgBase?.baseCentre)}</div>
+              <div>tap px: {dbgTap?.pixel ? `(${dbgTap.pixel.x}, ${dbgTap.pixel.y})` : '—'}</div>
+              <div>tap norm: {dbgTap?.normalised ? `(${dbgTap.normalised.x.toFixed(3)}, ${dbgTap.normalised.y.toFixed(3)})` : '—'}</div>
+              <div>hit: {dbgFmt(dbgPlace?.hit)}</div>
+              <div>centre after tap: {dbgFmt(dbgPlace?.centre)}</div>
+              <div>Δ hit → centre: {dbgDeltaMm == null ? '—' : `${dbgDeltaMm.toFixed(1)} mm`}</div>
+            </div>
+          ) : (
+            <button type="button" data-ui="true" onClick={() => setDebugVisible(true)} className="absolute left-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/60 px-2.5 py-1 font-mono text-[10px] font-bold text-emerald-300">
+              DBG
+            </button>
+          )}
 
           {placed && (
             <div className="absolute right-4 top-1/2 z-10 flex -translate-y-1/2 flex-col gap-2" data-ui="true">

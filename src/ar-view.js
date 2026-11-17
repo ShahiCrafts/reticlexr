@@ -9,6 +9,10 @@ export class ARView {
     this.overlay = options.overlay || null;
     this.activeModelId = null;
     this.activeModelUrl = null;
+    this._rectCache = null;
+    this.debugEnabled = false;
+    this.onDebug = null;
+    this._lastDragDebugAt = 0;
     // Registry of every model placed through this view (API-03):
     // modelId -> modelUrl. placeModel can place more than the one
     // active model; without this they were unreachable orphans.
@@ -22,6 +26,7 @@ export class ARView {
 
   async create(options = {}) {
     if (options.overlay) this.overlay = options.overlay;
+    this._rectCache = null;
     this.engine.setConfig({
       showReticle: options.showReticle !== false,
       showPlanes: false,
@@ -94,6 +99,14 @@ export class ARView {
     this.activeModelId = result.modelId;
     this.activeModelUrl = modelUrl;
     this.placedModelUrls.set(result.modelId, modelUrl);
+    this._debugLog({
+      type: 'placed',
+      modelId: result.modelId,
+      modelUrl,
+      hit: hit.position,
+      centre: this._debugCentre(result.modelId),
+      baseCentre: this._debugBaseCentre(result.modelId),
+    });
     return { success: true, modelId: result.modelId, ...result };
   }
 
@@ -103,6 +116,13 @@ export class ARView {
     const result = await this.engine.switchModel({ modelId: this.activeModelId, modelUrl, preserveMaterial: options.preserveMaterial !== false });
     this.activeModelUrl = modelUrl;
     this.placedModelUrls.set(this.activeModelId, modelUrl);
+    this._debugLog({
+      type: 'switched',
+      modelId: this.activeModelId,
+      modelUrl,
+      centre: this._debugCentre(this.activeModelId),
+      baseCentre: this._debugBaseCentre(this.activeModelId),
+    });
     return { success: true, modelId: this.activeModelId, ...result };
   }
 
@@ -117,6 +137,12 @@ export class ARView {
     if (!this.activeModelId) return { success: false, code: 'NO_ACTIVE_MODEL', reason: 'NO_ACTIVE_MODEL' };
     const hit = await this.engine.moveModel({ modelId: this.activeModelId, x, y });
     if (!hit.hit) return { success: false, code: 'NO_SURFACE', reason: 'NO_SURFACE' };
+    this._debugLog({
+      type: 'moved',
+      modelId: this.activeModelId,
+      hit: hit.position,
+      centre: this._debugCentre(this.activeModelId),
+    });
     return { success: true, modelId: this.activeModelId, ...hit };
   }
 
@@ -208,28 +234,79 @@ export class ARView {
     return this.engine.setModelTexture({ modelId: this.activeModelId, textureUrl: url, materialName: options.materialName });
   }
 
+  /**
+   * Map overlay pixel coordinates to normalised [0, 1] using the
+   * overlay element's OWN bounding rect, not the window size. In a
+   * DOM-overlay session the element is presented fullscreen, but if
+   * its rect ever differs from the window (insets, embedding, a
+   * resized root), window-based mapping displaces every tap and
+   * drag by exactly that difference. The rect is cached briefly
+   * (it is constant during a gesture) and the mapping falls back
+   * to the window size when the element cannot be measured.
+   */
+  /**
+   * Debug readout support (enableCustomization's `debug` option).
+   * Entries describe each step of an interaction: the tapped
+   * pixel and its normalised point, the hit coordinate the
+   * runtime returned, the model's measured base centre, and where
+   * the model's centre actually lies afterwards, so placement
+   * accuracy can be verified on-device, where no console is
+   * visible. Entries also go to console.log under '[ARView]'.
+   */
+  _debugLog(entry) {
+    if (!this.debugEnabled) return;
+    try { console.log('[ARView]', entry.type, entry); } catch { /* noop */ }
+    if (this.onDebug) {
+      try { this.onDebug(entry); } catch { /* a consumer's logger must not break AR */ }
+    }
+  }
+
+  _debugCentre(modelId) {
+    const p = this.engine?.anchors?.get?.(modelId)?.position;
+    if (!p) return null;
+    return Array.isArray(p) ? { x: p[0], y: p[1], z: p[2] } : { x: p.x, y: p.y, z: p.z };
+  }
+
+  _debugBaseCentre(modelId) {
+    const inner = this.engine?.loadedModels?.get?.(modelId)?.children?.[0];
+    if (!inner?.position) return null;
+    return { x: -inner.position.x, y: -inner.position.y, z: -inner.position.z };
+  }
+
+  _normalisePoint(clientX, clientY) {
+    const now = performance.now();
+    if (!this._rectCache || now - this._rectCache.time > 250) {
+      let rect = null;
+      try {
+        rect = this.overlay?.getBoundingClientRect?.() || null;
+      } catch { /* detached element */ }
+      this._rectCache = { rect, time: now };
+    }
+    const rect = this._rectCache.rect;
+    if (rect && rect.width > 0 && rect.height > 0) {
+      return {
+        x: (clientX - rect.left) / rect.width,
+        y: (clientY - rect.top) / rect.height,
+      };
+    }
+    return { x: clientX / innerWidth, y: clientY / innerHeight };
+  }
+
   enableCustomization(options = {}) {
     if (!this.overlay) throw codedError('OVERLAY_REQUIRED', 'createARView requires an overlay element before enabling gestures');
     this.gestures?.destroy();
-    // Drag-to-move plumbing (see the onDrag handler below). The
-    // engine tracks the drag inside its render loop (beginDragMove /
-    // updateDragPoint / endDragMove): a hit-test source for the
-    // latest point, read every frame, so the model stays under the
-    // finger. The first drag implementation ran one promise-based
-    // hit test per pointer move, serialised behind a queue: each
-    // move waited on source creation plus result frames, so the
-    // model trailed the finger and landed where it HAD been.
+    this.debugEnabled = options.debug === true;
+    this.onDebug = typeof options.onDebug === 'function' ? options.onDebug : null;
     let dragSession = false;
-    const endDragSession = (normalisedPoint) => {
+    const endDragSession = (point) => {
       if (!dragSession) return;
       dragSession = false;
       try { this.engine.endDragMove?.(); } catch { /* engine gone */ }
-      if (normalisedPoint) {
-        // Land exactly on the release point with one precise move.
-        // A miss resolves as a result, not a throw, and is silent
-        // here either way: the model keeps the last spot the drag
-        // put it in.
-        this.moveModel(normalisedPoint).catch(() => {});
+      // Land exactly on the release point with one precise hit
+      // test; a miss is silent (the model keeps its last dragged
+      // position).
+      if (this.activeModelId && point) {
+        this.moveModel(point).catch(() => {});
       }
     };
     this.gestures = createARGestureController({
@@ -237,7 +314,8 @@ export class ARView {
       // The gesture payload is {x, y} in pixels (see gestures.js); it
       // has never carried an `event` field (API-06 drift).
       onTap: async ({ x, y }) => {
-        const point = { x: x / innerWidth, y: y / innerHeight };
+        const point = this._normalisePoint(x, y);
+        this._debugLog({ type: 'tap', pixel: { x, y }, normalised: point });
         try {
           if (!this.activeModelId && options.modelUrl) {
             // modelUrl accepts a plain string or a () => string (BUG-05)
@@ -272,13 +350,21 @@ export class ARView {
             try { this.engine.beginDragMove?.(this.activeModelId); } catch { /* engine gone */ }
           }
           try {
-            this.engine.updateDragPoint?.(x / innerWidth, y / innerHeight);
+            const p = this._normalisePoint(x, y);
+            this.engine.updateDragPoint?.(p.x, p.y);
+            const now = performance.now();
+            if (now - this._lastDragDebugAt > 250) {
+              this._lastDragDebugAt = now;
+              this._debugLog({ type: 'drag', normalised: p, centre: this._debugCentre(this.activeModelId) });
+            }
           } catch { /* engine gone */ }
         }
         options.onDrag?.({ x, y });
       },
       onDragEnd: ({ x, y }) => {
-        endDragSession({ x: x / innerWidth, y: y / innerHeight });
+        const point = this._normalisePoint(x, y);
+        this._debugLog({ type: 'dragend', pixel: { x, y }, normalised: point });
+        endDragSession(point);
         options.onDragEnd?.({ x, y });
       },
       onPinch: ({ factor }) => {

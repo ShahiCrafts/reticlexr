@@ -47,6 +47,7 @@ test('drag01', async () => {
       beginDragMove: (modelId) => { calls.begin.push(modelId); return true; },
       updateDragPoint: (x, y) => { calls.point.push({ x, y }); },
       endDragMove: () => { calls.end++; },
+      transformModel: async () => ({ success: true }),
     };
     const view = createARView({ engine: stubEngine, overlay: el });
     const seen = { errors: [], taps: 0, drags: [], dragEnds: 0 };

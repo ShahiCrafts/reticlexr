@@ -150,6 +150,47 @@ export function normalizeScale(value, fallback = undefined) {
  * @returns {{origin:{x:number,y:number,z:number}, direction:{x:number,y:number,z:number}}}
  *   Ray in the same space as the viewer pose
  */
+/**
+ * Spatial occupancy for plane dots: overlapping planes must not
+ * draw overlapping dot fields. Candidates claim world-space cells;
+ * a candidate closer than minDistance to an already-claimed dot is
+ * rejected. Cell hashing keeps the check near-constant time.
+ */
+function createDotOccupancy(minDistance) {
+  const cell = Math.max(minDistance, 0.001);
+  const minSq = minDistance * minDistance;
+  const map = new Map();
+  return {
+    tryClaim(x, y, z) {
+      const cx = Math.floor(x / cell);
+      const cy = Math.floor(y / cell);
+      const cz = Math.floor(z / cell);
+      for (let i = -1; i <= 1; i++) {
+        for (let j = -1; j <= 1; j++) {
+          for (let k = -1; k <= 1; k++) {
+            const pts = map.get(`${cx + i},${cy + j},${cz + k}`);
+            if (!pts) continue;
+            for (const p of pts) {
+              const dx = p[0] - x;
+              const dy = p[1] - y;
+              const dz = p[2] - z;
+              if (dx * dx + dy * dy + dz * dz < minSq) return false;
+            }
+          }
+        }
+      }
+      const key = `${cx},${cy},${cz}`;
+      let pts = map.get(key);
+      if (!pts) {
+        pts = [];
+        map.set(key, pts);
+      }
+      pts.push([x, y, z]);
+      return true;
+    },
+  };
+}
+
 export function rayFromScreenPoint(viewerTransform, projectionMatrix, x, y) {
   const ndc = new THREE.Vector3(x * 2 - 1, 1 - y * 2, -1);
   const inverseProjection = new THREE.Matrix4()
@@ -766,7 +807,7 @@ export class ARCoreWeb extends WebPlugin {
    * design was also LEAK-02's root cause). Dot positions, size,
    * spacing and polygon clipping are unchanged.
    */
-  createPlaneDots(plane, pose, orientation) {
+  createPlaneDots(plane, pose, orientation, occupancy = null) {
     const polygon = plane.polygon;
     if (!polygon || polygon.length < 3) return null;
 
@@ -796,6 +837,22 @@ export class ARCoreWeb extends WebPlugin {
           positions.push([x, z]);
         }
       }
+    }
+
+    // Cross-plane dedupe: when an occupancy grid is supplied,
+    // drop any candidate whose world position is already claimed
+    // by another plane's dot (overlapping planes would otherwise
+    // draw two interleaved dot fields over the same surface).
+    if (occupancy && pose) {
+      const m = new THREE.Matrix4().fromArray(pose.transform.matrix);
+      const v = new THREE.Vector3();
+      const kept = [];
+      for (const [x, z] of positions) {
+        v.set(x, 0.001, z).applyMatrix4(m);
+        if (occupancy.tryClaim(v.x, v.y, v.z)) kept.push([x, z]);
+      }
+      positions.length = 0;
+      positions.push(...kept);
     }
 
     // Cap the grid: a room-scale plane at fine spacing can ask for
@@ -872,6 +929,43 @@ export class ARCoreWeb extends WebPlugin {
   }
 
   /**
+   * Rebuild every plane's dots in one coordinated pass so
+   * overlapping planes never draw overlapping dot fields: a single
+   * occupancy grid is shared across all planes, largest polygon
+   * first (big surfaces keep their regular grid; smaller
+   * overlapping planes only fill the gaps).
+   */
+  _rebuildPlaneDots(currentPlanes, frame) {
+    const occupancy = createDotOccupancy(this.config.dotSpacing * 0.75);
+    const entries = [];
+    for (const plane of currentPlanes) {
+      const data = this.detectedPlanes.get(plane);
+      if (!data) continue;
+      const pose = frame.getPose(plane.planeSpace, this.referenceSpace);
+      if (!pose) continue;
+      let area2 = 0;
+      const poly = plane.polygon || [];
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        area2 += (poly[j].x + poly[i].x) * (poly[j].z - poly[i].z);
+      }
+      entries.push({ plane, data, pose, area: Math.abs(area2 / 2) });
+    }
+    entries.sort((a, b) => b.area - a.area);
+    for (const { plane, data, pose } of entries) {
+      if (data.dots) {
+        this.planeDotsGroup.remove(data.dots);
+        disposeObject(data.dots, this._sharedResources);
+        data.dots = null;
+      }
+      const dots = this.createPlaneDots(plane, pose, data.orientation, occupancy);
+      if (dots) {
+        this.planeDotsGroup.add(dots);
+        data.dots = dots;
+      }
+    }
+  }
+
+  /**
    * Process detected planes from WebXR frame
    */
   processDetectedPlanes(frame) {
@@ -880,6 +974,7 @@ export class ARCoreWeb extends WebPlugin {
     }
 
     const currentPlanes = frame.detectedPlanes;
+    let dotsDirty = false;
 
     // Remove planes that are no longer detected
     for (const [xrPlane, planeData] of this.detectedPlanes) {
@@ -895,6 +990,7 @@ export class ARCoreWeb extends WebPlugin {
           disposeObject(planeData.dots, this._sharedResources);
         }
         this.detectedPlanes.delete(xrPlane);
+        dotsDirty = true;
         this.debugLog(`[ARCore] Plane removed: ${planeData.orientation}`);
       }
     }
@@ -911,7 +1007,7 @@ export class ARCoreWeb extends WebPlugin {
         this.debugLog(`[ARCore] New plane detected: ${orientation}, polygon points: ${plane.polygon?.length || 0}`);
 
         const mesh = this.config.showPlanes ? this.createPlaneMesh(plane, pose, orientation) : null;
-        const dots = this.config.showPlaneDots ? this.createPlaneDots(plane, pose, orientation) : null;
+        const dots = null; // built by the coordinated rebuild below
 
         if (mesh) {
           this.planesMeshGroup.add(mesh);
@@ -921,6 +1017,7 @@ export class ARCoreWeb extends WebPlugin {
         }
 
         this.detectedPlanes.set(plane, { mesh, dots, orientation, lastChangedTime: plane.lastChangedTime });
+        dotsDirty = true;
 
         // Notify listeners
         this.planeListeners.forEach(cb => cb({
@@ -945,20 +1042,19 @@ export class ARCoreWeb extends WebPlugin {
             disposeObject(planeData.dots, this._sharedResources);
           }
 
-          // Create new visualization
+          // Create new visualization (dots are rebuilt for all
+          // planes together below, so overlapping planes share one
+          // occupancy grid)
           const mesh = this.config.showPlanes ? this.createPlaneMesh(plane, pose, orientation) : null;
-          const dots = this.config.showPlaneDots ? this.createPlaneDots(plane, pose, orientation) : null;
 
           if (mesh) {
             this.planesMeshGroup.add(mesh);
           }
-          if (dots) {
-            this.planeDotsGroup.add(dots);
-          }
 
           planeData.mesh = mesh;
-          planeData.dots = dots;
+          planeData.dots = null;
           planeData.lastChangedTime = plane.lastChangedTime;
+          dotsDirty = true;
         } else {
           // Just update the pose (scratch matrix — PERF-04)
           if (planeData.mesh) {
@@ -971,6 +1067,10 @@ export class ARCoreWeb extends WebPlugin {
           }
         }
       }
+    }
+
+    if (dotsDirty && this.config.showPlaneDots) {
+      this._rebuildPlaneDots(currentPlanes, frame);
     }
 
     // Update plane counts for listeners
@@ -1080,7 +1180,7 @@ export class ARCoreWeb extends WebPlugin {
    * @returns {number} Approximate radius of the model's base
    */
   getModelFootprint(model) {
-    const box = new THREE.Box3().setFromObject(model);
+    const box = this._placementBox(model);
     const size = new THREE.Vector3();
     box.getSize(size);
     // Use the larger of width or depth for shadow radius
@@ -2347,12 +2447,61 @@ export class ARCoreWeb extends WebPlugin {
    * wrapper is what gets positioned, moved, and shadowed; the clone
    * keeps its authored transform inside it.
    */
+  /**
+   * The box placement is measured from: the union of the model's
+   * MAIN mesh cluster. Per-mesh boxes are clustered by proximity,
+   * seeded from the largest mesh and grown by intersection (with
+   * a 10% reach), so detached geometry, a stray mesh left over
+   * from authoring sitting metres from the body, never joins the
+   * cluster and cannot drag the measured base centre away from
+   * the model. When every mesh belongs to the cluster, which is
+   * the normal case, the result is exactly the whole-model box.
+   */
+  _placementBox(model) {
+    const meshBoxes = [];
+    model.traverse((obj) => {
+      if ((obj.isMesh || obj.isSkinnedMesh) && obj.geometry) {
+        const b = new THREE.Box3().setFromObject(obj);
+        if (!b.isEmpty()) meshBoxes.push(b);
+      }
+    });
+    if (meshBoxes.length <= 1) {
+      return meshBoxes.length === 1
+        ? meshBoxes[0]
+        : new THREE.Box3().setFromObject(model);
+    }
+    const volume = (b) => {
+      const s = b.getSize(new THREE.Vector3());
+      return Math.max(s.x, 0) * Math.max(s.y, 0) * Math.max(s.z, 0);
+    };
+    const sorted = [...meshBoxes].sort((a, b) => volume(b) - volume(a));
+    const cluster = sorted[0].clone();
+    const claimed = new Set([sorted[0]]);
+    let grew = true;
+    while (grew) {
+      grew = false;
+      const size = cluster.getSize(new THREE.Vector3());
+      const reach = cluster
+        .clone()
+        .expandByScalar(Math.max(size.x, size.y, size.z) * 0.1);
+      for (const b of meshBoxes) {
+        if (claimed.has(b)) continue;
+        if (reach.intersectsBox(b)) {
+          cluster.union(b);
+          claimed.add(b);
+          grew = true;
+        }
+      }
+    }
+    return cluster;
+  }
+
   _wrapPlacementModel(model) {
     const wrapper = new THREE.Group();
     wrapper.name = "reticlexr-placement";
     wrapper.add(model);
     try {
-      const box = new THREE.Box3().setFromObject(model);
+      const box = this._placementBox(model);
       if (!box.isEmpty()) {
         model.position.set(
           -(box.min.x + box.max.x) / 2,
