@@ -112,6 +112,11 @@ export default function DemoClient() {
         // requested up front: WebXR grants session features only at
         // requestSession — there is no way to ask later, mid-session.
         enableScreenshots: true,
+        // Render the XR layer at 85% scale: fragment work drops by
+        // ~28% (it scales with the square), which is the difference
+        // between holding and missing 60 fps on mid-range phones.
+        // The camera feed stays full resolution.
+        framebufferScale: 0.85,
       });
       v.onFrame((e) => {
         if (e.type === 'surfaceDetected') setSurface(true);
@@ -131,7 +136,7 @@ export default function DemoClient() {
           setTimeout(() => {
             if (v.activeModelId) {
               setPlaced(true);
-              setToast('Pinch to scale • twist to rotate');
+              setToast('Drag to move • pinch to scale • twist to rotate');
             }
           }, 0),
         onScale: (s) => queueReadout({ scale: s }),
@@ -157,7 +162,13 @@ export default function DemoClient() {
     modelIndexRef.current = i;
     if (viewRef.current?.activeModelId) {
       setBusy(true);
-      await viewRef.current.switchModel(MODELS[i].url);
+      // The demo's models are unrelated products, not variants of one
+      // product: switch WITHOUT material preservation, or the outgoing
+      // model's colour and texture would be carried onto the new one
+      // (the rhino's hide on the duck). The swatch selection resets to
+      // match: the new model shows its own authored look.
+      await viewRef.current.switchModel(MODELS[i].url, { preserveMaterial: false });
+      setColor(SWATCHES[0][1]);
       setPlaced(true);
       setBusy(false);
       setToast(`${MODELS[i].label} switched in place`);

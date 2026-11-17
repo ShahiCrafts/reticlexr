@@ -798,6 +798,20 @@ export class ARCoreWeb extends WebPlugin {
       }
     }
 
+    // Cap the grid: a room-scale plane at fine spacing can ask for
+    // tens of thousands of instances. One InstancedMesh keeps it to
+    // a single draw call, but the instance buffer and its upload
+    // still grow with the count. Past the cap, stride-sample so the
+    // coverage stays even.
+    const MAX_PLANE_DOTS = 2048;
+    if (positions.length > MAX_PLANE_DOTS) {
+      const stride = positions.length / MAX_PLANE_DOTS;
+      const thinned = [];
+      for (let i = 0; i < MAX_PLANE_DOTS; i++) thinned.push(positions[Math.floor(i * stride)]);
+      positions.length = 0;
+      positions.push(...thinned);
+    }
+
     const dotMaterial = new THREE.MeshBasicMaterial({
       color: color,
       transparent: true,
@@ -1157,6 +1171,11 @@ export class ARCoreWeb extends WebPlugin {
       // Without it, takeScreenshot() returns CAMERA_CAPTURE_UNAVAILABLE.
       enableScreenshots = false,
       domOverlay = null,
+      // XR render scale (0..1]. Fragment work scales with its
+      // square (0.85 ≈ 28% fewer fragments), which is the single
+      // biggest smoothness/battery lever on mid-range phones. The
+      // camera feed is unaffected; only the rendered layer softens.
+      framebufferScale = 1,
     } = options;
 
     if (!this.renderer) {
@@ -1208,6 +1227,13 @@ export class ARCoreWeb extends WebPlugin {
         "immersive-ar",
         sessionOptions
       );
+      // Must precede setSession, which creates the XR base layer at
+      // this scale. (setPixelRatio does not govern the XR
+      // framebuffer.) Guarded: a WebXRManager without the method
+      // (older three, partial stubs) must not fail the session.
+      if (typeof this.renderer.xr.setFramebufferScaleFactor === "function") {
+        this.renderer.xr.setFramebufferScaleFactor(framebufferScale);
+      }
       await this.renderer.xr.setSession(this.session);
 
       try {
@@ -1299,6 +1325,85 @@ export class ARCoreWeb extends WebPlugin {
         } catch (e) {
           if (frameCount === 1) {
             this.debugLog("[ARCore] Plane detection not available in this frame:", e.message);
+          }
+        }
+      }
+
+      // Drag-to-move tracking: while a drag is active, keep a
+      // hit-test source for the latest drag point and apply its hits
+      // as they land in this loop (see beginDragMove). Doing this
+      // per frame, instead of one promise-based hit test per pointer
+      // move, keeps the model within a frame or two of the finger.
+      if (this._dragMove && this._dragMove.point && this.referenceSpace && this.session) {
+        const drag = this._dragMove;
+        if (
+          drag.source &&
+          drag.sourcePoint &&
+          (drag.sourcePoint.x !== drag.point.x || drag.sourcePoint.y !== drag.point.y)
+        ) {
+          try { drag.source.cancel(); } catch (_) {}
+          drag.source = null;
+          drag.sourcePoint = null;
+        }
+        if (!drag.source && !drag.creating) {
+          const viewerPose = frame.getViewerPose(this.referenceSpace);
+          const view = viewerPose && viewerPose.views && viewerPose.views[0];
+          if (viewerPose && view) {
+            drag.creating = true;
+            const point = { x: drag.point.x, y: drag.point.y };
+            const generation = drag.generation;
+            const ray = rayFromScreenPoint(
+              viewerPose.transform,
+              view.projectionMatrix,
+              point.x,
+              point.y
+            );
+            this.session
+              .requestHitTestSource({
+                space: this.referenceSpace,
+                offsetRay: new XRRay(ray.origin, ray.direction),
+              })
+              .then((source) => {
+                if (this._dragMove !== drag) {
+                  try { source.cancel(); } catch (_) {}
+                  return;
+                }
+                drag.creating = false;
+                if (drag.generation !== generation) {
+                  // The finger moved on while this source was being
+                  // created: drop it; the loop creates a fresh one
+                  // for the current point on the next frame.
+                  try { source.cancel(); } catch (_) {}
+                  return;
+                }
+                drag.source = source;
+                drag.sourcePoint = point;
+              })
+              .catch(() => {
+                if (this._dragMove === drag) drag.creating = false;
+              });
+          }
+        }
+        if (drag.source) {
+          const dragResults = frame.getHitTestResults(drag.source);
+          if (dragResults.length > 0) {
+            const dragPose = dragResults[0].getPose(this.referenceSpace);
+            if (dragPose) {
+              const t = dragPose.transform;
+              this.transformModel({
+                modelId: drag.modelId,
+                position: [t.position.x, t.position.y, t.position.z],
+                rotation: [
+                  t.orientation.x,
+                  t.orientation.y,
+                  t.orientation.z,
+                  t.orientation.w,
+                ],
+              }).catch(() => {
+                // The model was removed mid-drag: end quietly.
+                if (this._dragMove === drag) this.endDragMove();
+              });
+            }
           }
         }
       }
@@ -1530,6 +1635,7 @@ export class ARCoreWeb extends WebPlugin {
 
   async stopSession() {
     this.stopRendering();
+    this.endDragMove();
 
     // Dispose per-instance resources on the way out (LEAK-03);
     // cache-owned resources survive for the next session
@@ -1910,6 +2016,57 @@ export class ARCoreWeb extends WebPlugin {
     });
   }
 
+  /**
+   * Begin a frame-loop drag for a placed model. While a drag is
+   * active the render loop keeps a hit-test source for the latest
+   * drag point (see updateDragPoint) and applies its hits directly,
+   * so the model tracks the finger within a frame or two. The older
+   * route, one hitTestAtPoint promise per pointer move, serialised
+   * source creation and result frames behind every point, so the
+   * model trailed the finger and landed where it HAD been.
+   *
+   * @param {string} modelId
+   * @returns {boolean} false when the model is unknown
+   */
+  beginDragMove(modelId) {
+    if (!modelId || !this.anchors.has(modelId)) return false;
+    this.endDragMove();
+    this._dragMove = {
+      modelId,
+      point: null,
+      source: null,
+      sourcePoint: null,
+      creating: false,
+      generation: 0,
+    };
+    return true;
+  }
+
+  /**
+   * Feed the latest drag point (normalised [0, 1], origin top-left).
+   * Cheap: the render loop does the XR work.
+   */
+  updateDragPoint(x, y) {
+    const drag = this._dragMove;
+    if (!drag) return;
+    drag.point = {
+      x: Math.min(1, Math.max(0, x)),
+      y: Math.min(1, Math.max(0, y)),
+    };
+    drag.generation++;
+  }
+
+  /** End the active drag (if any) and release its hit-test source. */
+  endDragMove() {
+    const drag = this._dragMove;
+    if (!drag) return;
+    this._dragMove = null;
+    if (drag.source) {
+      try { drag.source.cancel(); } catch (_) {}
+      drag.source = null;
+    }
+  }
+
   getSurfaceState() {
     return {
       detected: this.reticleVisible,
@@ -2120,8 +2277,28 @@ export class ARCoreWeb extends WebPlugin {
         this._stopModelAnimation(anchorId);
         return;
       }
+      // A hidden model gains nothing from stepping its mixer; the
+      // mixer's own CPU work is saved even though skinning is only
+      // paid for drawn meshes.
+      if (this.loadedModels.get(anchorId).visible === false) return;
       mixer.update(delta);
     });
+  }
+
+  /**
+   * Clone a cached scene for one placement and prepare it: skinned
+   * meshes opt out of frustum culling. A skinned mesh's bounds are
+   * in bind space, so the renderer either recomputes them as the
+   * bones move or culls against stale bounds and the model vanishes
+   * at some angles; disabling culling on skinned meshes is the
+   * standard fix and removes the per-frame bounds work.
+   */
+  _preparePlacementClone(scene) {
+    const clone = cloneSkinnedScene(scene);
+    clone.traverse((child) => {
+      if (child.isSkinnedMesh) child.frustumCulled = false;
+    });
+    return clone;
   }
 
   async loadModel(modelUrl) {
@@ -2130,7 +2307,7 @@ export class ARCoreWeb extends WebPlugin {
       // Refresh LRU recency (LEAK-04)
       this.modelCache.delete(modelUrl);
       this.modelCache.set(modelUrl, cached);
-      return cloneSkinnedScene(cached.gltf.scene);
+      return this._preparePlacementClone(cached.gltf.scene);
     }
 
     return new Promise((resolve, reject) => {
@@ -2138,7 +2315,7 @@ export class ARCoreWeb extends WebPlugin {
         modelUrl,
         (gltf) => {
           this._registerModelCache(modelUrl, gltf);
-          resolve(cloneSkinnedScene(gltf.scene));
+          resolve(this._preparePlacementClone(gltf.scene));
         },
         (progress) => {
           const percent = ((progress.loaded / progress.total) * 100).toFixed(0);
@@ -2157,6 +2334,36 @@ export class ARCoreWeb extends WebPlugin {
         }
       );
     });
+  }
+
+  /**
+   * Wrap a freshly loaded placement clone so the wrapper's origin is
+   * the model's BASE CENTRE (bounding-box centre in X/Z, bounding-box
+   * floor in Y). Many exported GLBs (Sketchfab especially) carry
+   * their geometry offset from the file origin: the demo astronaut,
+   * for example, sits ~0.92 m from its origin and ~0.28 m below it,
+   * so positioning the raw clone by its origin put the visible model
+   * away from the tapped point and sunk it into the floor. The
+   * wrapper is what gets positioned, moved, and shadowed; the clone
+   * keeps its authored transform inside it.
+   */
+  _wrapPlacementModel(model) {
+    const wrapper = new THREE.Group();
+    wrapper.name = "reticlexr-placement";
+    wrapper.add(model);
+    try {
+      const box = new THREE.Box3().setFromObject(model);
+      if (!box.isEmpty()) {
+        model.position.set(
+          -(box.min.x + box.max.x) / 2,
+          -box.min.y,
+          -(box.min.z + box.max.z) / 2
+        );
+      }
+    } catch (_) {
+      // Bounds could not be measured: keep the authored origin.
+    }
+    return wrapper;
   }
 
   /**
@@ -2214,11 +2421,14 @@ export class ARCoreWeb extends WebPlugin {
     });
 
     try {
-      const model = await this.loadModel(modelUrl);
+      const loadedModel = await this.loadModel(modelUrl);
       // No material cloning at placement: the clone shares the
       // cache's geometries/materials/textures (LEAK-01 OWNERSHIP
       // RULE). Per-anchor material changes clone on write instead
       // (see _ownMaterial).
+      // Placement is by base centre, not by the file's origin
+      // (see _wrapPlacementModel).
+      const model = this._wrapPlacementModel(loadedModel);
 
       model.position.set(position[0], position[1], position[2]);
       model.quaternion.set(rotation[0], rotation[1], rotation[2], rotation[3]);
@@ -2521,7 +2731,8 @@ export class ARCoreWeb extends WebPlugin {
     const anchor = this.anchors.get(anchorId);
     const oldModel = this.loadedModels.get(anchorId);
     if (!anchor || !oldModel) throw codedError("MODEL_NOT_FOUND", `Anchor ${anchorId} not found`);
-    const next = await this.loadModel(modelUrl);
+    const loadedNext = await this.loadModel(modelUrl);
+    const next = this._wrapPlacementModel(loadedNext);
     // No material cloning: the new model shares its cache's materials
     // (LEAK-01); the preservation below clones on write per material.
     next.position.copy(oldModel.position);

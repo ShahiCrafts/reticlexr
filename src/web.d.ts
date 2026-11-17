@@ -148,6 +148,13 @@ export interface ARSessionOptions {
    */
   enableScreenshots?: boolean;
   domOverlay?: HTMLElement | null;
+  /**
+   * XR render scale (0..1], default 1. Fragment work scales with
+   * its square (0.85 ≈ 28% fewer fragments); the single biggest
+   * smoothness/battery lever on mid-range phones. Applied before
+   * the session's base layer is created.
+   */
+  framebufferScale?: number;
 }
 
 export interface ARSessionResult {
@@ -360,6 +367,9 @@ export declare class ARCoreWeb extends WebPlugin {
 
   hitTest(options?: HitTestOptions): Promise<HitTestResult>;
   hitTestAtPoint(x: number, y: number): Promise<HitTestResult>;
+  beginDragMove(modelId: string): boolean;
+  updateDragPoint(x: number, y: number): void;
+  endDragMove(): void;
 
   getSurfaceState(): SurfaceDetectionState;
   getSurfaceDetectionState(): SurfaceState;

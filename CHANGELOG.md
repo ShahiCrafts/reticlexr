@@ -98,6 +98,21 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Drag-to-move.** With a model placed, dragging one finger moves
+  it across surfaces: the gesture controller's `onDrag` is now bound
+  in `enableCustomization`, and engine moves are coalesced through a
+  one-slot queue (only the latest point is ever in flight), so a
+  fast drag cannot flood the runtime with hit tests. A pass over a
+  surface-less spot is silent and the model keeps its last good
+  position. `CustomizationOptions` gains an `onDrag` notification
+  callback. Regression harness: `drag01`.
+- **`framebufferScale` session option (engine + `ARView.create`).**
+  Scales the XR render target; fragment work scales with its
+  square, so 0.85 renders ~28% fewer fragments — the largest single
+  smoothness/battery lever on mid-range phones. Default 1 (no
+  change); the live demo runs at 0.85. The camera feed is
+  unaffected.
+
 - **GLB animation playback.** Models whose files carry animation
   clips (skeletal or node animation, e.g. Sketchfab exports) now
   play them on loop in the WebXR runtime: each placement gets an
@@ -199,6 +214,42 @@ The project follows [Semantic Versioning](https://semver.org/).
   `example/tsconfig.json` is removed; a CI workflow (type-check,
   tests, example build, Gradle `:reticlexr:assembleDebug`) is in
   the repo.
+- **Placed models can be moved (device report, 2026-11-17).** The
+  gesture layer only ever placed: with a model active, a tap did
+  nothing, so a placed model could never be relocated. `ARView`
+  gains `moveModel({ x, y })` (normalised screen point; a miss
+  resolves `{ success: false, code: 'NO_SURFACE' }` and the model
+  stays put), and the tap gesture now moves the active model to the
+  tapped surface point, reporting a miss through `onError` exactly
+  like a failed placement. Regression harness: `move01`.
+- **Demo: model switches no longer transplant textures (device
+  report, 2026-11-17).** The live demo switched models with the
+  default `preserveMaterial`, which by design carries the outgoing
+  model's colour and texture map onto the incoming one — the rhino's
+  hide landed on the duck and the astronaut. The demo's models are
+  unrelated products, not variants, so the demo now switches with
+  `{ preserveMaterial: false }` and resets its colour swatch; each
+  model shows its own authored look. The engine contract for both
+  modes is pinned by the `switchtex01` harness.
+- **Rendering economy (performance pass, 2026-11-17).** The plane
+  dot grid is capped at 2,048 instances per plane (stride-sampled
+  past the cap, so coverage stays even); animation mixers no longer
+  step for hidden models; skinned meshes in placement clones opt
+  out of frustum culling (their bind-space bounds go stale as bones
+  move, which both cost per-frame bounds work and could cull a
+  model at some angles).
+
+- Drag tracking rebuilt (device report, 2026-11-17): the first
+  drag ran one promise-based hit test per pointer move, serialised
+  behind a queue, so the model trailed the finger and landed where
+  it had been. The engine now tracks the drag inside its render
+  loop (`beginDragMove` / `updateDragPoint` / `endDragMove`), and
+  one final move lands the model exactly on the release point.
+- Placement is by base centre: models whose files carry their
+  geometry offset from the origin (the demo astronaut sits about
+  0.92 m from its origin and 0.28 m below it) now land on the
+  tapped point and stand on the surface, instead of appearing
+  displaced and sunk.
 
 ### Deprecated
 

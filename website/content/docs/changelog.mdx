@@ -38,6 +38,12 @@ repository `CHANGELOG.md`.
 
 ### Added
 
+- Drag-to-move: with a model placed, one finger drags it across
+  surfaces; the engine re-aims a hit test at the finger every
+  frame, so the model stays under it.
+- `framebufferScale` session option: scales the XR render target
+  (0.85 ≈ 28% fewer fragments). The live demo runs at 0.85.
+
 - `reticlexr/react` subpath for `useARCore`, plus a per-instance
   `useARCore({ engine })` option.
 - `getPlacedModels()` / `clearModels()` on the engine, `ARView`,
@@ -53,6 +59,28 @@ repository `CHANGELOG.md`.
   ray-based hit testing, disposal under an ownership rule with an
   LRU model cache, `InstancedMesh` plane dots, the reference-space
   fallback chain, a bounded native availability retry, and more.
+- Tap-to-move (device report, 2026-11-17): a placed model could
+  never be relocated, because the gesture layer only placed.
+  `ARView.moveModel({ x, y })` is new, and the tap gesture now moves
+  the active model to the tapped surface point.
+- The live demo no longer carries one model's texture onto the
+  next: it switches models with `{ preserveMaterial: false }`, so
+  each model keeps its own authored look.
+- Rendering economy: the plane dot grid is capped at 2,048 dots
+  per plane, animation mixers skip hidden models, and skinned
+  meshes opt out of frustum culling in placement clones.
+
+- Drag tracking rebuilt (device report, 2026-11-17): the first
+  drag ran one promise-based hit test per pointer move, serialised
+  behind a queue, so the model trailed the finger and landed where
+  it had been. The engine now tracks the drag inside its render
+  loop (`beginDragMove` / `updateDragPoint` / `endDragMove`), and
+  one final move lands the model exactly on the release point.
+- Placement is by base centre: models whose files carry their
+  geometry offset from the origin (the demo astronaut sits about
+  0.92 m from its origin and 0.28 m below it) now land on the
+  tapped point and stand on the surface, instead of appearing
+  displaced and sunk.
 
 ### Deprecated
 

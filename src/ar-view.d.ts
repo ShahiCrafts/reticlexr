@@ -38,6 +38,12 @@ export interface ARViewCreateOptions {
    * NOT implied by `lightEstimation`.
    */
   enableScreenshots?: boolean;
+  /**
+   * XR render scale (0..1], default 1; see the engine's
+   * `ARSessionOptions.framebufferScale`. 0.85 is a good starting
+   * point for mid-range Android phones.
+   */
+  framebufferScale?: number;
 }
 
 export interface ARViewPlaceModelOptions {
@@ -70,6 +76,13 @@ export interface CustomizationOptions {
   modelUrl: string | (() => string);
   /** Called after the tap has been handled (and after placement). */
   onTap?: (point: { x: number; y: number }) => void;
+  /**
+   * Called while a placed model is being dragged (payload in
+   * pixels, with per-event deltas). The view moves the model itself;
+   * this is a notification, e.g. for UI feedback.
+   */
+  onDrag?: (event: { dx: number; dy: number; x: number; y: number }) => void;
+  onDragEnd?: (event: { x: number; y: number }) => void;
   onScale?: (scale: number) => void;
   onRotate?: (rotationY: number) => void;
   /** Receives placement errors from tap-to-place (BUG-05). */
@@ -112,6 +125,12 @@ export declare class ARView {
     modelUrl: string,
     options?: { preserveMaterial?: boolean }
   ): Promise<ARViewPlaceResult>;
+  /**
+   * Move the active model to the surface under a normalised screen
+   * point (0..1; default centre). A miss resolves with
+   * { success: false, code: 'NO_SURFACE' } and the model stays put.
+   */
+  moveModel(point?: { x?: number; y?: number }): Promise<ARViewPlaceResult>;
   removeModel(): Promise<void>;
   /** List the models placed through this view (API-03). */
   getPlacedModels(): PlacedModelInfo[];
@@ -133,8 +152,10 @@ export declare class ARView {
   ): Promise<{ success: boolean; anchorId: string; textureUrl: string }>;
 
   /**
-   * Wire tap-to-place / pinch / rotate gestures on the overlay.
-   * Requires an overlay (throws otherwise). Returns a cleanup function.
+   * Wire tap-to-place (and tap-to-move once a model is placed),
+   * drag-to-move, and pinch / rotate gestures on the overlay.
+   * Requires an overlay (throws otherwise). Returns a cleanup
+   * function.
    */
   enableCustomization(options?: CustomizationOptions): () => void;
 
@@ -165,4 +186,8 @@ export declare function placeModel(
   view: ARView,
   modelUrl: string,
   options?: ARViewPlaceModelOptions
+): Promise<ARViewPlaceResult>;
+export declare function moveModel(
+  view: ARView,
+  point?: { x?: number; y?: number }
 ): Promise<ARViewPlaceResult>;

@@ -19,7 +19,7 @@ export default function DemoPage() {
         <p className="mt-3 leading-relaxed text-slate-600 dark:text-slate-300">
           This is the repository&rsquo;s example playground, running as a page on this site against
           the library source in <code className="font-mono text-[0.85em]">src/</code>. It uses the
-          WebXR runtime: surface dots, tap-to-place, pinch/twist gestures, in-place model switching
+          WebXR runtime: surface dots, tap-to-place, drag to move, pinch/twist gestures, in-place model switching
           with <code className="font-mono text-[0.85em]">switchModel()</code>, runtime colours and
           screenshots.
         </p>

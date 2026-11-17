@@ -26,10 +26,10 @@ cleanup();
 
 | Gesture | Effect |
 | --- | --- |
-| One-finger tap | Places the current `modelUrl` at the tap point (only when no model is placed yet) |
+| One-finger tap | Places the current `modelUrl` at the tap point; with a model already placed, moves it to the tap point |
 | Pinch (two fingers, in/out) | Scales the active model, `ARView.setScale` clamps to **[0.1, 5]** |
 | Twist (two fingers, rotate) | Rotates the active model around Y |
-| Drag (one finger) | Available in the standalone controller (`onDrag`); `enableCustomization` does not bind it to the model |
+| Drag (one finger) | Drags the active model across surfaces: the engine re-aims a hit test at your finger every frame, so the model stays under it, and one final move lands it exactly on the release point. Passing over a spot with no surface is silent; the model stays at its last good position |
 
 <Note>
 `modelUrl` accepts a plain URL string or a `() => string` function.

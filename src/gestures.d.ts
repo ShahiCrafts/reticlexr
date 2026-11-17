@@ -33,6 +33,7 @@ export interface ARGestureOptions {
   /** Short, stationary one-finger touch; payload is in pixels. */
   onTap?: (point: GesturePoint) => void;
   onDrag?: (event: GestureDragEvent) => void;
+  onDragEnd?: (event: { x: number; y: number }) => void;
   onPinch?: (event: GesturePinchEvent) => void;
   onRotate?: (event: GestureRotateEvent) => void;
   /** Max tap duration in ms. Default 260. */

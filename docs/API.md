@@ -50,6 +50,7 @@ overlay element for the session.
 | `preloadModels(urls)` | Loads each URL into the engine cache |
 | `placeModel(modelUrl, options?)` | Hit-tests (centre, or `x`/`y`, or an explicit `position`) and places. Resolves `{ success, modelId?, code?, reason? }` — `reason` is a deprecated alias of `code` |
 | `switchModel(modelUrl, { preserveMaterial? } = {})` | Swaps the active model **in place** — placement, scale and rotation carry over. Use this, not `placeModel`, for product switching |
+| `moveModel({ x, y } = {})` | Moves the active model to the surface under a normalised screen point (default centre). Keeps its scale; a miss resolves `{ success: false, code: 'NO_SURFACE' }` and the model stays put |
 | `removeModel()` | Removes the active model |
 | `getPlacedModels()` | Models placed through this view: `[{ modelId, modelUrl, position, rotation, scale }]` |
 | `clearModels()` | Removes every model placed through this view |

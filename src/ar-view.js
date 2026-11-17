@@ -36,6 +36,7 @@ export class ARView {
       lightEstimation: options.lightEstimation !== false,
       // Opt-in: requests WebXR camera-access for takeScreenshot (SEC-04)
       enableScreenshots: options.enableScreenshots === true,
+      framebufferScale: options.framebufferScale,
     });
     // Ensure groups reflect config immediately even if created before setConfig.
     if (this.engine.planesMeshGroup) this.engine.planesMeshGroup.visible = false;
@@ -103,6 +104,20 @@ export class ARView {
     this.activeModelUrl = modelUrl;
     this.placedModelUrls.set(this.activeModelId, modelUrl);
     return { success: true, modelId: this.activeModelId, ...result };
+  }
+
+  /**
+   * Move the active model to the surface under a normalised screen
+   * point ({ x, y } in 0..1, default centre). The model keeps its
+   * scale; position and surface orientation come from the hit. A miss
+   * is a result, not a throw: { success: false, code: 'NO_SURFACE' }
+   * and the model stays where it is.
+   */
+  async moveModel({ x = 0.5, y = 0.5 } = {}) {
+    if (!this.activeModelId) return { success: false, code: 'NO_ACTIVE_MODEL', reason: 'NO_ACTIVE_MODEL' };
+    const hit = await this.engine.moveModel({ modelId: this.activeModelId, x, y });
+    if (!hit.hit) return { success: false, code: 'NO_SURFACE', reason: 'NO_SURFACE' };
+    return { success: true, modelId: this.activeModelId, ...hit };
   }
 
   async removeModel() {
@@ -196,30 +211,75 @@ export class ARView {
   enableCustomization(options = {}) {
     if (!this.overlay) throw codedError('OVERLAY_REQUIRED', 'createARView requires an overlay element before enabling gestures');
     this.gestures?.destroy();
+    // Drag-to-move plumbing (see the onDrag handler below). The
+    // engine tracks the drag inside its render loop (beginDragMove /
+    // updateDragPoint / endDragMove): a hit-test source for the
+    // latest point, read every frame, so the model stays under the
+    // finger. The first drag implementation ran one promise-based
+    // hit test per pointer move, serialised behind a queue: each
+    // move waited on source creation plus result frames, so the
+    // model trailed the finger and landed where it HAD been.
+    let dragSession = false;
+    const endDragSession = (normalisedPoint) => {
+      if (!dragSession) return;
+      dragSession = false;
+      try { this.engine.endDragMove?.(); } catch { /* engine gone */ }
+      if (normalisedPoint) {
+        // Land exactly on the release point with one precise move.
+        // A miss resolves as a result, not a throw, and is silent
+        // here either way: the model keeps the last spot the drag
+        // put it in.
+        this.moveModel(normalisedPoint).catch(() => {});
+      }
+    };
     this.gestures = createARGestureController({
       element: this.overlay,
       // The gesture payload is {x, y} in pixels (see gestures.js); it
       // has never carried an `event` field (API-06 drift).
       onTap: async ({ x, y }) => {
-        if (!this.activeModelId && options.modelUrl) {
-          try {
+        const point = { x: x / innerWidth, y: y / innerHeight };
+        try {
+          if (!this.activeModelId && options.modelUrl) {
             // modelUrl accepts a plain string or a () => string (BUG-05)
             const modelUrl = typeof options.modelUrl === 'function' ? options.modelUrl() : options.modelUrl;
-            const result = await this.placeModel(modelUrl, { x: x / innerWidth, y: y / innerHeight });
+            const result = await this.placeModel(modelUrl, point);
             // placeModel reports a missed hit test as a result, not a
             // throw — convert it, so the failure reaches onError
             // instead of the tap silently doing nothing.
             if (!result.success) throw codedError('NO_SURFACE', 'No surface found at the tap point');
-          } catch (error) {
-            // The gesture controller never awaits this handler, so a
-            // rejection here would be unhandled. Route placement failures
-            // to the caller's error handler instead (BUG-05).
-            if (options.onError) { options.onError(error); return; }
-            console.error('[ARView] Tap-to-place failed:', error);
-            return;
+          } else if (this.activeModelId) {
+            // Tap-to-move: with a model placed, a tap relocates it to
+            // the tapped surface point (the engine's moveModel). A
+            // miss converts to NO_SURFACE the same way and the model
+            // stays where it is.
+            const result = await this.moveModel(point);
+            if (!result.success) throw codedError('NO_SURFACE', 'No surface found at the tap point');
           }
+        } catch (error) {
+          // The gesture controller never awaits this handler, so a
+          // rejection here would be unhandled. Route tap failures to
+          // the caller's error handler instead (BUG-05).
+          if (options.onError) { options.onError(error); return; }
+          console.error('[ARView] Tap failed:', error);
+          return;
         }
         options.onTap?.({ x, y });
+      },
+      onDrag: ({ x, y }) => {
+        if (this.activeModelId) {
+          if (!dragSession) {
+            dragSession = true;
+            try { this.engine.beginDragMove?.(this.activeModelId); } catch { /* engine gone */ }
+          }
+          try {
+            this.engine.updateDragPoint?.(x / innerWidth, y / innerHeight);
+          } catch { /* engine gone */ }
+        }
+        options.onDrag?.({ x, y });
+      },
+      onDragEnd: ({ x, y }) => {
+        endDragSession({ x: x / innerWidth, y: y / innerHeight });
+        options.onDragEnd?.({ x, y });
       },
       onPinch: ({ factor }) => {
         if (!this.activeModelId) return;
@@ -245,4 +305,5 @@ export const takeScreenshot = (view, options) => view.takeScreenshot(options);
 export const enableCustomization = (view, options) => view.enableCustomization(options);
 export const addTextures = (view, textures) => view.addTextures(textures);
 export const switchModel = (view, modelUrl, options) => view.switchModel(modelUrl, options);
+export const moveModel = (view, point) => view.moveModel(point);
 export const placeModel = (view, modelUrl, options) => view.placeModel(modelUrl, options);

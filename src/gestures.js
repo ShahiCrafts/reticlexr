@@ -39,6 +39,7 @@ export function createARGestureController({
   element,
   onTap,
   onDrag,
+  onDragEnd,
   onPinch,
   onRotate,
   tapMaxDuration = 260,
@@ -54,6 +55,7 @@ export function createARGestureController({
   let start = null;
   let gesture = null;
   let lastSingle = null;
+  let dragTravelled = false;
   // Smoothed two-pointer state (see the header note): the distance,
   // the continuous (unwrapped) raw angle, its smoothed chase value,
   // and the last raw angle for unwrap continuity.
@@ -82,6 +84,13 @@ export function createARGestureController({
       lastSingle = point(e);
       gesture = null;
     } else if (pointers.size === 2) {
+      // A second finger ends any single-pointer drag in progress:
+      // the gesture becomes a pinch/rotate from here.
+      if (dragTravelled) {
+        dragTravelled = false;
+        const first = [...pointers.values()][0];
+        onDragEnd?.({ x: first.x, y: first.y });
+      }
       // Seed the smoothed state from the raw geometry so the new
       // baseline starts exactly where the fingers are — no jump.
       const [a,b] = [...pointers.values()];
@@ -124,6 +133,7 @@ export function createARGestureController({
       const now = point(e);
       const dx = now.x - previous.x, dy = now.y - previous.y;
       if (Math.abs(dx)+Math.abs(dy) > 1) onDrag?.({ dx, dy, x:now.x, y:now.y });
+      if (start && distance(start, now) > tapMaxDistance) dragTravelled = true;
       lastSingle = now;
     }
   };
@@ -132,7 +142,10 @@ export function createARGestureController({
     const end = point(e);
     if (pointers.size === 1 && start) {
       const elapsed = performance.now() - start.time;
-      if (elapsed <= tapMaxDuration && distance(start,end) <= tapMaxDistance) onTap?.(end);
+      const isTap = elapsed <= tapMaxDuration && distance(start,end) <= tapMaxDistance;
+      if (isTap) onTap?.(end);
+      else if (dragTravelled) onDragEnd?.(end);
+      dragTravelled = false;
     }
     pointers.delete(e.pointerId);
     if (pointers.size < 2) gesture = null;
@@ -144,6 +157,13 @@ export function createARGestureController({
     // the tap check, so an interrupted touch can never fire onTap and
     // place a model (BUG-10).
     if (preventDefault) e.preventDefault();
+    if (pointers.size === 1 && dragTravelled) {
+      // An interrupted drag still ends (at the last known point), so
+      // listeners can close out whatever the drag was driving.
+      const last = pointers.get(e.pointerId);
+      dragTravelled = false;
+      if (last) onDragEnd?.({ x: last.x, y: last.y });
+    }
     pointers.delete(e.pointerId);
     if (pointers.size < 2) gesture = null;
     if (pointers.size === 1) lastSingle = [...pointers.values()][0]; else lastSingle = null;

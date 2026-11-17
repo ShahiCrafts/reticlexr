@@ -31,7 +31,7 @@ import { ARCoreWeb } from 'reticlexr/web';
 | --- | --- | --- |
 | `ARCore` (default) | Native facade object | Capacitor bridge → Android plugin (web → WebXR engine) |
 | `ARView`, `createARView` | Class + factory | High-level facade over the WebXR engine |
-| `takeScreenshot`, `enableCustomization`, `addTextures`, `switchModel`, `placeModel` | Functional helpers (view-first) | Same facade, function style |
+| `takeScreenshot`, `enableCustomization`, `addTextures`, `switchModel`, `placeModel`, `moveModel` | Functional helpers (view-first) | Same facade, function style |
 | `useARCore` | React hook (import from `reticlexr/react`) | WebXR engine mirrored into React state |
 | `ARCoreWeb` | Engine class (import from `reticlexr/web`) | The WebXR runtime itself |
 | `createARGestureController` | Factory | Standalone Pointer Events controller |
@@ -77,6 +77,9 @@ if (support.supported) {
 | `setTransform` | `(options: { modelId, rotation?: {x,y,z} degrees, scale?: number })` | `Promise<void>` |
 | `setMaterial` | `(options: { modelId, color: string })` (hex colour) | `Promise<void>` |
 | `moveModel` | `(options: { modelId, x: number, y: number })` | `Promise<Object>` |
+| `beginDragMove` | `(modelId: string)` | `boolean` |
+| `updateDragPoint` | `(x: number, y: number)` (normalised [0, 1]) | `void` |
+| `endDragMove` | `()` | `void` |
 | `removeModel` | `(options: { modelId })` | `Promise<void>` |
 | `getPlacedModels` | `()` | `Promise<Array<{ modelId, modelUrl, position, rotation, scale }>>` |
 | `clearModels` | `()` | `Promise<void>` |
@@ -135,7 +138,7 @@ element for the immersive session's overlay.
 | Member | Signature / behaviour |
 | --- | --- |
 | `checkSupport()` | → engine `checkSupport()` → `{ supported, reason, code? }` |
-| `create(options?)` | Starts the session. Options: `{ overlay?, showReticle = true, showPlaneDots = true, dotSpacing = 0.14, dotSize = 0.014, showShadow = true, planeDetection = true, lightEstimation = true, enableScreenshots = false }`. Resolves `{ success, hasOverlay, planeDetection }` |
+| `create(options?)` | Starts the session. Options: `{ overlay?, showReticle = true, showPlaneDots = true, dotSpacing = 0.14, dotSize = 0.014, showShadow = true, planeDetection = true, lightEstimation = true, enableScreenshots = false, framebufferScale = 1 }`. Resolves `{ success, hasOverlay, planeDetection }` |
 | `destroy()` | Destroys gestures, then fully disposes the engine (`engine.dispose()`) |
 | `onFrame(cb)` / `onPlanes(cb)` | Subscribe to engine frame / plane listeners; both return an unsubscribe function |
 | `getSurface()` | Current surface state `{ hasSurface, position, rotation, planeType, confidence }` |
@@ -157,6 +160,7 @@ off();
 | `preloadModels(urls)` | Loads each URL into the engine cache (`Promise.all`) |
 | `placeModel(modelUrl, options?)` | Options: `{ position?, rotation?, x = 0.5, y = 0.5, scale? }`. Hit-tests (centre, or `x, y`) unless `position` is given. Resolves `{ success: true, modelId, … }` or `{ success: false, code: 'NO_SURFACE', reason }` (`reason` is a deprecated alias of `code`). Sets `activeModelId` / `activeModelUrl` |
 | `switchModel(modelUrl, options?)` | Options: `{ preserveMaterial = true }`. Keeps placement/transform; falls back to `placeModel` when nothing is placed |
+| `moveModel(point?)` | Moves the active model to the surface under a normalised screen point (`{ x = 0.5, y = 0.5 }`). Keeps its scale. Resolves `{ success: false, code: 'NO_SURFACE' }` on a miss; the model stays put |
 | `removeModel()` | Removes the active model; no-op if none |
 | `getPlacedModels()` | Models placed through this view |
 | `clearModels()` | Removes every model placed through this view |
@@ -236,7 +240,7 @@ live placements are never evicted).
 ### Session and accessors
 
 `checkSupport()`, `startSession({ planeDetection = true,
-lightEstimation = true, enableScreenshots = false,
+lightEstimation = true, enableScreenshots = false, framebufferScale = 1,
 domOverlay = null })`, `stopSession()`, `dispose()` (full
 teardown; the instance can start again), `clearModelCache()`,
 `getSession()`, `getRenderer()`, `getScene()`, `getCamera()`,
