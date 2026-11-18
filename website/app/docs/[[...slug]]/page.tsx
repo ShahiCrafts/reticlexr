@@ -25,9 +25,32 @@ export async function generateMetadata({
   params: Promise<{ slug: string[] }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const page = getDocPage((slug ?? []).join('/'));
+  const slugStr = (slug ?? []).join('/');
+  const page = getDocPage(slugStr);
   if (!page) return {};
-  return { title: page.title, description: page.description };
+  const url = `/docs/${slugStr}`;
+  return {
+    title: page.title,
+    description: page.description,
+    alternates: { canonical: url },
+    openGraph: {
+      type: 'article',
+      title: `${page.title} - Reticle XR`,
+      description: page.description,
+      url,
+      siteName: 'Reticle XR',
+      // Explicit: a page-level openGraph object replaces the
+      // layout's, which would otherwise drop the generated
+      // /opengraph-image card.
+      images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'Reticle XR' }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${page.title} - Reticle XR`,
+      description: page.description,
+      images: ['/opengraph-image'],
+    },
+  };
 }
 
 /** 40px shaded gutter column for the docs grid (fill in globals.css

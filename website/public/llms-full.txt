@@ -1,0 +1,2163 @@
+# Reticle XR (reticlexr) — full documentation
+
+> The complete documentation for reticlexr, the high-level AR SDK for React + Capacitor (WebXR + native ARCore), concatenated for LLM ingestion. Canonical site: https://reticlexr.vercel.app — npm: https://www.npmjs.com/package/reticlexr — source: https://github.com/ShahiCrafts/reticlexr
+
+
+
+---
+
+<!-- Source: website/content/docs/getting-started.mdx -->
+
+---
+title: Getting started
+description: Install reticlexr, wire it into a Capacitor app, and place your first model, then test on a real phone over HTTPS.
+---
+
+<Info>
+This guide will help you get up and running with reticlexr in a few minutes.
+</Info>
+
+## Installation
+
+Install the package from npm with your package manager:
+
+<InstallTabs />
+
+The package ships as plain ESM source; there is no build step and no
+transpilation. Its renderer/bridge dependencies are **peer
+dependencies** your app provides:
+
+| Package | Version (from `package.json`) | Why |
+| --- | --- | --- |
+| `@capacitor/core` | `^8.5.2` | The Capacitor bridge the native facade registers with; any Capacitor 8 app already has it |
+| `three` | `^0.180.0` | The WebXR runtime's renderer, scene and GLTF loader |
+
+`react` (`>=16.8.0`) is a peer dependency for the
+[`useARCore` hook](/docs/api#usearcore), which lives at
+`reticlexr/react`.
+
+<Note>
+The package root still re-exports `useARCore` as a **deprecated
+alias**, so importing the root entry still pulls React in 1.x.
+Framework-agnostic code can import the subpaths instead
+(`reticlexr/ar-view`, `reticlexr/web`, `reticlexr/gestures`), which
+never touch React.
+</Note>
+
+Hand-written TypeScript declarations ship with the package
+(`src/*.d.ts`), so TypeScript projects get full checking.
+
+<Step number="01" title="Capacitor setup" id="capacitor-setup">
+<div>
+
+For a Capacitor app, install the package and sync:
+
+</div>
+<div data-wide>
+
+<Note>
+The package's `package.json` carries the
+`"capacitor": { "android": { "src": "android" } }` metadata key, so
+`cap sync` discovers and registers the Android plugin automatically
+(`ARCorePlugin` in the generated `capacitor.plugins.json`, a
+`:reticlexr` project in the generated settings). No manual
+`settings.gradle` edit is needed; the clean consumer flow is
+verified in a scratch Capacitor app.
+</Note>
+
+The native Android side, once wired, provides session management, hit
+testing and surface events through ARCore. Be aware of what it does
+**not** do yet: native model rendering is not implemented: models render
+in the WebXR runtime. Read
+[WebXR vs native ARCore](/docs/concepts/webxr-vs-native) before planning
+an Android-native-only experience.
+
+</div>
+<div>
+
+```bash title="Terminal"
+npm install reticlexr
+npx cap sync
+```
+
+</div>
+</Step>
+
+<Step number="02" title="Your first AR view" id="your-first-ar-view" stacked>
+<div>
+
+The high-level API is `createARView()`. It needs a DOM element to use as
+the immersive session's overlay, your buttons and product UI live there.
+
+What happens next is covered by the guides:
+[React integration](/docs/guides/react-integration) for component-shaped
+usage, [Gestures](/docs/guides/gestures) for tap/pinch/twist, and
+[Model preloading & switching](/docs/guides/model-preloading-and-switching)
+for product catalogues.
+
+</div>
+<div data-wide>
+
+<Note>
+`create()` asks the browser for an `immersive-ar` session with the
+`hit-test` feature required. `local-floor` is requested when
+available, with `local` and `viewer` reference-space fallbacks, so
+a device/browser without `local-floor` degrades instead of failing
+session creation.
+</Note>
+
+</div>
+<div>
+
+```js title="first-ar.js"
+import { createARView } from 'reticlexr';
+
+const ar = createARView({
+  overlay: document.querySelector('#ar-overlay'),
+});
+
+// Starts the WebXR session. Defaults shown; every option is optional.
+await ar.create({
+  showReticle: true,     // centre placement reticle
+  showPlaneDots: true,   // dotted visualisation over detected planes
+  showShadow: true,      // soft blob shadow under the model
+  planeDetection: true,
+  lightEstimation: true,
+});
+
+// Cache the parsed models so placement and switching are fast.
+await ar.preloadModels(['/models/sofa.glb', '/models/chair.glb']);
+
+// Places at the current centre hit test.
+const result = await ar.placeModel('/models/sofa.glb');
+if (!result.success) {
+  // result.code === 'NO_SURFACE' when no surface is in view yet
+  console.log('Keep scanning:', result.code);
+}
+```
+
+```html title="index.html"
+<div id="ar-overlay">
+  <!-- Buttons here are normal DOM. Mark interactive UI with data-ui so
+       the gesture layer ignores it. -->
+  <button data-ui onclick="...">Add to cart</button>
+</div>
+```
+
+</div>
+</Step>
+
+<Step number="03" title="HTTPS and phone testing" id="https-and-phone-testing" stacked>
+<div>
+
+WebXR immersive AR only runs in a **secure context**: HTTPS, or
+`localhost`. A page served over plain HTTP on a LAN address will load, but
+session creation will fail: `checkSupport()` reports
+`{ supported: false, code: 'INSECURE_CONTEXT' }` in that case, so check
+the `code` (and the URL scheme) first when AR refuses to start.
+
+### Zero-setup option
+
+Open this site's [live demo](/demo) on the phone. It is served over HTTPS,
+so the only requirements are the device ones below.
+
+### Testing your own app on a phone
+
+Requirements (from the repository's phone-testing guide):
+
+- An ARCore-capable Android phone with Google Play Services for AR
+- Current Chrome on the phone
+- Phone and development computer on the same Wi-Fi
+
+The example app ships LAN HTTPS tooling with a self-signed development CA:
+
+</div>
+<div>
+
+```bash title="Terminal"
+cd example
+npm install
+npm run cert        # generates a private dev CA + server cert for your LAN IP
+npm run dev:https   # serves https://<LAN-IP>:5173
+```
+
+</div>
+<div>
+
+Then:
+
+1. Transfer **only** `example/certs/dev-ca.crt` to the phone, never the
+   `.key` file.
+2. Install it as a CA certificate (Settings → Security → Encryption &
+   credentials; exact wording varies by vendor).
+3. Restart Chrome on the phone.
+4. Open the printed `https://<LAN-IP>:5173` URL, tap **Start AR**, grant
+   camera access, and move the phone slowly over a textured floor or
+   table until surface dots appear.
+
+<Tip>
+A self-signed certificate without the CA install also works for a quick
+look: Chrome will warn once per origin; choose **Advanced → Proceed**.
+Pages still count as secure contexts, so WebXR runs, but the warning
+returns on every new origin, which is why the CA flow is worth it for
+repeated testing.
+</Tip>
+
+<Warning>
+The generated certificates are development-only and git-ignored. Remove
+the development CA from the phone when you finish testing, and never use
+these keys in production.
+</Warning>
+
+### iOS
+
+iOS Safari does not expose the immersive-ar WebXR flow this SDK's browser
+runtime is built on. The WebXR path is an Android Chrome path; plan a
+separate implementation for iOS if you need it.
+
+</div>
+</Step>
+
+
+---
+
+<!-- Source: website/content/docs/api.mdx -->
+
+---
+title: API reference
+description: Every public function, option, type and event in reticlexr 1.1.0, hand-written from the verified source signatures.
+---
+
+This reference is hand-written from the source and the shipped
+type declarations (`src/*.d.ts`, kept honest against the
+implementation by `tsc --checkJs`). Where the JSDoc in the code
+disagrees with the implementation, this page documents the
+**implementation** and says so.
+
+## Package exports
+
+```js
+import ARCore, {
+  ARError,
+  ARView,
+  createARView,
+  createARGestureController,
+  takeScreenshot,
+  enableCustomization,
+  addTextures,
+  switchModel,
+  placeModel,
+} from 'reticlexr';
+import { useARCore } from 'reticlexr/react';
+import { ARCoreWeb } from 'reticlexr/web';
+```
+
+| Export | Kind | Layer |
+| --- | --- | --- |
+| `ARCore` (default) | Native facade object | Capacitor bridge → Android plugin (web → WebXR engine) |
+| `ARView`, `createARView` | Class + factory | High-level facade over the WebXR engine |
+| `takeScreenshot`, `enableCustomization`, `addTextures`, `switchModel`, `placeModel`, `moveModel` | Functional helpers (view-first) | Same facade, function style |
+| `useARCore` | React hook (import from `reticlexr/react`) | WebXR engine mirrored into React state |
+| `ARCoreWeb` | Engine class (import from `reticlexr/web`) | The WebXR runtime itself |
+| `createARGestureController` | Factory | Standalone Pointer Events controller |
+| `ARError`, `codedError` | Error class + factory | The package's one error convention |
+
+Subpaths: `.`, `./react`, `./web`, `./ar-view`, `./gestures`,
+`./package.json`. Deep imports outside the exports map do not
+resolve.
+
+<Note>
+One identifier everywhere: a placed model is a **`modelId`** on
+every layer and runtime. `anchorId` survives as a
+**deprecated alias**, the same string, on inputs, results and
+event payloads, and is removed in the next major version.
+</Note>
+
+## ARCore native facade
+
+The default export. Every method delegates to the Capacitor plugin
+registered as `ARCore`, on Android that's the native plugin, on
+web it falls through to the WebXR engine (`ARCoreWeb`). Failures
+reject with an `ARError` carrying a stable `code` (a runtime code
+when one exists, otherwise a per-method `*_FAILED` fallback);
+`checkSupport` resolves a result object instead.
+
+```js title="native-facade.js"
+import ARCore from 'reticlexr';
+
+const support = await ARCore.checkSupport();
+if (support.supported) {
+  await ARCore.startSession({ planeDetection: true, lightEstimation: true });
+  const hit = await ARCore.hitTest({ x: 0.5, y: 0.5 });
+  await ARCore.stopSession();
+}
+```
+
+| Method | Signature | Returns |
+| --- | --- | --- |
+| `startSession` | `(options?: { planeDetection?, lightEstimation? })` | `Promise<{ success: boolean }>` |
+| `stopSession` | `()` | `Promise<void>` |
+| `hitTest` | `(options: { x: number, y: number })` (normalised [0, 1]) | `Promise<{ hit, position?, rotation?, planeType?, error? }>` |
+| `placeModel` | `(options: { modelPath: string, hitId?: string } \| { modelUrl: string, hitId?: string })` | `Promise<{ modelId: string, anchorId: string }>` |
+| `setTransform` | `(options: { modelId, rotation?: {x,y,z} degrees, scale?: number })` | `Promise<void>` |
+| `setMaterial` | `(options: { modelId, color: string })` (hex colour) | `Promise<void>` |
+| `moveModel` | `(options: { modelId, x: number, y: number })` | `Promise<Object>` |
+| `beginDragMove` | `(modelId: string)` | `boolean` |
+| `updateDragPoint` | `(x: number, y: number)` (normalised [0, 1]) | `void` |
+| `endDragMove` | `()` | `void` |
+| `removeModel` | `(options: { modelId })` | `Promise<void>` |
+| `getPlacedModels` | `()` | `Promise<Array<{ modelId, modelUrl, position, rotation, scale }>>` |
+| `clearModels` | `()` | `Promise<void>` |
+| `checkSupport` | `()` | `Promise<{ supported: boolean, reason: string, code?: string }>` |
+| `on` | `(eventType: string, callback: (data) => void)` | unsubscribe function `() => void` |
+| `addListener` | `(eventType, callback)` | Capacitor listener handle (internal) |
+
+<Warning>
+Native-runtime scope (Option B): on Android the session, hit test
+and events are real; `checkSupport` returns the actual
+`ArCoreApk.checkAvailability()` result and a successful hit test
+creates a real ARCore anchor. But the native plugin does **not**
+render models: `placeModel`, `moveModel`, `setTransform`,
+`setMaterial`, `removeModel`, `getPlacedModels` and `clearModels`
+reject with code `NOT_IMPLEMENTED`. WebXR is the runtime that
+renders models. See
+[WebXR vs native ARCore](/docs/concepts/webxr-vs-native).
+</Warning>
+
+### Facade events
+
+`ARCore.on(eventType, callback)` subscribes to the local event bus,
+fed by the native event bridge, which installs **lazily on the
+first subscription** (importing the package has no listener side
+effects):
+
+```js
+const off = ARCore.on('modelPlaced', (data) => console.log(data));
+off(); // unsubscribe
+```
+
+Wired event types: `sessionStarted`, `trackingChanged`,
+`surfaceDetected`, `surfaceLost`, `surfaceUpdated`, `sessionStopped`,
+`modelPlaced`, `modelRemoved`, `modelTransformed`,
+`modelMaterialChanged`, `modelMoved`, `error`. Events are per
+runtime; the WebXR engine emits its own set through its listeners
+(below), never through `ARCore.on`.
+
+## ARView and createARView
+
+The framework-agnostic facade over one WebXR engine instance. This
+is the API the guides and the example use.
+
+```js
+import { createARView } from 'reticlexr';
+
+const ar = createARView({ overlay: document.querySelector('#ar-overlay') });
+```
+
+Constructor options: `{ engine?, overlay? }`, where `engine` is an
+`ARCoreWeb` instance (default: a new one), `overlay` the DOM
+element for the immersive session's overlay.
+
+### Session
+
+| Member | Signature / behaviour |
+| --- | --- |
+| `checkSupport()` | → engine `checkSupport()` → `{ supported, reason, code? }` |
+| `create(options?)` | Starts the session. Options: `{ overlay?, showReticle = true, showPlaneDots = true, dotSpacing = 0.14, dotSize = 0.014, showShadow = true, planeDetection = true, lightEstimation = true, enableScreenshots = false, framebufferScale = 1 }`. Resolves `{ success, hasOverlay, planeDetection }` |
+| `destroy()` | Destroys gestures, then fully disposes the engine (`engine.dispose()`) |
+| `onFrame(cb)` / `onPlanes(cb)` | Subscribe to engine frame / plane listeners; both return an unsubscribe function |
+| `getSurface()` | Current surface state `{ hasSurface, position, rotation, planeType, confidence }` |
+| `getPlanes()` | `[{ orientation, polygon: [{x, y, z}] }]` |
+| `setReticleVisible(v)` / `setSurfaceDotsVisible(v)` | Visibility toggles |
+
+```js title="session.js"
+await ar.create({ showReticle: true, showPlaneDots: true, dotSpacing: 0.14 });
+const off = ar.onPlanes((e) => console.log(e.total, 'planes'));
+console.log(ar.getSurface().planeType); // e.g. 'horizontal'
+await ar.destroy();
+off();
+```
+
+### Models
+
+| Member | Signature / behaviour |
+| --- | --- |
+| `preloadModels(urls)` | Loads each URL into the engine cache (`Promise.all`) |
+| `placeModel(modelUrl, options?)` | Options: `{ position?, rotation?, x = 0.5, y = 0.5, scale? }`. Hit-tests (centre, or `x, y`) unless `position` is given. Resolves `{ success: true, modelId, … }` or `{ success: false, code: 'NO_SURFACE', reason }` (`reason` is a deprecated alias of `code`). Sets `activeModelId` / `activeModelUrl` |
+| `switchModel(modelUrl, options?)` | Options: `{ preserveMaterial = true }`. Keeps placement/transform; falls back to `placeModel` when nothing is placed |
+| `moveModel(point?)` | Moves the active model to the surface under a normalised screen point (`{ x = 0.5, y = 0.5 }`). Keeps its scale. Resolves `{ success: false, code: 'NO_SURFACE' }` on a miss; the model stays put |
+| `removeModel()` | Removes the active model; no-op if none |
+| `getPlacedModels()` | Models placed through this view |
+| `clearModels()` | Removes every model placed through this view |
+| `setScale(scale)` | Clamped to **[0.1, 5]**, applied uniformly |
+| `rotateBy(radians)` | Accumulates `transform.rotationY`, applies a Y rotation |
+| `setColor(color)` | Sets the active model's colour (hex string) |
+| `addTextures({ name: url })` | Registers named texture URLs; returns `this` |
+| `applyTexture(nameOrUrl, options?)` | Options: `{ materialName? }`. Throws if no model is placed |
+| `takeScreenshot(options?)` | Delegates to the engine, see [Screenshots](/docs/guides/screenshots) |
+| Public fields | `activeModelId`, `activeModelUrl`, `placedModelUrls` (Map), `transform` (`{ scale, rotationY }`), `textures` (a `Map`) |
+
+```js title="models.js"
+await ar.preloadModels(['/models/sofa.glb', '/models/chair.glb']);
+const placed = await ar.placeModel('/models/sofa.glb');
+if (placed.success) {
+  ar.setScale(1.25);
+  ar.rotateBy(Math.PI / 6);
+  await ar.switchModel('/models/chair.glb'); // same anchor, scale, rotation
+  await ar.setColor('#222b3c');
+  await ar.removeModel();
+}
+```
+
+### Customization and gestures
+
+`enableCustomization(options?)` wires the gesture controller to
+the overlay. It **throws without an overlay**. Options:
+`{ modelUrl: string | (() => string), onTap?, onScale?,
+onRotate?, onError? }`: `modelUrl` may be a URL string or a
+function invoked on every tap; placement errors are delivered to
+`onError`. Returns a cleanup function. Full details in
+[Gestures](/docs/guides/gestures).
+
+### Functional helpers
+
+The same operations, view-first, for function-style codebases:
+
+```js
+import { placeModel, switchModel, addTextures, enableCustomization, takeScreenshot } from 'reticlexr';
+
+await placeModel(ar, '/models/sofa.glb');
+await switchModel(ar, '/models/chair.glb', { preserveMaterial: false });
+addTextures(ar, { oak: '/textures/oak.jpg' });
+const cleanup = enableCustomization(ar, { modelUrl: () => '/models/sofa.glb' });
+const shot = await takeScreenshot(ar, { format: 'jpeg', quality: 0.85 });
+```
+
+## ARCoreWeb engine
+
+The WebXR engine class behind everything above
+(`import { ARCoreWeb } from 'reticlexr/web'`). Advanced consumers
+can use it directly; the hook does.
+
+### Configuration
+
+`setConfig(partial)` / `getConfig()`. Defaults:
+
+| Key | Default | Key | Default |
+| --- | --- | --- | --- |
+| `showReticle` | `true` | `reticleColor` | `0x00ff88` |
+| `showPlanes` | `false` | `reticleColorVertical` | `0xff6b6b` |
+| `showPlaneDots` | `true` | `planeColorHorizontal` | `0x00ff88` |
+| `showShadow` | `true` | `planeColorVertical` | `0xff6b6b` |
+| `showBaseRing` | `false` | `shadowOpacity` | `0.4` |
+| `dotSize` | `0.02` | `shadowSize` | `1.2` |
+| `dotSpacing` | `0.1` | `debug` | `false` |
+| `modelCacheLimit` | `20` | | |
+
+<Note>
+The facade's `create()` overrides some of these per view (dots at
+spacing `0.14`, size `0.014`). Engine defaults apply when you drive
+the engine directly. `debug` gates the engine's diagnostic
+logging; `modelCacheLimit` caps the GLTF cache (LRU; entries with
+live placements are never evicted).
+</Note>
+
+### Session and accessors
+
+`checkSupport()`, `startSession({ planeDetection = true,
+lightEstimation = true, enableScreenshots = false, framebufferScale = 1,
+domOverlay = null })`, `stopSession()`, `dispose()` (full
+teardown; the instance can start again), `clearModelCache()`,
+`getSession()`, `getRenderer()`, `getScene()`, `getCamera()`,
+`getAnchors()`.
+
+### Models
+
+| Method | Signature / behaviour |
+| --- | --- |
+| `loadModel(url)` | Loads (or returns the cache entry) and resolves a fresh `gltf.scene.clone()` |
+| `placeModel({ modelUrl, position?, rotation?, scale? })` | Resolves `{ modelId, anchorId }` (`anchorId` = deprecated alias). Inputs are normalised: position `[x,y,z]` or `{x,y,z}`; rotation quaternion or Euler radians; scale number/array/object, clamped to [0.1, 5] per axis |
+| `removeModel({ modelId })` | Removes the model; disposal follows the ownership rule |
+| `getPlacedModels()` | `[{ modelId, modelUrl, position, rotation, scale }]` |
+| `clearModels()` | Removes every placed model |
+| `transformModel({ modelId, position?, rotation?, scale? })` | Applies a model transform |
+| `switchModel({ modelId, modelUrl, preserveMaterial = true })` | Swaps the model on an existing placement; material carry-over matches by name, then order |
+| `setModelColor({ modelId, color })` | Recolours |
+| `setModelMaterial({ modelId, metalness?, roughness?, opacity? })` | PBR property update |
+| `setModelTexture({ modelId, textureUrl, materialName? })` | Applies a texture |
+| `setTransform(options)` / `setMaterial(options)` / `moveModel(options)` | Facade-compatibility shims accepting `modelId` (or its `anchorId` alias); a plain `{x,y,z}` rotation in `setTransform` is Euler **degrees** |
+
+```js title="engine-models.js"
+const { modelId } = await engine.placeModel({
+  modelUrl: '/models/sofa.glb',
+  position: [0, 0, -1.5],
+  rotation: [0, 0, 0, 1], // quaternion
+  scale: [1, 1, 1],
+});
+await engine.setModelMaterial({ modelId, roughness: 0.8 });
+await engine.removeModel({ modelId });
+```
+
+### Queries, events and visualisation
+
+| Method | Behaviour |
+| --- | --- |
+| `hitTest({ x, y })` | Resolves `{ hit, position?, rotation?, planeType?, code? }`. Centre coordinates use the reticle path; non-centre coordinates perform a ray-based hit test |
+| `hitTestAtPoint(x, y)` | The ray-based hit test directly |
+| `getSurfaceState()` / `getSurfaceDetectionState()` | Current surface state |
+| `getDetectedPlanes()` | Detected plane list |
+| `addFrameListener(cb)` / `addPlaneListener(cb)` | Subscribe; return unsubscribe |
+| `setReticleVisible(v)` | Toggle the reticle |
+| `setPlaneVisualization(v)` / `isPlaneVisualizationEnabled()` | Plane mesh visualisation |
+| `setShadowVisible(modelId, v)` | Per-model shadow toggle |
+| `setShadowConfig({ enabled?, opacity?, size? })` / `getShadowConfig()` | Shadow tuning |
+
+Frame listeners receive engine events: `surfaceDetected`,
+`surfaceLost`, `modelPlaced`, `modelRemoved`, `modelTransformed`,
+`modelColorChanged`, `modelSwitched`, `sessionEnded`: payloads
+carry `modelId` (with `anchorId` as its deprecated alias). Plane
+listeners receive `planeAdded` and `planesUpdated` with payload
+`{ type, total, horizontal, vertical }`: counts as **numbers**.
+
+### Screenshots
+
+`takeScreenshot({ format = 'png', quality = 0.92, width?,
+height?, includeReticle? })` resolves `{ success, dataUrl, width,
+height, timestamp, includesCamera }` or `{ success: false, code?,
+error }`. Including the camera feed needs the session started
+with `enableScreenshots: true`, see
+[Screenshots](/docs/guides/screenshots).
+
+## useARCore
+
+React hook over the WebXR engine, imported from
+**`reticlexr/react`**. By default all consumers share one
+lazily-constructed engine; pass `{ engine }` (a dedicated
+`ARCoreWeb` from `reticlexr/web`) for an isolated, per-instance
+hook. It checks support on mount and mirrors engine events into
+state.
+
+**State:** `isSupported: boolean | null`, `isSessionActive:
+boolean`, `placedModels: Array<{ modelId, modelUrl, position,
+rotation, scale }>`, `error: string | null`, `detectedPlanes:
+{ horizontal, vertical, total }`, `surfaceState:
+{ hasSurface, position, rotation, planeType, confidence }`.
+
+**Methods** (all memoised): `startSession(options)` →
+`Promise<boolean>` (options pass straight to the engine, e.g.
+`{ domOverlay }`), `stopSession()`, `hitTest(x, y)` (normalised
+[0, 1], origin top-left, not pixels),
+`placeModel(modelUrl, position, rotation, scale)`,
+`removeModel(modelId)`, `getPlacedModels()`, `clearModels()`,
+`transformModel(modelId, transforms)`,
+`setModelColor(modelId, color)`,
+`setModelMaterial(modelId, properties)`, `setConfig` /
+`getConfig`, `setShadowConfig` / `getShadowConfig`,
+`setShadowVisible(modelId, v)`, `getDetectedPlanes()`,
+`setReticleVisible(v)`, `setPlaneVisualization(v)`,
+`clearError()`, `getRenderer` / `getScene` / `getCamera`,
+`takeScreenshot(options)`.
+
+```jsx title="hook.jsx"
+import { useARCore } from 'reticlexr/react';
+
+const ar = useARCore();
+
+await ar.startSession({ domOverlay: overlayElement });
+await ar.placeModel('/models/sofa.glb', [0, 0, -1.5], [0, 0, 0, 1], [1, 1, 1]);
+// Placed models (with their modelIds) are mirrored into state:
+const first = ar.placedModels[0];
+if (first) ar.setModelColor(first.modelId, '#a55f3b');
+```
+
+<Note>
+Transform arguments are **normalised**: positions accept
+`[x, y, z]` or `{x, y, z}`, rotations a quaternion array/object or
+Euler radians, scales a number, array or object. (In 1.0.0,
+`{x, y, z}` objects produced `NaN` transforms, fixed in 1.1.0.) With the shared default engine, one consumer
+stopping the session stops it for all consumers; mount the hook
+once, or pass a dedicated engine per view.
+</Note>
+
+## Gesture controller
+
+```js
+import { createARGestureController } from 'reticlexr';
+
+const gestures = createARGestureController({
+  element,                  // required: throws if missing
+  onTap, onDrag, onPinch, onRotate,
+  tapMaxDuration = 260,     // ms
+  tapMaxDistance = 12,      // px
+  preventDefault = true,
+  ignoreSelector = '[data-ui]',
+});
+gestures.destroy();
+```
+
+Payloads: `onTap({ x, y })`, `onDrag({ dx, dy, x, y })`,
+`onPinch({ factor, center })` with an **incremental** factor,
+`onRotate({ delta, center })` with an incremental delta in
+radians. Full guide: [Gestures](/docs/guides/gestures).
+
+## Error conventions
+
+One convention across the package: async methods reject
+with an **`ARError`**, an `Error` with a stable, machine-readable
+`code`. Result-object APIs resolve with the same `code` on their
+failure results. Messages may change; codes are the contract.
+
+| Layer | Convention |
+| --- | --- |
+| `ARCore` facade | Rejects with `ARError` (runtime code preserved; per-method `*_FAILED` fallback); `checkSupport` resolves `{ supported: false, reason, code }` |
+| Engine `hitTest` | Resolves `{ hit: false, code, error }` |
+| `ARView.placeModel` | Resolves `{ success: false, code, reason }` (`reason` = deprecated alias of `code`) |
+| `useARCore` | Sets `error` state; failure results carry `code` |
+| Screenshots | Resolve `{ success: false, code, error }` |
+
+Engine codes include `SESSION_START_FAILED`,
+`SESSION_NOT_ACTIVE`, `SESSION_ENDED`, `HIT_TEST_FAILED`,
+`HIT_TEST_TIMEOUT`, `HIT_TEST_UNAVAILABLE`, `NO_VIEWER_POSE`,
+`MODEL_NOT_FOUND`, `MODEL_URL_REQUIRED`, `MODEL_LOAD_FAILED`,
+`NO_SURFACE`, `NO_ACTIVE_MODEL`, `OVERLAY_REQUIRED`,
+`CAMERA_CAPTURE_UNAVAILABLE`, `CAPTURE_BUSY`, `INSECURE_CONTEXT`,
+plus native codes surfaced unchanged (e.g. `NOT_IMPLEMENTED`,
+`ACTIVITY_UNAVAILABLE`).
+
+## Model and texture URLs
+
+Model and texture URLs are loaded **as given** (three.js
+`GLTFLoader` / `TextureLoader`); the package performs no
+validation or allow-listing. Only load models and textures from
+sources you control or trust; a GLB is parsed in your page's
+origin, so an untrusted file is untrusted content. Cross-origin
+URLs need CORS (`Access-Control-Allow-Origin`, over HTTPS) or
+the load fails; same-origin or bundled assets avoid the issue.
+
+## Deprecated aliases
+
+All aliases keep working throughout 1.x and are removed in the
+next major version.
+
+| Deprecated | Replacement |
+| --- | --- |
+| `anchorId` (inputs, results, event payloads) | `modelId`, the same string |
+| `modelPath` (engine `placeModel` option) | `modelUrl` |
+| `reason` (ARView place result) | `code`, the same string |
+| `useARCore` from the package root | `useARCore` from `reticlexr/react` |
+
+
+---
+
+<!-- Source: website/content/docs/compatibility.mdx -->
+
+---
+title: Compatibility
+description: What the code requires, and the devices and browsers it has actually been run on.
+---
+
+The tables below separate **code-level requirements** (verified by
+reading the source) from **tested support** (real device runs,
+recorded in [Devices](#devices)). Do not read a requirement as a
+support promise: a feature is only "tested" once it has been run on
+a recorded device.
+
+## WebXR runtime (browser)
+
+| Requirement | Source | Tested |
+| --- | --- | --- |
+| Secure context (HTTPS or `localhost`) | WebXR platform rule; `checkSupport()` reports it with a distinct `INSECURE_CONTEXT` code | — |
+| `immersive-ar` session support | `navigator.xr.requestSession('immersive-ar', …)` | Chrome 157 · Android 12 ✓ |
+| `hit-test` feature | Required feature at session creation | Chrome 157 · Android 12 ✓ |
+| `local-floor` feature | Requested first at session creation; falls back to `local`, then `viewer` when unavailable | — |
+| `plane-detection` | Optional feature; dots/meshes appear when granted | Chrome 157 · Android 12 ✓ |
+| `light-estimation` | Optional; requested when light estimation is on | — |
+| `camera-access` | Optional; requested **only** when the session starts with `enableScreenshots: true` (for screenshots, not implied by light estimation) | See the device notes |
+| `dom-overlay` | Optional; requested when an overlay element is provided | Chrome 157 · Android 12 ✓ |
+
+The documented test path is **Chrome on an ARCore-capable Android phone**
+(see [Phone testing](/docs/getting-started#https-and-phone-testing)).
+Chrome versions tested so far: **157.0.8103.78** on Android 12. No
+minimum Chrome version is established: only versions actually run
+are listed.
+
+iOS Safari does not expose the immersive-ar WebXR flow. The browser
+runtime is not an iOS path.
+
+## Native Android runtime (Capacitor)
+
+| Item | Value | Notes |
+| --- | --- | --- |
+| Minimum Android SDK | 24 | `minSdk` default in `android/build.gradle` (overridable by the host project) |
+| Compile / target SDK | 36 / 36 | Defaults, overridable |
+| ARCore library | `com.google.ar:core` 1.40.0 | Device must be ARCore-capable with Google Play Services for AR |
+| Filament | 1.52.0 | Camera-background rendering |
+| Java | 21 | Source/target compatibility |
+
+The native Capacitor runtime has not been device-tested yet. The
+WebXR runtime has, see [Devices](#devices).
+
+<Note>
+The library's Android manifest declares the AR feature (and the
+plain camera feature) as `required="false"`, which merges into
+your app: host apps stay installable on non-AR devices. Making
+AR required is an opt-in from your own manifest, see the
+[installation guide](https://github.com/ShahiCrafts/reticlexr/blob/main/docs/INSTALLATION.md).
+</Note>
+
+## Frameworks and tooling
+
+| Item | Requirement | Notes |
+| --- | --- | --- |
+| React | `>=16.8.0` (peer) | Only the hook needs it (import it from `reticlexr/react`). The root entry still re-exports it as a deprecated alias, so root imports still pull React in 1.x |
+| `@capacitor/core` | `^8.5.2` (peer) | Provided by the host Capacitor app |
+| `three` | `^0.180.0` (peer) | Provided by the host app, one shared copy; duplicates break GLTF class identity |
+| Module format | ESM (`type: module`) with an `exports` map | Subpaths: `.`, `./react`, `./web`, `./ar-view`, `./gestures`, `./package.json` |
+| TypeScript | Hand-written declarations ship (`src/*.d.ts`) | JSDoc in the implementation is type-checked by `npm run check-types` (`tsc --checkJs`) |
+
+## Devices
+
+| Device | OS | Browser | Date | Result |
+| --- | --- | --- | --- | --- |
+| Redmi Note 9S | Android 12 | Chrome 157.0.8103.78 | 2026-11-17 | WebXR demo run, see notes below |
+| Samsung Galaxy A24 (SM-A245F) | Android 16 | Chrome 157.0.8103.50 | 2026-11-17 | WebXR demo run, tap-to-place confirmed |
+
+Follow-up the same day: when the demo moved to tap-only placement,
+tap-to-place failed on the Redmi: the per-tap hit test gave up on
+its first (still empty) results frame, so taps missed silently.
+Fixed in the library (the point hit test now tolerates a short
+grace of empty frames and falls back to the reticle hit, and a
+missed tap now surfaces an on-screen hint), and confirmed working
+on both devices above.
+
+Notes from the Redmi Note 9S run (the library's first recorded device
+test, against the live demo):
+
+- Session start, surface detection, tap-to-place and in-place model
+  switching all worked; switching was smooth.
+- Pinch-to-scale and twist-to-rotate worked but were jittery and
+  hard to control. Root causes found in the gesture pipeline the
+  same day, no `touch-action: none` on the overlay, unsmoothed
+  digitizer samples, and transform state committed only after an
+  async engine call, and fixed in the library source. A confirming
+  re-test is pending.
+- Screenshots failed with `CAMERA_CAPTURE_UNAVAILABLE`: the demo
+  did not start its session with `enableScreenshots: true`, so
+  camera access was never requested (WebXR can only grant it at
+  session start). The demo now opts in; a confirming re-test is
+  pending.
+
+If you run the demo on your phone, reporting the device model,
+Android version and Chrome version (in a GitHub issue) directly
+extends this table.
+
+
+---
+
+<!-- Source: website/content/docs/known-issues.mdx -->
+
+---
+title: Known issues & roadmap
+description: What the v1.0.0 audit found, what 1.1.0 fixed, and what is still open, in plain language.
+---
+
+This page summarises a full code audit of v1.0.0 (68 rated findings
+with file and line references) and
+the 1.1.0 remediation that followed it. Most findings are fixed;
+what remains is listed plainly below, including the items that are
+open **by decision** rather than by oversight.
+
+## Fixed in 1.1.0
+
+### WebXR engine
+
+- **Hit testing takes coordinates.** `hitTest({x, y})` with
+  non-centre coordinates now performs a real ray-based hit test
+  (centre still uses the reticle path).
+- **Removed models are disposed.** A documented ownership rule
+  governs disposal on remove/switch/stop paths; the model cache is
+  LRU-capped (`config.modelCacheLimit`, default 20), and
+  `engine.dispose()` performs a full teardown (ARView's `destroy()`
+  calls it).
+- **Plane dots are one `InstancedMesh` per plane** instead of one
+  mesh per dot, and surface notifications fire on change at ≤10 Hz
+  instead of per frame.
+- **The reticle setting is honoured**, `showReticle: false` is no
+  longer forced back on at session start, placement or removal.
+- **Session-start failures clean up** (no leaked live session), and
+  the fallback hit test always settles, including on session end.
+- **Reference-space fallback:** `local-floor` → `local` → `viewer`
+  instead of `local-floor` or nothing.
+
+### Facade, hook and API shape
+
+- **One model identifier:** `modelId` everywhere (`anchorId` is a
+  deprecated alias), and transform inputs are normalised at the
+  engine boundary, `{x, y, z}` objects no longer produce `NaN`
+  transforms.
+- **Hook plane counts work** (the engine's numeric counts are read
+  as numbers).
+- **`switchModel` material carry-over matches by material name,
+  then order**, multi-material models no longer flatten.
+- **Enumeration exists:** `getPlacedModels()` / `clearModels()` on
+  the engine, `ARView`, the facade and the hook.
+- **Per-instance hook engine:** `useARCore({ engine })` isolates a
+  view; the default shared engine is constructed lazily.
+- **One coded-error convention:** public failures carry a stable
+  `code` (`ARError`); messages are unchanged.
+- **React is only needed by the hook,** which lives at
+  `reticlexr/react`; the native event bridge installs lazily on
+  first subscription instead of at import. (The root entry still
+  re-exports the hook as a deprecated alias, so root imports still
+  pull React in 1.x.)
+
+### Native Android
+
+- **Lifecycle is wired:** pause/resume/destroy are forwarded; the
+  render loop restarts reliably for a second session; plugin
+  destroy stops and joins the render thread and destroys Filament
+  resources in dependency order; the Filament engine is created
+  lazily.
+- **`checkSupport` asks ARCore** (`ArCoreApk.checkAvailability()`)
+  instead of always saying yes, and session creation receives the
+  foreground Activity.
+- **Anchors are real:** hit tests are served by the render loop
+  (the sole `Session.update()` caller) and a successful hit creates
+  a real ARCore anchor whose id is returned.
+- **The availability retry is bounded** (25 attempts ≈ 5 s, then a
+  coded timeout) and can never create a session after stop.
+- **The library manifest no longer forces AR-required** onto host
+  apps (`required="false"` for the AR and camera features;
+  AR-required is a documented opt-in).
+
+### Packaging and docs
+
+- The **`capacitor` metadata key** ships, and the clean consumer
+  flow (`npm install reticlexr` → `npx cap sync` → plugin
+  registered) is verified in a scratch Capacitor app.
+- **Hand-written TypeScript declarations** ship and are kept
+  honest by `tsc --checkJs`; the package declares ESM + an
+  `exports` map with subpaths; `three` and `@capacitor/core` are
+  peer dependencies; lockfiles are committed and the CI workflow
+  installs with `npm ci`.
+- **Tests exist:** the Vitest suite (27 files, 28 tests) passes
+  locally, and the committed CI workflow defines jobs for it
+  alongside the type-check, the example build and a Gradle
+  `:reticlexr:assembleDebug` build. The workflow has not yet had a
+  completed run, so treat the suite as a local verification for now.
+
+## Still open
+
+- **Native model rendering:** scoped out by decision (Option B).
+  The native plugin provides session management, hit testing and
+  events; `placeModel`, `moveModel`, `setTransform`, `setMaterial`,
+  `removeModel`, `getPlacedModels` and `clearModels` reject with
+  `NOT_IMPLEMENTED` on native instead of pretending to work.
+  Models render in the WebXR runtime. Implementing native
+  rendering (Option A) remains an owner decision.
+- **Compatibility coverage is one device deep.** The WebXR runtime
+  has a first recorded device test (Redmi Note 9S, Android 12,
+  Chrome 157, see [Compatibility](/docs/compatibility)); the
+  native Capacitor runtime has not been device-tested yet.
+- **`npm audit` has never been run.** The audit environment's
+  registry proxy refuses the audit endpoint (403), so no
+  vulnerability counts exist. The CI workflow defines the audit as a
+  non-blocking step; run `npm audit` at the repository root and in
+  `example/` wherever the registry permits.
+- **SSR:** all entry points pass DOM-less import checks (no
+  `window`/`document` access at import; the hook renders to string),
+  but a full framework prerender (e.g. Next.js) has not been
+  exercised, still TODO.
+
+Still unverified anywhere: `npm audit` results and a full framework
+SSR prerender. Both are stated as such at their point of use on this
+site rather than asserted.
+
+
+---
+
+<!-- Source: website/content/docs/changelog.mdx -->
+
+---
+title: Changelog
+description: Release history for reticlexr, from the repository CHANGELOG, with one claim corrected against the audited code.
+---
+
+All notable changes to this project are documented here. The project
+follows [Semantic Versioning](https://semver.org/).
+
+## 1.1.0 — Unreleased
+
+The audit-remediation release. Summary: the full entry is in the
+repository `CHANGELOG.md`.
+
+### Package rename
+
+- The package was renamed from `capacitor-arcore` to **reticlexr**
+  before its first publish. `capacitor-arcore` was never published
+  to npm; there is nothing to migrate from the registry.
+
+### Behavior changes
+
+- **Native Android is scoped to session + hit-testing (Option B).**
+  `placeModel`, `moveModel`, `setTransform`, `setMaterial`,
+  `removeModel`, `getPlacedModels` and `clearModels` reject with
+  `NOT_IMPLEMENTED` on native; models render via WebXR. Native
+  lifecycle (pause/resume/destroy) is wired, `checkSupport` returns
+  real ARCore availability, and hit tests create real anchors.
+- **The library manifest no longer forces AR-required:**
+  `android.hardware.camera.ar` and `android.hardware.camera` are
+  `required="false"`; AR-required is a documented opt-in.
+- **Screenshots are opt-in:** `enableScreenshots: true` at session
+  start; `lightEstimation` no longer implies `camera-access`.
+- **One model identifier** (`modelId`) and **one coded-error
+  convention** (`ARError`) across all layers.
+- The native event bridge installs lazily; the package declares
+  ESM + an exports map; `three` and `@capacitor/core` are peer
+  dependencies.
+
+### Added
+
+- Drag-to-move: with a model placed, one finger drags it across
+  surfaces; the engine re-aims a hit test at the finger every
+  frame, so the model stays under it.
+- ARView debug readout: `enableCustomization` accepts `debug`
+  and `onDebug`. Entries report each tap's pixel and normalised
+  point, the hit coordinate, the model's measured base centre,
+  and where its centre lies after the tap, so placement accuracy
+  can be verified on a phone. The live demo shows them in an
+  on-screen panel during AR.
+- `framebufferScale` session option: scales the XR render target
+  (0.85 ≈ 28% fewer fragments). The live demo runs at 0.85.
+
+- `reticlexr/react` subpath for `useARCore`, plus a per-instance
+  `useARCore({ engine })` option.
+- `getPlacedModels()` / `clearModels()` on the engine, `ARView`,
+  the facade and the hook.
+- Hand-written TypeScript declarations; a Vitest suite; committed
+  lockfiles; a CI workflow (type-check, tests, example build,
+  Gradle assemble).
+
+### Fixed
+- Tap and drag accuracy: tap-to-place, tap-to-move and drag
+  coordinates are now normalised against the overlay element's
+  own bounding rect instead of the window size, so any
+  difference between the two (insets, embedding, a resized
+  overlay root) no longer displaces the model from the touched
+  point. A new end-to-end harness verifies the whole chain
+  against an analytic floor: taps land within 0.0001 m of the
+  predicted point and project back to the tapped pixel within
+  half a pixel.
+- Overlapping plane dots: when the same surface is reported as
+  overlapping planes, their dot fields no longer overlap. All
+  planes' dots are rebuilt in one pass over a shared occupancy
+  grid (largest plane first), so each surface shows a single
+  clean dot grid.
+- Placement centre hardening: the base centre is measured from
+  the model's main mesh cluster, so detached stray geometry in
+  a GLB (a leftover mesh sitting away from the body) can no
+  longer drag the measured centre, and with it the tap point,
+  off the model. The footprint used for shadows and base rings
+  is measured the same way.
+
+- The audit's BUG / LEAK / PERF / NAT / COMPAT findings: transform
+  normalisation (no more `NaN` placements), hook plane counts,
+  ray-based hit testing, disposal under an ownership rule with an
+  LRU model cache, `InstancedMesh` plane dots, the reference-space
+  fallback chain, a bounded native availability retry, and more.
+- Tap-to-move (device report, 2026-11-17): a placed model could
+  never be relocated, because the gesture layer only placed.
+  `ARView.moveModel({ x, y })` is new, and the tap gesture now moves
+  the active model to the tapped surface point.
+- The live demo no longer carries one model's texture onto the
+  next: it switches models with `{ preserveMaterial: false }`, so
+  each model keeps its own authored look.
+- Rendering economy: the plane dot grid is capped at 2,048 dots
+  per plane, animation mixers skip hidden models, and skinned
+  meshes opt out of frustum culling in placement clones.
+
+- Drag tracking rebuilt (device report, 2026-11-17): the first
+  drag ran one promise-based hit test per pointer move, serialised
+  behind a queue, so the model trailed the finger and landed where
+  it had been. The engine now tracks the drag inside its render
+  loop (`beginDragMove` / `updateDragPoint` / `endDragMove`), and
+  one final move lands the model exactly on the release point.
+- Placement is by base centre: models whose files carry their
+  geometry offset from the origin (the demo astronaut sits about
+  0.92 m from its origin and 0.28 m below it) now land on the
+  tapped point and stand on the surface, instead of appearing
+  displaced and sunk.
+
+### Deprecated
+
+- `anchorId` → `modelId`; engine `modelPath` → `modelUrl`; ARView
+  result `reason` → `code`; `useARCore` from the package root →
+  `reticlexr/react`. All keep working throughout 1.x.
+
+## 1.0.0 — 2026-09-25
+
+### Added
+
+- High-level `createARView()` abstraction.
+- WebXR and Android ARCore integration layers.
+- Surface detection, dotted plane feedback, and placement reticle.
+- Tap-to-place, pinch-to-scale, and two-finger rotation gestures.
+- GLB/GLTF loading, model preloading, and in-place model switching.
+- Runtime material, color, and texture customization.
+- AR screenshot API and React DOM overlay support.
+- React/Vite example application with LAN HTTPS development tooling.
+
+<Note title="Correction: read the parity claim carefully">
+The original 1.0.0 entry lists "WebXR and Android ARCore integration
+layers" side by side, which readers reasonably took as feature parity.
+The v1.0.0 audit verified that the Android layer provides session
+management, hit testing and surface events, but **does not render
+models**, model rendering, styling and screenshots are WebXR-runtime
+features. This note is the correction; the entry above is otherwise
+reproduced as published. See
+[WebXR vs native ARCore](/docs/concepts/webxr-vs-native) for the
+verified split.
+</Note>
+
+
+---
+
+<!-- Source: website/content/docs/contributing.mdx -->
+
+---
+title: Contributing
+description: "How to contribute to reticlexr: development setup, what to run before a PR, and the project's versioning rules."
+---
+
+Thanks for contributing to reticlexr.
+
+## Development
+
+1. Fork the repository and create a focused branch from `main`.
+2. Install the SDK dependencies with `npm install`.
+3. Install the example app dependencies with `cd example && npm install`.
+4. Run the example with `npm run dev:https` when testing WebXR on a
+   physical device.
+5. Keep AR/WebXR/Three.js implementation details inside the SDK; the
+   example app should consume the public API.
+6. Run the available validation/build commands before opening a pull
+   request.
+
+## Repository layout
+
+| Area | Path |
+| --- | --- |
+| JavaScript API (facade, WebXR engine, hook, gestures) | `src/` |
+| Native Android plugin | `android/` |
+| Example app | `example/` |
+| Documentation site (this site) | `website/` |
+| Markdown docs (API reference, installation) | `docs/` |
+
+## Before you open a PR
+
+Run the checks locally:
+
+- `npm test`, the Vitest suite (24 files, 25 tests).
+- `npm run check-types`, `tsc --checkJs` over the implementation
+  and its hand-written declarations.
+- `cd example && npm install && npm run build`, the example app
+  build.
+
+## What CI checks
+
+The committed workflow (`.github/workflows/ci.yml`) defines two
+jobs: a `js` job (install with `npm ci`, the type-check, the test
+suite, a consumer smoke test, a non-blocking `npm audit`, and the
+example build) and a `gradle-assemble` job (`cap sync` plus
+`:reticlexr:assembleDebug`). The workflow has not yet had a
+completed run, so the local checks above are the verification that
+counts. For AR-specific changes, your PR description carries the
+rest: include the device/browser details, what you ran, and what
+you saw.
+
+## Pull requests
+
+Keep changes focused, describe user-visible behaviour, document public
+API changes, and include device/browser details for AR-specific fixes.
+
+## Versioning
+
+This project follows Semantic Versioning. Breaking public API changes
+require a major version increment.
+
+
+---
+
+<!-- Source: website/content/docs/concepts/architecture.mdx -->
+
+---
+title: Architecture
+description: "Two independent AR runtimes behind three JS API layers: the module map, the public surface, and both data flows."
+---
+
+The package is a Capacitor plugin with **two independent AR runtimes**
+behind **three JS API layers**. There is no build step: the published
+entry is the raw ESM source, with hand-written TypeScript declarations
+(`src/*.d.ts`) alongside it.
+
+<svg viewBox="0 0 760 470" role="img" aria-label="Architecture diagram: your app calls the ARCore facade or the ARView, hook and gesture layers. The facade crosses the Capacitor bridge to the native Android ARCore and Filament plugin. The high-level layers drive the ARCoreWeb engine, which renders through Three.js over WebXR." className="my-8 w-full">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b7ff5" />
+    </marker>
+  </defs>
+
+  {/* App */}
+  <rect x="180" y="10" width="400" height="46" rx="8" fillOpacity="0.16" className="fill-violet-500 stroke-violet-500 dark:fill-[#8b7ff5] dark:stroke-[#8b7ff5]" />
+  <text x="380" y="39" textAnchor="middle" fontSize="15" fontWeight="600" className="fill-violet-600 dark:fill-[#a78bfa]">Your app, React or plain JS</text>
+
+  {/* Facade */}
+  <rect x="30" y="100" width="320" height="58" rx="8" fillOpacity="0.12" className="fill-slate-500 stroke-slate-400 dark:fill-[#64748b] dark:stroke-[#64748b]" />
+  <text x="190" y="124" textAnchor="middle" fontSize="14" fontWeight="600" className="fill-slate-600 dark:fill-[#94a3b8]">ARCore facade</text>
+  <text x="190" y="144" textAnchor="middle" fontSize="12" className="fill-slate-500 dark:fill-[#94a3b8]">src/index.js · registerPlugin('ARCore')</text>
+
+  {/* High-level layers */}
+  <rect x="410" y="100" width="320" height="58" rx="8" fillOpacity="0.12" className="fill-slate-500 stroke-slate-400 dark:fill-[#64748b] dark:stroke-[#64748b]" />
+  <text x="570" y="124" textAnchor="middle" fontSize="14" fontWeight="600" className="fill-slate-600 dark:fill-[#94a3b8]">ARView · useARCore · gestures</text>
+  <text x="570" y="144" textAnchor="middle" fontSize="12" className="fill-slate-500 dark:fill-[#94a3b8]">src/ar-view.js · src/hooks.js · src/gestures.js</text>
+
+  {/* Bridge */}
+  <rect x="30" y="205" width="320" height="50" rx="8" fillOpacity="0.12" className="fill-slate-500 stroke-slate-400 dark:fill-[#64748b] dark:stroke-[#64748b]" />
+  <text x="190" y="235" textAnchor="middle" fontSize="14" fontWeight="600" className="fill-slate-600 dark:fill-[#94a3b8]">Capacitor bridge</text>
+
+  {/* Engine */}
+  <rect x="410" y="205" width="320" height="50" rx="8" fillOpacity="0.12" className="fill-slate-500 stroke-slate-400 dark:fill-[#64748b] dark:stroke-[#64748b]" />
+  <text x="570" y="228" textAnchor="middle" fontSize="14" fontWeight="600" className="fill-slate-600 dark:fill-[#94a3b8]">ARCoreWeb engine</text>
+  <text x="570" y="246" textAnchor="middle" fontSize="12" className="fill-slate-500 dark:fill-[#94a3b8]">src/web.js · WebPlugin</text>
+
+  {/* Native */}
+  <rect x="30" y="305" width="320" height="72" rx="8" fillOpacity="0.10" className="fill-violet-500 stroke-violet-500 dark:fill-[#8b7ff5] dark:stroke-[#8b7ff5]" />
+  <text x="190" y="330" textAnchor="middle" fontSize="14" fontWeight="600" className="fill-violet-600 dark:fill-[#a78bfa]">Native Android plugin</text>
+  <text x="190" y="350" textAnchor="middle" fontSize="12" className="fill-slate-500 dark:fill-[#94a3b8]">ARCore session · hit test · surface events</text>
+  <text x="190" y="367" textAnchor="middle" fontSize="12" className="fill-slate-500 dark:fill-[#94a3b8]">Filament render loop (camera background)</text>
+
+  {/* Three + WebXR */}
+  <rect x="410" y="305" width="320" height="72" rx="8" fillOpacity="0.10" className="fill-violet-500 stroke-violet-500 dark:fill-[#8b7ff5] dark:stroke-[#8b7ff5]" />
+  <text x="570" y="330" textAnchor="middle" fontSize="14" fontWeight="600" className="fill-violet-600 dark:fill-[#a78bfa]">Three.js over WebXR</text>
+  <text x="570" y="350" textAnchor="middle" fontSize="12" className="fill-slate-500 dark:fill-[#94a3b8]">GLB models · planes · reticle · screenshots</text>
+  <text x="570" y="367" textAnchor="middle" fontSize="12" className="fill-slate-500 dark:fill-[#94a3b8]">immersive-ar session in the browser</text>
+
+  {/* Device note */}
+  <text x="380" y="420" textAnchor="middle" fontSize="12.5" className="fill-slate-500 dark:fill-[#94a3b8]">Left path: Android app only · Right path: browser, and the web platform inside Capacitor</text>
+  <text x="380" y="442" textAnchor="middle" fontSize="12.5" className="fill-slate-500 dark:fill-[#94a3b8]">The two runtimes do not share code below the facade, and are not at feature parity.</text>
+
+  {/* Arrows */}
+  <line x1="300" y1="56" x2="200" y2="96" stroke="#8b7ff5" strokeWidth="1.6" markerEnd="url(#arr)" />
+  <line x1="460" y1="56" x2="560" y2="96" stroke="#8b7ff5" strokeWidth="1.6" markerEnd="url(#arr)" />
+  <line x1="190" y1="158" x2="190" y2="201" stroke="#8b7ff5" strokeWidth="1.6" markerEnd="url(#arr)" />
+  <line x1="570" y1="158" x2="570" y2="201" stroke="#8b7ff5" strokeWidth="1.6" markerEnd="url(#arr)" />
+  <line x1="190" y1="255" x2="190" y2="301" stroke="#8b7ff5" strokeWidth="1.6" markerEnd="url(#arr)" />
+  <line x1="570" y1="255" x2="570" y2="301" stroke="#8b7ff5" strokeWidth="1.6" markerEnd="url(#arr)" />
+</svg>
+
+*Diagram: the two runtimes of reticlexr 1.1.0 and the layers above them.*
+
+## The three JS layers
+
+| Layer | Files | Sits on |
+| --- | --- | --- |
+| `ARCore` facade: session/hit-test/model methods plus a local event bus (`on()`), bridging native events lazily, on first subscription | `src/index.js` (13.4 KB) | Capacitor plugin named `ARCore` |
+| `ARView` / `createARView` + functional helpers: single active model, transform state, texture registry, gesture wiring | `src/ar-view.js` (9.8 KB) | WebXR engine only |
+| `useARCore` hook + `createARGestureController` | `src/hooks.js` (27.7 KB), `src/gestures.js` (4.7 KB) | WebXR engine only |
+
+The high-level layers **never call the native plugin**. If you use
+`createARView` or the hook, you are on the WebXR runtime everywhere,
+including inside a Capacitor app, where the WebView runs the same code.
+
+## Data flow: JS → bridge → native ARCore
+
+```
+App JS ─ ARCore.startSession() ─ Capacitor bridge ─► ARCorePlugin (UI thread)
+  ├─ camera permission check / request
+  └─ ARSessionManager.createSession(planeDetection, lightEstimation)
+       ├─ ArCoreApk availability / requestInstall
+       ├─ new Session + Config (plane finding, light estimation, auto focus)
+       └─ onSessionReady ─► ARRenderer + ARViewManager
+            (native view inserted behind the WebView; WebView made transparent)
+
+Render loop (dedicated ARRenderThread):
+  Session.update() → tracking → planes → camera matrices
+  → camera-texture background → Filament render
+
+Events: managers → AREventEmitter → notifyListeners → Capacitor
+  → the facade's lazily installed bridge → ARCore.on() subscribers
+
+Hit test: JS hitTest({x, y}) → plugin → latest frame
+  → normalised coords → display pixels → frame.hitTest()
+```
+
+## Data flow: JS → Three.js → WebXR
+
+```
+App ─ createARView({ overlay }) ─► ARView ─► ARCoreWeb
+create() ─► setConfig() + startSession({ domOverlay })
+  Three.js setup (once): WebGLRenderer, Scene, PerspectiveCamera (70°),
+    lights, GLTFLoader, plane groups, reticle
+  navigator.xr.requestSession('immersive-ar', {
+    requiredFeatures: ['hit-test'],
+    optionalFeatures: ['local-floor'?, 'plane-detection'?,
+                       'light-estimation'?,
+                       'camera-access'? (only with enableScreenshots),
+                       'dom-overlay'? (with overlay)] })
+  renderer.xr.setSession(); hit-test source from the viewer space;
+  reference space: local-floor → local → viewer fallback chain
+
+Per frame: viewer hit test → reticle pose + surface state
+  (frame listeners notified on change, at most 10 Hz)
+  every 8th frame: detected planes → dot/mesh visualisation
+  anchor map → model + shadow transforms → render
+
+Models: GLTFLoader.load(url) → cache → scene.clone() per placement
+  → per-instance cloned materials → blob shadow plane per anchor
+Gestures: Pointer Events on the overlay ─► facade callbacks ─► engine transforms
+```
+
+## The native side at a glance
+
+Eleven Java classes under `android/src/main/java/com/capacitor/arcore/`:
+the plugin facade, a session manager (sole owner of the ARCore
+`Session`), a Filament renderer with its own render thread, a surface
+manager, a coordinate mapper for hit tests, an event emitter, a view
+manager, plus an anchor manager that registers the real anchors
+created by hit tests, and a model manager that is currently a
+registry only (native model rendering is not implemented). What
+that means in practice is the subject of
+[WebXR vs native ARCore](/docs/concepts/webxr-vs-native).
+
+## Dependencies (verified from package.json)
+
+| Kind | Package | Version |
+| --- | --- | --- |
+| peerDependency | `@capacitor/core` | `^8.5.2` |
+| peerDependency | `three` | `^0.180.0` |
+| peerDependency | `react` | `>=16.8.0` |
+| Android | `com.google.ar:core` | `1.40.0` |
+| Android | Filament (`filament-android`, `gltfio-android`) | `1.52.0` |
+| Android SDK | compile / target / min | 36 / 36 / 24 |
+
+Lockfiles are committed for the package, the example app and this
+site (`package-lock.json` in each), so installs are reproducible
+with `npm ci`; the ranges above are what the package declares, and
+the lockfiles pin what actually resolves.
+
+
+---
+
+<!-- Source: website/content/docs/concepts/lifecycle.mdx -->
+
+---
+title: Lifecycle
+description: How sessions are created, ended and torn down on both runtimes, and what is cleaned up in 1.1.0.
+---
+
+## WebXR path
+
+### Create
+
+`ARView.create()` calls `engine.startSession()`. Three.js objects are
+created **once**, the first start builds the renderer, scene, camera,
+lights, loader, plane groups and reticle, and are reused across
+sessions. The renderer canvas is inserted before your overlay element
+(or appended to `document.body` when there is no overlay).
+
+### Session end (user or system)
+
+When the XR session ends on its own (user exits, system interrupts):
+
+- the engine fires `sessionEnded` to frame listeners,
+- the animation loop stops,
+- session / hit-test-source / reference-space fields are nulled,
+
+…but placed models and the canvas are **not** removed. That only happens
+in `stopSession()`. Listen for `sessionEnded` and call
+`ar.destroy()` (or start again, like the demo's Resume flow) to return
+to a clean state.
+
+### Teardown
+
+`ARView.destroy()` destroys the gesture controller and awaits
+`engine.dispose()`, the full teardown (in 1.0.0 destroy only stopped
+the session; the rest of this list is 1.1.0 behaviour). Disposal:
+
+- stops rendering and ends the XR session,
+- removes models, shadow planes and base rings from the scene and
+  clears the anchor/model maps, disposing per-instance GPU
+  resources (removed/switched models are disposed on those paths
+  too, under the engine's ownership rule),
+- disposes plane dots and meshes,
+- hides the reticle and removes the canvas from the DOM,
+- disposes the model cache, the WebGL renderer and its context,
+  and nulls the renderer/scene/camera fields, the same engine
+  instance can be started again afterwards.
+
+### React
+
+- `ARPlayground`-style components: construct one `ARView` per mount,
+  `destroy()` in the effect cleanup.
+- `useARCore`: checks support on mount; on unmount it stops the session
+  if it started one and runs its listener cleanups. By default all
+  consumers share one lazily-constructed engine, so that stop affects
+  **all** hook consumers; mount the hook once, or pass a dedicated
+  engine per view with `useARCore({ engine })`.
+
+## Native path
+
+### Create
+
+The plugin's `load()` constructs its managers once; the Filament
+engine is created **lazily** on first use (if it cannot initialise,
+session entry points fail with a coded `FILAMENT_UNAVAILABLE`
+instead of leaving the renderer in a broken state).
+`startSession` then: camera permission → ARCore availability / install →
+`Session` creation and configuration → native view inserted behind the
+WebView, which is made transparent.
+
+### Pause and resume
+
+Wired in 1.1.0 (in v1.0.0 nothing called the pause/resume methods,
+the gap this section used to describe). The plugin implements
+Capacitor's `handleOnPause` / `handleOnResume` / `handleOnDestroy`
+and forwards them to the session manager and renderer:
+
+- Backgrounding the activity pauses the ARCore session and the
+  render loop, as ARCore's contract requires.
+- A dedicated stop flag (not the pause flag) tracks `stopSession`,
+  so a session restarted after a stop in the same app run renders
+  normally.
+
+### Teardown
+
+`stopSession` (on the UI thread): clears models/anchors → renderer
+session-closed → view removed and the WebView's real background
+restored → session closed. Plugin destroy goes further: it stops
+the render loop, **joins the render thread**, then destroys the
+Filament resources in dependency order, camera background, swap
+chain, view, scene, renderer, camera entity, and the engine last.
+
+
+---
+
+<!-- Source: website/content/docs/concepts/webxr-vs-native.mdx -->
+
+---
+title: WebXR vs native ARCore
+description: "An honest feature-by-feature split of the package's two runtimes in 1.1.0: what each one actually does, verified against the code."
+---
+
+The package contains two AR runtimes that share a JS facade name and
+almost nothing else. Earlier README wording presented them as "two
+runtimes, one API" at feature parity. They are not. This page is the
+corrected, code-verified split, updated for 1.1.0.
+
+## Feature by feature
+
+| Capability | WebXR runtime (`src/web.js`) | Native Android (`android/`) |
+| --- | --- | --- |
+| Session start/stop | Yes, `immersive-ar` XR session | Yes, ARCore `Session` via the plugin |
+| Plane detection | Yes, XR planes, dot/mesh visualisation | Yes, planes tracked, surface state events |
+| Hit testing | Yes, centre reticle path; non-centre coordinates use a ray-based hit test | Yes, real per-coordinate hit test against the frame, served by the render loop |
+| **Model rendering** | **Yes, GLB/GLTF via Three.js, anchored in the scene** | **No, `placeModel` rejects with `NOT_IMPLEMENTED`; there is no native renderer (Option B, see below)** |
+| Model transforms | Yes, position/rotation/scale on placed models | `setTransform` / `setMaterial` reject with `NOT_IMPLEMENTED` |
+| `moveModel` | Hit-test based (centre or ray) | Rejects with `NOT_IMPLEMENTED` |
+| Colours / textures | Yes, materials are real and rendered | Via the WebXR runtime only |
+| Anchors | Yes, XR anchors drive model poses per frame | Hit tests create real ARCore anchors and return their `anchorId`; there are no native model placements to anchor |
+| Screenshots | Yes, camera + scene composite (needs the `enableScreenshots` opt-in) | No |
+| Gestures | Yes, Pointer Events controller over the DOM overlay | Via your web UI (the WebView stays on top) |
+| Support check | Real, feature detection against `navigator.xr`, with an `INSECURE_CONTEXT` code outside secure contexts | Real, `ArCoreApk.checkAvailability()`; unsupported devices and missing ARCore are reported honestly |
+| Pause/resume with the activity | Browser-managed | Wired, the plugin forwards Capacitor's pause/resume/destroy to the session and render loop |
+
+## Which runtime am I on?
+
+- `createARView`, the functional helpers and `useARCore` → **always
+  WebXR**, in a browser and inside a Capacitor app alike.
+- The `ARCore` facade → native plugin on Android; on web platforms the
+  same plugin name resolves to the WebXR engine, so facade calls in a
+  browser behave like the engine (including rendering).
+
+## Guidance
+
+- **Building a product viewer today:** use the WebXR path
+  (`createARView`). It is the only runtime that renders models, and it
+  runs on ARCore-capable Android devices through Chrome or the Capacitor
+  WebView.
+- **Planning on the native path:** it is **session + hit-test +
+  surface events**, by decision (audit Option B): the model methods
+  reject with `NOT_IMPLEMENTED` rather than reporting success for
+  work that never happened. Native model rendering (Option A) remains
+  an owner decision, not a roadmap promise.
+- **Support gating:** either runtime's `checkSupport()` is a real
+  check in 1.1.0: the WebXR one feature-detects `navigator.xr` (and
+  reports `INSECURE_CONTEXT` outside secure contexts), the native one
+  asks ARCore itself. Still handle `startSession` failure: support
+  can change between the check and the session (installs, updates,
+  permissions).
+
+<Note>
+None of this makes the native layer useless: availability handling,
+install flow, session configuration, plane tracking, real hit-test
+anchors and the render loop for the camera background are real,
+working code. The gap is specific, model rendering, and it is
+documented here rather than discovered by users.
+</Note>
+
+
+---
+
+<!-- Source: website/content/docs/guides/colors-and-textures.mdx -->
+
+---
+title: Colors & textures
+description: Recolour the placed model, register and apply your own textures, and tune material properties, plus the multi-material caveats.
+---
+
+## Recolouring the active model
+
+```js
+await ar.placeModel('/models/sofa.glb');
+await ar.setColor('#68705b'); // hex string, applied to the active model
+```
+
+`ARView.setColor(color)` applies to the active model only. It is the
+building block for the colour swatches in the [live demo](/demo) and the
+example app:
+
+```jsx title="Swatches.jsx"
+const SWATCHES = [
+  ['Beige', '#c8b49b'],
+  ['Grey', '#858585'],
+  ['Olive', '#68705b'],
+  ['Navy', '#222b3c'],
+  ['Terracotta', '#a55f3b'],
+];
+
+{SWATCHES.map(([name, hex]) => (
+  <button key={hex} data-ui onClick={() => ar.setColor(hex)}>
+    {name}
+  </button>
+))}
+```
+
+## Textures
+
+Register named texture URLs once, then apply them by name (or pass a URL
+directly). `addTextures` returns the view, so calls chain:
+
+```js
+ar.addTextures({
+  oak: '/textures/oak.jpg',
+  walnut: '/textures/walnut.jpg',
+});
+
+await ar.applyTexture('oak');                       // by registered name
+await ar.applyTexture('/textures/marble.jpg');      // or by URL
+await ar.applyTexture('oak', { materialName: 'Top' }); // one named material only
+```
+
+- `applyTexture` **throws if no model is placed**, call it after a
+  successful `placeModel`/`switchModel`.
+- `materialName` targets a single material inside the GLB; without it the
+  texture applies across the model's materials.
+- Texture URLs follow the same rules as model URLs: app-controlled,
+  CORS-enabled if cross-origin.
+
+<Note>
+Two engine-level behaviours to design around:
+
+- Applying a texture replaces the previous one on the material; since
+  1.1.0 the replaced texture is disposed (unless it is the model's
+  original, cache-owned map), so flipping through dozens of swatches in
+  one session no longer leaks a GPU texture per application. (v1.0.0
+  leaked one texture per application, see
+  [known issues](/docs/known-issues).)
+- When `switchModel` carries material state over (`preserveMaterial`, the
+  default), materials are matched by name, then by traversal order, so
+  multi-material products keep their per-material styling, see
+  [Model preloading & switching](/docs/guides/model-preloading-and-switching#material-carry-over).
+</Note>
+
+## Material properties (engine / hook level)
+
+The facade exposes colour and texture. Finer material control lives one
+layer down, on the engine, and through the hook:
+
+```js
+// Via useARCore():
+ar.setModelMaterial(modelId, { metalness: 0.1, roughness: 0.8, opacity: 1 });
+```
+
+`setModelMaterial({ modelId, metalness?, roughness?, opacity? })` sets
+the given PBR properties on the anchored model's materials. All three
+properties are optional; omitted ones are left unchanged. There is no
+facade (`ARView`) wrapper for this, if you hold an `ARView`,
+its engine is `ar.engine` and accepts the same call with an options
+object.
+
+## Native facade equivalent
+
+The native `ARCore` facade exposes `setMaterial({ modelId, color })`
+with the same `modelId` convention (the engine's old name, `anchorId`,
+still works as a deprecated alias), but on Android the call rejects
+with `NOT_IMPLEMENTED`: colour and material changes are
+WebXR-runtime features. See the
+[API reference](/docs/api#arcore-native-facade).
+
+
+---
+
+<!-- Source: website/content/docs/guides/gestures.mdx -->
+
+---
+title: Gestures
+description: Tap to place, drag, pinch to scale and two-finger twist to rotate, via ARView.enableCustomization or the standalone gesture controller.
+---
+
+## The built-in wiring: `enableCustomization`
+
+The fastest way to get gestures is `ARView.enableCustomization()`. It
+attaches a gesture controller to the view's overlay and wires the gestures
+to the active model:
+
+```js title="gestures.js"
+const cleanup = ar.enableCustomization({
+  // REQUIRED: which model a tap should place. A plain URL string works;
+  // pass a function and it is called on every tap, so the model placed
+  // can follow the user's current selection.
+  modelUrl: () => currentModelUrl,
+  onTap: () => console.log('placed'),
+  onScale: (factor) => console.log('scale is now', factor),
+  onRotate: (radians) => console.log('rotationY is now', radians),
+});
+
+// Later, to detach:
+cleanup();
+```
+
+| Gesture | Effect |
+| --- | --- |
+| One-finger tap | Places the current `modelUrl` at the tap point; with a model already placed, moves it to the tap point |
+| Pinch (two fingers, in/out) | Scales the active model, `ARView.setScale` clamps to **[0.1, 5]** |
+| Twist (two fingers, rotate) | Rotates the active model around Y |
+| Drag (one finger) | Drags the active model across surfaces: the engine re-aims a hit test at your finger every frame, so the model stays under it, and one final move lands it exactly on the release point. Passing over a spot with no surface is silent; the model stays at its last good position |
+
+<Note>
+`modelUrl` accepts a plain URL string or a `() => string` function.
+The function form is called on every tap; use it when the model to
+place can change between taps (the example app reads the latest
+selected product from a ref). A plain string always places the same
+model. (Before 1.1.0 only the function form worked; a string threw a
+`TypeError` inside the tap handler.)
+</Note>
+
+Overlay elements marked with `data-ui` are ignored by the gesture layer,
+so your buttons and sheets never double as scene gestures.
+
+## The standalone controller
+
+For custom interactions, use the exported controller directly. It is
+framework-agnostic Pointer Events code and knows nothing about AR:
+
+```js title="custom-gestures.js"
+import { createARGestureController } from 'reticlexr';
+
+const gestures = createARGestureController({
+  element: document.querySelector('#ar-overlay'), // required
+  onTap: ({ x, y }) => { /* pointerup point, px */ },
+  onDrag: ({ dx, dy, x, y }) => { /* per-move deltas, px */ },
+  onPinch: ({ factor, center }) => { /* factor is incremental */ },
+  onRotate: ({ delta, center }) => { /* delta in radians, incremental */ },
+  tapMaxDuration: 260,   // ms: longer presses are not taps
+  tapMaxDistance: 12,    // px: further movement is not a tap
+  preventDefault: true,
+  ignoreSelector: '[data-ui]',
+});
+
+// When the view goes away:
+gestures.destroy();
+```
+
+Payload semantics worth knowing:
+
+- `onPinch`'s `factor` is **incremental**, relative to the previous move
+  event, not the gesture start. Multiply your running scale by it.
+- `onRotate`'s `delta` is likewise incremental, in radians, wrapped to
+  ±π.
+- A tap is a pointer down/up pair within `tapMaxDuration` and
+  `tapMaxDistance`. One known quirk: a `pointercancel` (system
+  gesture, notification) that happens to be short and stationary is
+  currently treated as a completed tap and can place a model.
+
+## Driving transforms yourself
+
+If you bypass `enableCustomization`, the facade exposes the same
+operations the gestures use:
+
+```js
+ar.setScale(1.4);        // clamped to [0.1, 5], applied uniformly
+ar.rotateBy(Math.PI / 8); // accumulates rotationY, radians
+```
+
+One scale range everywhere since 1.1.0: [0.1, 5], enforced by the
+engine itself (the facade and the native registry use the same
+limits). In v1.0.0 the layers disagreed: facade [0.1, 5], engine
+unclamped, native [0.25, 3].
+
+
+---
+
+<!-- Source: website/content/docs/guides/model-preloading-and-switching.mdx -->
+
+---
+title: Model preloading & switching
+description: How the model cache works, why preloadModels makes switching fast, and why switchModel, never placeModel, is the switching call.
+---
+
+## Preloading
+
+`preloadModels(urls)` loads each URL through the engine's GLTF loader and
+stores the parsed result in the engine's model cache:
+
+```js
+await ar.preloadModels(['/models/sofa.glb', '/models/chair.glb', '/models/table.glb']);
+```
+
+Every later placement of a cached URL clones from the parsed in-memory
+model instead of fetching and parsing again. For a product catalogue,
+preload the visible products when the AR view is created (or when the
+product page loads), so the first tap doesn't pay network + parse time.
+
+Things to know about the cache:
+
+- It is keyed by URL. The cache is LRU-capped
+  (`config.modelCacheLimit`, default 20); entries with live
+  placements are never evicted, and the engine's
+  `clearModelCache()` empties it explicitly. (In v1.0.0 there was
+  no eviction, every URL you loaded stayed resident.)
+- Preloading is a `Promise.all` over the URLs: one failing URL rejects
+  the batch. Load stragglers individually if your catalogue has optional
+  items.
+- Model files are fetched with the page's origin rules, cross-origin
+  models need CORS headers from the host serving them, and URLs must be
+  app-controlled (the loader parses whatever it is given).
+
+## Switching models in place
+
+Use `switchModel()` to change the product a shopper is looking at:
+
+```js
+// The shopper placed the sofa and scaled it to fit the corner.
+await ar.switchModel('/models/chair.glb');
+// The chair appears at the same anchor, with the same scale and rotation.
+```
+
+`switchModel(modelUrl, { preserveMaterial = true })`:
+
+- Keeps the existing anchor, position, scale and rotation.
+- With `preserveMaterial` (the default), carries the current colour/texture
+  over to the new model.
+- Falls back to a fresh `placeModel()` when nothing is placed yet, so it
+  is safe to call from a product-switcher UI unconditionally.
+
+<Warning>
+**Do not use `placeModel()` to switch.** `placeModel` always performs a
+fresh hit test and creates a *new* model alongside the previous one,
+the placement, scale and rotation you had do not carry over. (Both
+models stay tracked: `getPlacedModels()` lists them and
+`clearModels()` removes them.) An earlier version of the README's API
+table (and its React example) claimed `placeModel` switching "keeps
+placement, scale and rotation"; that was wrong, and the docs now teach
+`switchModel`.
+</Warning>
+
+## Removing the model
+
+```js
+await ar.removeModel(); // removes the active model; no-op if none is placed
+```
+
+`ARView` tracks every model placed through it, with a single **active
+model**. `removeModel()` removes the active one and clears the active
+id/URL. `getPlacedModels()` enumerates everything placed through the
+view and `clearModels()` removes all of it, but switching with
+`switchModel()` is still the right tool for product changes: it reuses
+the placement instead of stacking models.
+
+## Material carry-over
+
+With `preserveMaterial`, each material of the new model inherits the
+colour, and the map, when present, from its counterpart on the old
+model, matched **by material name first, then by traversal order**
+(fixed in 1.1.0; before that, the first material was copied
+onto every material). Materials without a counterpart keep their own
+look. If you prefer explicit styling, pass
+`{ preserveMaterial: false }` and re-apply with
+[`setColor`](/docs/guides/colors-and-textures) /
+`applyTexture` after the switch.
+
+
+---
+
+<!-- Source: website/content/docs/guides/overlays.mdx -->
+
+---
+title: Overlays
+description: "Your product UI as regular DOM on top of the immersive view: how the overlay element works and how data-ui keeps buttons out of the gesture layer."
+---
+
+## The overlay element
+
+An `ARView` is bound to one DOM element, the **overlay**. You pass it to
+the constructor (or later to `create()`):
+
+```js
+const ar = createARView({ overlay: document.querySelector('#ar-overlay') });
+await ar.create({ /* … */ });
+```
+
+When the session starts, that element is handed to the browser as the XR
+session's DOM overlay: it stays visible and interactive on top of the
+camera view while the session is immersive. Everything inside it is
+ordinary DOM, your product cards, price tags, variant pickers and
+checkout buttons, styled however you like.
+
+```html title="overlay.html"
+<div id="ar-overlay">
+  <header data-ui>
+    <button id="close-ar">×</button>
+    <span>AR View</span>
+  </header>
+
+  <div class="product-card" data-ui>
+    <strong>Sofa — $899</strong>
+    <button id="add-to-cart">Add to cart</button>
+  </div>
+</div>
+```
+
+## Keeping UI out of the gesture layer
+
+The gesture controller ignores pointer events that land on elements
+matching `[data-ui]` (the `ignoreSelector` default). Mark every
+interactive overlay element, or a wrapper around them, with `data-ui`:
+
+- Buttons, links, inputs, sheets and dialogs: **mark them.**
+- Empty areas of the overlay: leave unmarked, so taps, pinches and
+  twists reach the scene.
+
+In React, the attribute is just `data-ui` (any value, including none):
+
+```jsx
+<button data-ui onClick={addToCart}>Add to cart</button>
+```
+
+The repository's example and this site's [demo](/demo) both follow this
+pattern: header, product strip, swatch sheet and dialogs are `data-ui`;
+the rest of the overlay surface drives gestures.
+
+## Without an overlay
+
+`createARView()` can be constructed without an overlay. The session then
+runs without a DOM overlay (the renderer canvas is appended to
+`document.body`), and `enableCustomization()`, which needs an element
+to listen on, throws. If you want gestures, you need an overlay; if you
+only place models programmatically, you don't.
+
+## The native path is different
+
+In a Capacitor Android app, there is no WebXR DOM overlay: the plugin
+inserts a native AR view *behind* the WebView and makes the WebView
+transparent during a session, so your web UI visually floats over the
+native camera view. The programming model (your DOM stays your DOM) is
+the same; the mechanism is not.
+
+
+---
+
+<!-- Source: website/content/docs/guides/react-integration.mdx -->
+
+---
+title: React integration
+description: "Two ways to use the SDK from React: an ARView held in a ref for product viewers, and the useARCore hook when you want engine state in React state."
+---
+
+There are two React-shaped ways to use the SDK. Pick based on how much of
+the engine you want mirrored into React state:
+
+- **`createARView()` in a ref**, the pattern the repository's example uses.
+  Best for product viewers: the engine runs imperatively, React only tracks
+  UI state (active product, placed or not, current scale).
+- **[`useARCore()`](/docs/api#usearcore)**, a hook that wraps the engine
+  and mirrors support, session, placed models, planes, surface state and
+  errors into React state.
+
+## Product viewer with `createARView`
+
+```jsx title="ProductAR.jsx"
+import { useEffect, useRef, useState } from 'react';
+import { createARView } from 'reticlexr';
+
+const MODELS = {
+  Sofa: '/models/sofa.glb',
+  Chair: '/models/chair.glb',
+};
+
+export default function ProductAR() {
+  const overlayRef = useRef(null);
+  const arRef = useRef(null);
+  const [active, setActive] = useState('Sofa');
+
+  useEffect(() => {
+    const ar = createARView({ overlay: overlayRef.current });
+    arRef.current = ar;
+    return () => {
+      ar.destroy().catch(() => {});
+      arRef.current = null;
+    };
+  }, []);
+
+  async function start() {
+    const ar = arRef.current;
+    await ar.create({ showReticle: true, showPlaneDots: true });
+    await ar.preloadModels(Object.values(MODELS));
+    await ar.placeModel(MODELS[active]);
+  }
+
+  async function switchTo(name) {
+    setActive(name);
+    // switchModel, NOT placeModel, keeps placement, scale and rotation.
+    await arRef.current?.switchModel(MODELS[name]);
+  }
+
+  return (
+    <>
+      <button onClick={start}>View in your room</button>
+      <div id="ar-overlay" ref={overlayRef}>
+        {Object.keys(MODELS).map((name) => (
+          <button key={name} data-ui onClick={() => switchTo(name)}>
+            {name}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+```
+
+Three details matter:
+
+1. **One `ARView` per mount, destroyed in the cleanup.** `destroy()` ends
+   the XR session and removes the placed models. Under React StrictMode's
+   dev double-mount you will build a throwaway engine instance, harmless
+   in production, noticeable as extra startup cost in dev.
+2. **`data-ui` on interactive overlay children.** The gesture layer
+   ignores pointer events on elements matching `[data-ui]`, so buttons
+   don't also place or drag the model.
+3. **`switchModel` for switching.** The older README example used
+   `placeModel` here with a comment claiming state carries over; it does
+   not. `placeModel` performs a fresh centre hit test and adds a new model
+   (the old one stays placed: list them with `getPlacedModels()`, remove
+   them with `clearModels()`). See
+   [Model preloading & switching](/docs/guides/model-preloading-and-switching).
+
+## The `useARCore` hook
+
+```jsx title="HookExample.jsx"
+import { useARCore } from 'reticlexr/react';
+
+export default function HookExample({ overlayRef }) {
+  const ar = useARCore();
+
+  if (ar.isSupported === null) return <p>Checking AR support…</p>;
+  if (ar.isSupported === false) return <p>AR is not available here.</p>;
+
+  return (
+    <div>
+      <button
+        onClick={() => ar.startSession({ domOverlay: overlayRef.current })}
+        disabled={ar.isSessionActive}
+      >
+        Start AR
+      </button>
+      <button onClick={() => ar.placeModel('/models/sofa.glb')}>
+        Place sofa
+      </button>
+      <p>
+        Planes: {ar.detectedPlanes.total} · Surface:{' '}
+        {ar.surfaceState.hasSurface ? ar.surfaceState.planeType : 'none'}
+      </p>
+      {ar.error && <p role="alert">{ar.error}</p>}
+    </div>
+  );
+}
+```
+
+The hook returns state (`isSupported`, `isSessionActive`, `placedModels`,
+`detectedPlanes`, `surfaceState`, `error`) and methods mirroring the
+engine; the full list is in the [API reference](/docs/api#usearcore).
+
+<Warning>
+Two hook facts to design around:
+
+- **Shared engine by default.** All `useARCore()` consumers share one
+  lazily-constructed engine instance. When any one consumer unmounts,
+  its cleanup stops the session for all of them. Mount the hook in
+  exactly one place in your tree (or lift it into a provider you
+  control), or pass a dedicated engine per view:
+  `useARCore({ engine })` with a `new ARCoreWeb()` from
+  `reticlexr/web`.
+- **Transform argument shapes are normalised.** The hook's
+  `placeModel(modelUrl, position, rotation, scale)` accepts arrays
+  (`[x, y, z]`, quaternion `[x, y, z, w]`, `[sx, sy, sz]`) **or**
+  `{x, y, z}` objects, and Euler-radian rotations; scales clamp to
+  [0.1, 5]. (In v1.0.0, objects produced `NaN` transforms, fixed
+  in 1.1.0.)
+</Warning>
+
+## Overlays and SSR
+
+Overlay children are regular React DOM rendered into the element you pass
+as `overlay`; the same element is handed to the XR session as its
+DOM overlay. Styling, routing and state inside it are entirely yours,
+see [Overlays](/docs/guides/overlays).
+
+<Todo>
+SSR: import-time side effects were removed in 1.1.0 (the event
+bridge installs lazily on first subscription; the shared hook
+engine is constructed lazily), and all five entry points pass
+DOM-less import checks, importing them touches no
+`window`/`document`, and the hook renders to string. A full
+framework prerender (e.g. Next.js) has **not** been exercised yet,
+so that remains TODO: until it is verified, loading AR components
+client-side only (e.g. Next.js `dynamic(..., { ssr: false })`) is
+the safe default, which is what this site's own [demo](/demo)
+does.
+</Todo>
+
+
+---
+
+<!-- Source: website/content/docs/guides/screenshots.mdx -->
+
+---
+title: Screenshots
+description: "Capture the composited AR view to a data URL: what the result contains, and why it can return CAMERA_CAPTURE_UNAVAILABLE."
+---
+
+## Taking a screenshot
+
+Screenshots that include the camera feed need the session started
+with the screenshot opt-in (see the warning below):
+
+```js
+await ar.create({ enableScreenshots: true }); // ARView
+// or, on the engine/hook: startSession({ enableScreenshots: true })
+
+const shot = await ar.takeScreenshot({ format: 'png', includeReticle: false });
+
+if (shot.success) {
+  // shot.dataUrl: 'data:image/png;base64,…'
+  // shot.width / shot.height
+  // shot.timestamp
+  // shot.includesCamera: whether the camera feed is in the image
+  const img = new Image();
+  img.src = shot.dataUrl;
+  document.body.appendChild(img);
+} else {
+  console.warn(shot.code, shot.error);
+}
+```
+
+Options (all optional):
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `format` | `'png'` | `'png'` or `'jpeg'` |
+| `quality` | `0.92` | JPEG quality (ignored for PNG) |
+| `width` / `height` | canvas size | Output dimensions |
+| `includeReticle` | engine default | Whether the placement reticle is composited in |
+
+The same call exists as a functional helper,
+`takeScreenshot(view, options)`, and on the `useARCore` hook.
+
+## Saving the image
+
+A data URL is all you get back, turning it into a download or an upload
+is your app's job:
+
+```js title="save-shot.js"
+function downloadShot(shot) {
+  const a = document.createElement('a');
+  a.href = shot.dataUrl;
+  a.download = `ar-${shot.timestamp}.png`;
+  a.click();
+}
+```
+
+## When screenshots fail
+
+Screenshots composite the **camera image** with the rendered scene, which
+needs the WebXR `camera-access` feature. Two failure codes exist:
+
+| Code | Meaning |
+| --- | --- |
+| `CAMERA_CAPTURE_UNAVAILABLE` | The browser/session has no camera access; the capture cannot include the camera feed |
+| `CAPTURE_BUSY` | Another capture is already in flight |
+
+<Warning>
+Camera access is an explicit opt-in: the session must start with
+`enableScreenshots: true` (`ARView.create()` or the engine's
+`startSession()`), which adds `camera-access` to the session's
+optional features. It is **not** implied by `lightEstimation`
+(that coupling was removed in 1.1.0). Without the opt-in,
+or on browsers that don't grant camera access at all,
+`takeScreenshot` returns `CAMERA_CAPTURE_UNAVAILABLE` while AR
+keeps running. Design your UI to treat screenshots as best-effort,
+and always branch on `shot.success`.
+</Warning>
+
+<Note>
+Composition runs as a per-pixel loop on the main thread (~2M iterations
+at 1080p), so expect a visible hitch on capture. Fine for a shutter
+button; don't call it per frame.
+</Note>
+
+
+---
+
+<!-- Source: website/content/docs/guides/troubleshooting.mdx -->
+
+---
+title: Troubleshooting
+description: "Symptom-by-symptom fixes: several entries describe v1.0.0 behaviours that 1.1.0 fixed; each says which."
+---
+
+## AR won't start on my phone, but works on desktop localhost
+
+Almost certainly the **secure context**. WebXR immersive AR requires
+HTTPS (or `localhost`). A LAN address over plain HTTP loads the page
+but session creation fails; `checkSupport()` reports
+`{ supported: false, code: 'INSECURE_CONTEXT' }` so you can tell this
+case apart from a genuinely unsupported device. Serve the page over
+HTTPS, see
+[HTTPS and phone testing](/docs/getting-started#https-and-phone-testing),
+or open this site's [live demo](/demo), which is already HTTPS.
+
+## The session fails immediately on some Android devices
+
+**Fixed in 1.1.0.** Session creation used to hard-require
+the WebXR `local-floor` feature; devices with immersive AR + hit-test
+but no `local-floor` failed outright. The engine now requests
+`local-floor` first and falls back to `local`, then `viewer`. If a
+session still fails immediately, check the secure context (above)
+and that the `hit-test` feature is available, that one is still
+required.
+
+## `checkSupport()` says yes, but the native session fails later
+
+**Fixed in 1.1.0.** The native facade's `checkSupport` used
+to resolve `{supported: true}` unconditionally. It now returns the
+real `ArCoreApk.checkAvailability()` result, so an unsupported or
+ARCore-less device reports `supported: false` up front. Still handle
+`startSession` failure: availability can change between the check
+and the session (installs, updates, permissions).
+
+## My model never appears (hook `placeModel`)
+
+**Fixed in 1.1.0.** The hook's `placeModel(modelUrl,
+position, rotation, scale)` used to require array shapes while its
+JSDoc described `{x, y, z}` objects, objects produced `NaN`
+transforms and invisible models. Transform inputs are now normalised
+at the engine boundary: positions accept `[x, y, z]` **or**
+`{x, y, z}`, rotations a quaternion array/object or Euler radians,
+scales a number, array or object (clamped to [0.1, 5]). If a model
+still never appears, check the `placeModel` result for an `error` /
+`code` (e.g. `NO_SURFACE`, no surface was hit yet).
+
+## `detectedPlanes` in the hook is always zero
+
+**Fixed in 1.1.0.** The hook read array fields while the
+engine emits plane counts as numbers; it now reads the numbers.
+Plane listeners (`ARView.onPlanes()`, the engine's plane listener)
+receive `{type, total, horizontal, vertical}` as before.
+
+## `placeModel(url, {x, y})` ignores where I tapped
+
+**Fixed in 1.1.0.** The WebXR `hitTest({x, y})` used to
+ignore its coordinates and always return the centre-screen hit.
+Non-centre coordinates now perform a ray-based hit test
+(`hitTestAtPoint`), so tap-point placement works; the centre
+coordinates still use the reticle path.
+
+## My reticle setting keeps turning back on
+
+**Fixed in 1.1.0.** `showReticle: false` used to be forced
+back to `true` on session start, placement and removal. The setting
+is now honoured; `setReticleVisible(false)` also persists.
+
+## Every tap throws `TypeError: options.modelUrl is not a function`
+
+Older versions required `enableCustomization({ modelUrl })` to be a
+**function**. In 1.1.0 it accepts a URL string **or** a
+`() => string` function (use the function when the current product
+can change between taps). If you still see this error, you're on a
+pre-1.1.0 build. See [Gestures](/docs/guides/gestures).
+
+## Memory grows while users browse products
+
+**Fixed in 1.1.0.** Removed/switched models are now
+disposed under a documented ownership rule, plane dots are disposed
+with their planes, and the model cache is LRU-capped
+(`config.modelCacheLimit`, default 20, entries with live
+placements are never evicted). For very long sessions you can also
+call `clearModelCache()` explicitly, and `engine.dispose()` (via
+`ARView.destroy()`) releases everything on teardown. Prefer
+`switchModel()` over repeated `placeModel()` calls for product
+switching, it reuses the placement instead of adding a new model.
+
+## `takeScreenshot` returns `CAMERA_CAPTURE_UNAVAILABLE`
+
+The session has no WebXR camera access. Since 1.1.0,
+camera access is an explicit opt-in: start the session with
+`enableScreenshots: true` (`ARView.create()` or `startSession()`),
+`lightEstimation: true` no longer requests it. On browsers that
+don't expose camera frames at all, the code is expected even with
+the opt-in. Screenshots are best-effort: branch on `result.success`
+and hide the feature when it fails. See
+[Screenshots](/docs/guides/screenshots).
+
+## An awaited `hitTest` never resolves after the user exits AR
+
+**Fixed in 1.1.0.** The fallback hit-test path used to hang
+if the session ended first; it now settles on every path, including
+session end.
+
+## `npx cap sync` didn't register the Android plugin
+
+**Fixed in 1.1.0.** The package now ships the `capacitor`
+metadata key, and `cap sync` auto-discovers the plugin, verified
+in a clean scratch Capacitor app (plugin in
+`capacitor.plugins.json`, `:reticlexr` in the generated settings,
+no manual `settings.gradle` edit). If discovery still fails, check
+you're on 1.1.0+ and that `node_modules/reticlexr/package.json`
+contains the `capacitor` key. See
+[Capacitor setup](/docs/getting-started#capacitor-setup).
+
+## Importing the package in a non-React app pulls in React
+
+Partly by design in 1.x: the package **root** still re-exports
+`useARCore` as a deprecated alias, and that entry imports React.
+Framework-agnostic code should import the subpaths instead,
+`reticlexr/ar-view`, `reticlexr/web`, `reticlexr/gestures` never
+touch React, and the hook lives at `reticlexr/react`. The root
+re-export is removed in the next major version.
+
+## A second native `startSession` shows a session but no rendering
+
+**Fixed in 1.1.0.** The native render loop now has
+a dedicated stop flag and the plugin forwards Capacitor's
+pause/resume/destroy hooks, so a session restarted after
+`stopSession` in the same app run renders normally.

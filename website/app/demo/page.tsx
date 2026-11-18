@@ -8,6 +8,23 @@ export const metadata: Metadata = {
   title: 'Live demo',
   description:
     'Try reticlexr live in your browser: place, switch, recolour and photograph a model with WebXR.',
+  alternates: { canonical: '/demo' },
+  openGraph: {
+    type: 'website',
+    title: 'Live demo - Reticle XR',
+    description:
+      'Try reticlexr live in your browser: place, switch, recolour and photograph a model with WebXR.',
+    url: '/demo',
+    siteName: 'Reticle XR',
+    images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'Reticle XR' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Live demo - Reticle XR',
+    description:
+      'Try reticlexr live in your browser: place, switch, recolour and photograph a model with WebXR.',
+    images: ['/opengraph-image'],
+  },
 };
 
 export default function DemoPage() {

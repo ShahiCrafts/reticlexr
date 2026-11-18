@@ -1,0 +1,36 @@
+# Reticle XR (reticlexr)
+
+> Reticle XR is a high-level augmented reality (AR) SDK for React and Capacitor, published on npm as `reticlexr`. It lets web developers place GLB/GLTF 3D models on real-world surfaces in about ten lines of code: WebXR + Three.js rendering on Android with ARCore hit testing, plane detection, XRAnchors world-locking, tap-to-place, drag/pinch/twist gestures, runtime recolouring, model switching and screenshots, plus a native Capacitor plugin for ARCore session management on Android. MIT licensed, free, no per-seat pricing.
+
+## Key facts
+
+- Package: `reticlexr` on npm — install with `npm install reticlexr`
+- Platforms: Android (Chrome WebXR + ARCore) in a Capacitor app, or plain WebXR in the browser; models render via WebXR — native model rendering is not implemented
+- Stack: React, Capacitor, WebXR, ARCore, Three.js, TypeScript-friendly (ships its own types)
+- Core APIs: `createARView`, `ARView.placeModel`, `moveModel`, `switchModel`, `setScale` / `rotateBy`, `setColor`, `takeScreenshot`, surface events, XRAnchor-backed placement that keeps models glued to real surfaces
+- Use cases: product AR (furniture, appliances, retail try-before-you-buy), AR viewers, interactive 3D marketing, prototyping AR features inside existing React/Capacitor apps
+- Documentation: https://reticlexr.vercel.app (root redirects to the getting-started guide)
+- Live demo: https://reticlexr.vercel.app/demo — place, switch, recolour and photograph models in the browser
+- Source code: https://github.com/ShahiCrafts/reticlexr (MIT)
+- Author: Saugat Shahi (ShahiCrafts)
+
+## Documentation
+
+- [Getting started](https://reticlexr.vercel.app/docs/getting-started): Install reticlexr, wire it into a Capacitor app, and place your first model, then test on a real phone over HTTPS.
+- [API reference](https://reticlexr.vercel.app/docs/api): The complete public API of the SDK.
+- [Compatibility](https://reticlexr.vercel.app/docs/compatibility): Devices, browsers and platform support, with on-device test results.
+- [WebXR vs native AR](https://reticlexr.vercel.app/docs/concepts/webxr-vs-native): How the WebXR runtime compares with native ARCore, and what that means for placement and stability.
+- [Architecture](https://reticlexr.vercel.app/docs/concepts/architecture): How the SDK is layered — web runtime, React bindings, native plugin.
+- [Gestures guide](https://reticlexr.vercel.app/docs/guides/gestures): Tap-to-place, drag to move, pinch to scale, twist to rotate.
+- [React integration](https://reticlexr.vercel.app/docs/guides/react-integration): Using reticlexr from React components.
+- [Model preloading and switching](https://reticlexr.vercel.app/docs/guides/model-preloading-and-switching): Preload GLB models and switch between them in place.
+- [Colours and textures](https://reticlexr.vercel.app/docs/guides/colors-and-textures): Runtime recolouring and material customisation.
+- [Overlays](https://reticlexr.vercel.app/docs/guides/overlays): DOM overlays in immersive AR sessions.
+- [Screenshots](https://reticlexr.vercel.app/docs/guides/screenshots): Capturing AR photos from a session.
+- [Troubleshooting](https://reticlexr.vercel.app/docs/guides/troubleshooting): Common problems and fixes.
+- [Known issues](https://reticlexr.vercel.app/docs/known-issues): Current limitations, stated honestly.
+- [Changelog](https://reticlexr.vercel.app/docs/changelog): Release history.
+
+## Full text
+
+- [llms-full.txt](https://reticlexr.vercel.app/llms-full.txt): The complete documentation concatenated in one file for LLM ingestion.
