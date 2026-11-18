@@ -179,4 +179,55 @@ test('anchor01', async () => {
   const without = await pump(engine2.hitTestAtPoint(0.5, 0.75));
   check('plain hit still resolves', without && without.hit === true);
   check('plain hit carries no anchor', without.anchor === undefined);
+
+  // ---- Part D: on the runtime hit-test path, the hit result's
+  // OWN (trackable-attached) anchor wins over a pose-minted one ----
+  const engine3 = new ARCoreWeb();
+  engine3.referenceSpace = {};
+  engine3.planeDetectionSupported = true;
+  // No tracked planes: the polygon fast path cannot settle, so the
+  // tap goes through the asynchronous runtime source.
+  let rafQueue3 = [];
+  const source3 = { cancel() {} };
+  engine3.session = {
+    requestAnimationFrame: (cb) => { rafQueue3.push(cb); return rafQueue3.length; },
+    requestHitTestSource: async () => source3,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  };
+  const trackableAnchor = { anchorSpace: {}, delete() {} };
+  const poseAnchor = { anchorSpace: {}, delete() {} };
+  const hitResult3 = {
+    getPose: () => ({
+      transform: {
+        position: { x: 0, y: 0, z: -2.8 },
+        orientation: { x: 0, y: 0, z: 0, w: 1 },
+      },
+    }),
+    createAnchor: async () => trackableAnchor,
+  };
+  const frame3 = {
+    getViewerPose: () => ({
+      transform: {
+        position: { x: 0, y: 1.4, z: 0 },
+        orientation: { x: 0, y: 0, z: 0, w: 1 },
+      },
+      views: [{ projectionMatrix: proj }],
+    }),
+    getHitTestResults: (src) => (src === source3 ? [hitResult3] : []),
+    createAnchor: async () => poseAnchor,
+  };
+  let result3 = null;
+  engine3.hitTestAtPoint(0.5, 0.75, { anchor: true }).then((r) => { result3 = r; });
+  for (let i = 0; i < 10 && result3 === null; i++) {
+    const cbs = rafQueue3;
+    rafQueue3 = [];
+    for (const cb of cbs) await cb(16 * i, frame3);
+    await new Promise((r) => setTimeout(r, 1));
+  }
+  check('runtime-path hit resolves', result3 && result3.hit === true);
+  check(
+    'trackable-attached anchor preferred over pose-minted',
+    result3.anchor === trackableAnchor
+  );
 });

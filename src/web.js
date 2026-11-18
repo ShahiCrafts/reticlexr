@@ -485,6 +485,8 @@ export class ARCoreWeb extends WebPlugin {
     this.session = null;
     this.referenceSpace = null;
     this.referenceSpaceType = null;
+    this.fpsEstimate = 0;
+    this._lastFrameTs = 0;
     this.viewerSpace = null;
     this.hitTestSource = null;
     this.onDebugProject = null;
@@ -1499,6 +1501,17 @@ export class ARCoreWeb extends WebPlugin {
       if (!frame) return;
 
       frameCount++;
+      // Smoothed render-rate estimate (EMA over frame deltas).
+      // Exposed for diagnostics: a model can only track the world
+      // as smoothly as frames are produced, and a low rate on a
+      // weak device reads as the model trailing the view.
+      if (this._lastFrameTs) {
+        const inst = 1000 / Math.max(1, timestamp - this._lastFrameTs);
+        this.fpsEstimate = this.fpsEstimate
+          ? this.fpsEstimate * 0.9 + inst * 0.1
+          : inst;
+      }
+      this._lastFrameTs = timestamp;
 
       // Process detected planes using the WebXR Plane Detection API
       if (this.planeDetectionSupported && (this.detectedPlanes.size === 0 || frameCount % 8 === 0)) {
@@ -2358,9 +2371,22 @@ export class ARCoreWeb extends WebPlugin {
               planeType,
             };
             if (options.anchor) {
-              this._createAnchorAt(frame, result.position, result.rotation).then(
-                (anchor) => settle(anchor ? { ...result, anchor } : result)
-              );
+              // Prefer the hit result's OWN anchor: it is attached
+              // to the trackable that was hit (the plane/point), so
+              // the runtime's refinement of THAT surface carries
+              // the model — the strongest form of world-lock, and
+              // the one native viewers use. A pose-minted anchor
+              // (frame.createAnchor) is the fallback for paths
+              // without a hit result object.
+              (async () => {
+                try {
+                  if (typeof results[0].createAnchor === "function") {
+                    const a = await results[0].createAnchor();
+                    if (a) return a;
+                  }
+                } catch (_) { /* fall through to the pose mint */ }
+                return this._createAnchorAt(frame, result.position, result.rotation);
+              })().then((anchor) => settle(anchor ? { ...result, anchor } : result));
             } else {
               settle(result);
             }

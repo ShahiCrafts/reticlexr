@@ -65,6 +65,7 @@ export default function DemoClient() {
   const [toast, setToast] = useState('');
   const [debugEntries, setDebugEntries] = useState([]);
   const [projNorm, setProjNorm] = useState(null);
+  const [sysInfo, setSysInfo] = useState({ space: '—', lock: '—', fps: '—' });
   const [debugVisible, setDebugVisible] = useState(true);
   const dbgLastOf = (types) => {
     for (let i = debugEntries.length - 1; i >= 0; i--) {
@@ -166,6 +167,20 @@ export default function DemoClient() {
         // several times a second, so they bypass the window and go
         // straight to their own state.
         onDebug: (entry) => {
+          // Live system line for the debug panel: which reference
+          // space the session got, whether the active model is
+          // riding a real XRAnchor or plain coordinates, and the
+          // render rate. This is what decides world-lock quality,
+          // so it stays visible while testing on device.
+          const eng = v.engine;
+          if (eng) {
+            const rec = v.activeModelId ? eng.anchors?.get(v.activeModelId) : null;
+            setSysInfo({
+              space: eng.referenceSpaceType || '—',
+              lock: rec ? (rec.xrAnchor ? 'anchored' : 'coordinates') : '—',
+              fps: eng.fpsEstimate ? String(Math.round(eng.fpsEstimate)) : '—',
+            });
+          }
           if (entry.type === 'proj') {
             setProjNorm(entry.normalised);
             return;
@@ -398,6 +413,7 @@ export default function DemoClient() {
                 </button>
               </div>
               <div>model: {dbgBase?.modelUrl ? dbgBase.modelUrl.split('/').pop() : '—'}</div>
+              <div>sys: {sysInfo.space} · {sysInfo.lock} · {sysInfo.fps} fps</div>
               <div>base centre: {dbgFmt(dbgBase?.baseCentre)}</div>
               <div>tap px: {dbgTap?.pixel ? `(${dbgTap.pixel.x}, ${dbgTap.pixel.y})` : '—'}</div>
               <div>tap norm: {dbgTap?.normalised ? `(${dbgTap.normalised.x.toFixed(3)}, ${dbgTap.normalised.y.toFixed(3)})` : '—'}</div>
