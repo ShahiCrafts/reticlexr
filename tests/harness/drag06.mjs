@@ -1,26 +1,24 @@
-// Drag with NO tracked planes and a hit-test source that never
-// returns results — the minimal-feature session posture
-// (plane-detection off). Positioning must come from the math
-// drag plane alone, which needs the provisional plane height +
-// grab offset. Regression covered: the seeding used to run only
-// while planeY was null, but planeY was assigned before the ray
-// test — if the first frame's ray missed the plane (finger near
-// the horizon at grab time), the offset never seeded and the
-// drag was silently dead for the whole gesture (device report
-// 2026-11-18, the minimal-feature A/B build). Tracked polygons
-// had masked it: their branch needs no offset.
+// Drag with NO tracked planes and NO hit results — the
+// minimal-feature session posture (plane-detection off, no
+// transient source in this rig). Positioning comes from the DOM
+// fallback plane alone. Regression covered: a first frame whose
+// ray misses the plane entirely (finger near the horizon at grab
+// time) must neither move the model nor kill the drag — earlier
+// pipelines seeded their drag state exactly once, from that
+// first frame, and a miss left the whole gesture silently dead
+// (device report 2026-11-18, the minimal-feature A/B build). The
+// delta machinery seeds whenever the ray first lands, however
+// late in the gesture that is.
 
 import { test, expect } from 'vitest';
 
 test('drag06', async () => {
-  globalThis.XRRay = class {
-    constructor(origin, direction) { this.origin = origin; this.direction = direction; }
-  };
   const THREE = await import('three');
   const { ARCoreWeb } = await import('../../src/web.js');
   const check = (name, cond) => expect(cond, name).toBe(true);
-  const tick = () => new Promise((r) => setTimeout(r, 5));
-  const near = (a, b) => Math.abs(a - b) < 1e-3;
+  const near = (a, b, eps = 1e-3) => Math.abs(a - b) < eps;
+  const near3 = (p, q, eps = 1e-3) =>
+    near(p[0], q[0], eps) && near(p[1], q[1], eps) && near(p[2], q[2], eps);
 
   const engine = new ARCoreWeb();
   let loopCb = null;
@@ -56,41 +54,39 @@ test('drag06', async () => {
   const frame = {
     getViewerPose: () => ({ transform: viewerTransform, views: [{ projectionMatrix: proj }] }),
     getPose: () => undefined,
-    getHitTestResults: () => [], // the drag source never hits
+    getHitTestResults: () => [], // no hits, ever
   };
+  let ts = 0;
+  const runFrames = (n) => { for (let i = 0; i < n; i++) { ts += 16; loopCb(ts, frame); } };
 
   check('beginDragMove accepts the placed model', engine.beginDragMove('m1') === true);
 
   // Frame 1: the finger grabs near the TOP of the screen — the
-  // ray is near-horizontal and cannot meet the model's plane, so
-  // the grab offset cannot seed yet. The model must not move,
-  // and the drag must NOT be dead.
+  // ray cannot meet the model's plane, so nothing can seed yet.
+  // The model must not move, and the drag must NOT be dead.
   engine.updateDragPoint(0.5, 0.05);
-  loopCb(16, frame);
-  await tick();
+  runFrames(1);
   let pos = engine.anchors.get('m1').position;
-  check('no movement while the ray misses the plane', near(pos[0], 0) && near(pos[2], -2));
-  check('plane height seeded from the model', engine._dragMove.planeY === 0);
-  check('grab offset still unseeded after the missed ray', engine._dragMove.grabOffset === null);
+  check('no movement while the ray misses the plane', near3(pos, [0, 0, -2]));
+  check('nothing seeded after the missed ray', engine._dragMove.lastPlanePoint === null);
+  check('drag still alive after the missed ray', engine._dragMove !== null);
 
-  // Frame 2: the finger comes down to the model. The offset
-  // seeds on THIS frame (the retry), and because it is computed
-  // from the current centre, the model does not jump.
+  // Frame 2: the finger comes down to the model. The plane point
+  // seeds on THIS frame, and because deltas are computed from it,
+  // the model does not jump.
   engine.updateDragPoint(0.5, 0.75);
-  loopCb(32, frame);
-  await tick();
-  pos = engine.anchors.get('m1').position;
-  check('grab offset seeded on the retry frame', engine._dragMove.grabOffset !== null);
-  check('model unmoved at the grab point', near(pos[0], 0) && near(pos[1], 0) && near(pos[2], -2));
+  runFrames(1);
+  check('plane point seeded on the retry frame', engine._dragMove.lastPlanePoint !== null);
+  check('model unmoved at the grab point', near3(engine.anchors.get('m1').position, [0, 0, -2]));
 
-  // Frame 3: slide right — the model follows on the math plane
-  // alone (same geometry as drag05: centre to (1.4, 0, -2)).
+  // Frame 3+: slide right — the model follows on the fallback
+  // plane alone and the damped position converges to the same
+  // target the old math-plane pipeline produced: (1.4, 0, -2).
   engine.updateDragPoint(0.75, 0.75);
-  loopCb(48, frame);
-  await tick();
+  runFrames(1);
+  check('goal followed the finger', near3(engine._dragMove.goal, [1.4, 0, -2], 0.01));
+  runFrames(40);
   pos = engine.anchors.get('m1').position;
-  check('model follows the finger with no planes and no source hits',
-    near(pos[0], 1.4) && near(pos[1], 0) && near(pos[2], -2));
-  check('rendered object matches the record',
-    near(root.position.x, 1.4) && near(root.position.z, -2));
+  check('model converged with no planes and no source hits', near3(pos, [1.4, 0, -2]));
+  check('rendered object matches the record', near(root.position.x, 1.4) && near(root.position.z, -2));
 });

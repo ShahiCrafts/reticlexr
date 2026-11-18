@@ -40,26 +40,31 @@ function makeEngine({ granted }) {
   return { engine, state, spaces };
 }
 
-// Case 1: local-floor granted
+// Case 1: everything granted -> 'local' wins (Tier 0 posture,
+// system design 2026-11-18: model-viewer-class viewers
+// standardise on local; surface heights come from hit tests, not
+// a floor origin). local-floor stays in optionalFeatures so the
+// fallback below remains available, and anchors are NOT
+// requested by default.
 {
   const { engine, state, spaces } = makeEngine({ granted: ['local-floor', 'local', 'viewer'] });
   const r = await engine.startSession({});
-  check('local-floor granted: session starts', r.success === true);
-  check('local-floor granted: referenceSpace is local-floor', engine.referenceSpace === spaces['local-floor']);
+  check('all granted: session starts', r.success === true);
+  check('all granted: referenceSpace is local', engine.referenceSpace === spaces['local']);
   check('requiredFeatures is [hit-test] only', JSON.stringify(state.sessionOptions.requiredFeatures) === '["hit-test"]');
-  check('local-floor moved to optionalFeatures', state.sessionOptions.optionalFeatures.includes('local-floor'));
-  check('anchors requested as optionalFeature', state.sessionOptions.optionalFeatures.includes('anchors'));
-  check('referenceSpaceType recorded', engine.referenceSpaceType === 'local-floor');
-  check('renderer pinned to the same space', state.renderSpaceType === 'local-floor');
-  check('result reports the space', r.referenceSpace === 'local-floor');
+  check('local-floor in optionalFeatures (fallback stays possible)', state.sessionOptions.optionalFeatures.includes('local-floor'));
+  check('anchors NOT requested by default (Tier 0)', !state.sessionOptions.optionalFeatures.includes('anchors'));
+  check('referenceSpaceType recorded', engine.referenceSpaceType === 'local');
+  check('renderer pinned to the same space', state.renderSpaceType === 'local');
+  check('result reports the space', r.referenceSpace === 'local');
 }
 
-// Case 2: local-floor rejected, local granted
+// Case 2: local rejected, local-floor granted -> fallback
 {
-  const { engine, spaces } = makeEngine({ granted: ['local', 'viewer'] });
+  const { engine, spaces } = makeEngine({ granted: ['local-floor', 'viewer'] });
   const r = await engine.startSession({});
-  check('local fallback: session starts', r.success === true);
-  check('local fallback: referenceSpace is local', engine.referenceSpace === spaces['local']);
+  check('local-floor fallback: session starts', r.success === true);
+  check('local-floor fallback: referenceSpace is local-floor', engine.referenceSpace === spaces['local-floor']);
 }
 
 // Case 3: only viewer granted -> startup FAILS. The viewer space
@@ -75,6 +80,14 @@ function makeEngine({ granted }) {
   check('viewer-only: startSession throws', threw === true);
   check('viewer-only: live session was ended', state.ended === true);
   check('viewer-only: no reference space kept', engine.referenceSpace === null);
+}
+
+// Case 5: anchors are a Tier 2 opt-in — requested only when the
+// caller asks for them.
+{
+  const { engine, state } = makeEngine({ granted: ['local-floor', 'local', 'viewer'] });
+  await engine.startSession({ anchors: true });
+  check('anchors opt-in: requested as optionalFeature', state.sessionOptions.optionalFeatures.includes('anchors'));
 }
 
 // Case 4: no space granted -> startup fails AND the session is ended (BUG-07 interplay)

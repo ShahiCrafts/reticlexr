@@ -209,16 +209,15 @@ export default function DemoClient() {
         // The white footprint outline native viewers draw around
         // a placed model: the surface-lock cue.
         showBaseRing: true,
-        // MINIMAL-FEATURE A/B (2026-11-18): six recorder reports
-        // show the browser dying even in an EMPTY session (4 s,
-        // no model placed, full Chrome), so the fault is in the
-        // session's own feature load, not content. This build runs
-        // with the model-viewer-class feature posture: hit-test +
-        // local-floor + dom-overlay only. Plane detection, light
-        // estimation and anchors are OFF; placement still works
-        // (hit-test sources + floor fallback), models ride plain
-        // coordinates, and lighting is the fixed default (models
-        // look flatter this run — expected, part of the test).
+        // Tier 0 feature posture (system design 2026-11-18, now
+        // the engine's own default): hit-test + dom-overlay only,
+        // the model-viewer-class configuration. Plane detection,
+        // light estimation and anchors are off; placement and
+        // drag ride the transient-input hit-test pipeline on plain
+        // coordinates in the local reference space, and lighting
+        // is the fixed default. (Six flight-recorder reports put
+        // the old full-feature session load behind the browser
+        // deaths; this posture is the one that persisted.)
         planeDetection: false,
         lightEstimation: false,
         anchors: false,
@@ -234,9 +233,12 @@ export default function DemoClient() {
         // report unavailable while this is off.
         enableScreenshots: false,
         // Render the XR layer at 85% scale: fragment work drops by
-        // ~28% (it scales with the square), which is the difference
-        // between holding and missing 60 fps on mid-range phones.
-        // The camera feed stays full resolution.
+        // ~28% (it scales with the square). ARCore immersive
+        // sessions are capped at ~30 fps, so the budget that
+        // matters is holding a locked 30 without dropped frames
+        // on mid-range phones. The camera feed stays full
+        // resolution. (Dynamic per-frame viewport scaling is the
+        // design's next tranche; this fixed scale is its floor.)
         framebufferScale: 0.85,
       });
       v.onFrame((e) => {

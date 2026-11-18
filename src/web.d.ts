@@ -107,6 +107,26 @@ export declare function rayFromScreenPoint(
   direction: { x: number; y: number; z: number };
 };
 
+export declare function intersectRayPlane(
+  ray: {
+    origin: { x: number; y: number; z: number };
+    direction: { x: number; y: number; z: number };
+  },
+  planePoint: [number, number, number],
+  planeNormal: [number, number, number]
+): [number, number, number] | null;
+
+/**
+ * Single-axis critically damped spring (exact closed-form
+ * integration) — the drag pipeline's smoothing primitive.
+ */
+export declare class Damper {
+  constructor(decayMs?: number, maxVelocity?: number);
+  readonly velocity: number;
+  reset(): void;
+  update(x: number, goal: number, dt: number): number;
+}
+
 /** Engine visual configuration (see `setConfig`). */
 export interface ARConfig {
   showReticle: boolean;
@@ -140,8 +160,21 @@ export interface ARSupportResult {
 }
 
 export interface ARSessionOptions {
+  /**
+   * Tier 0 posture (default): all three of planeDetection,
+   * lightEstimation and anchors are OFF unless explicitly
+   * opted in — the session requests hit-test only, the
+   * model-viewer-class configuration.
+   */
   planeDetection?: boolean;
   lightEstimation?: boolean;
+  /**
+   * Tier 2 opt-in: request the WebXR `anchors` feature (one
+   * anchor minted from the final hit result when a drag ends).
+   * Default false: the `local` reference space already absorbs
+   * the runtime's world-model corrections.
+   */
+  anchors?: boolean;
   /**
    * Opt in to WebXR `camera-access` so `takeScreenshot()` can include
    * the camera feed (SEC-04). NOT implied by `lightEstimation`.

@@ -1,22 +1,23 @@
 // Drag positioning from the REAL tracked plane polygons (the
-// geometry that makes taps land exactly), with the math drag
-// plane as fallback and a hard rule that a full miss moves
-// NOTHING — a drag must never make the model vanish or fly off
-// (device report 2026-11-18: "while dragging the model vanishes
-// ... we should show the model while moving too"). Also covers
-// the screen-position cache behind ARView's grab gate.
+// geometry that makes taps land exactly) on the DOM fallback
+// path, with a hard rule that a full miss moves NOTHING — a drag
+// must never make the model vanish or fly off (device report
+// 2026-11-18: "while dragging the model vanishes ... we should
+// show the model while moving too"). Polygon hits feed the same
+// delta machinery as transient hits: the first only seeds, later
+// ones move the goal by their deltas, and the damped position
+// converges. Also covers the screen-position cache behind
+// ARView's grab gate.
 
 import { test, expect } from 'vitest';
 
 test('drag05', async () => {
-  globalThis.XRRay = class {
-    constructor(origin, direction) { this.origin = origin; this.direction = direction; }
-  };
   const THREE = await import('three');
   const { ARCoreWeb } = await import('../../src/web.js');
   const check = (name, cond) => expect(cond, name).toBe(true);
-  const tick = () => new Promise((r) => setTimeout(r, 5));
-  const near = (a, b) => Math.abs(a - b) < 1e-3;
+  const near = (a, b, eps = 1e-3) => Math.abs(a - b) < eps;
+  const near3 = (p, q, eps = 1e-3) =>
+    near(p[0], q[0], eps) && near(p[1], q[1], eps) && near(p[2], q[2], eps);
 
   const engine = new ARCoreWeb();
   let loopCb = null;
@@ -35,15 +36,18 @@ test('drag05', async () => {
   });
   engine.loadedModels.set('m1', root);
 
-  // One tracked floor plane, polygon x in [-3, 3], z in [-5, 1].
+  // One tracked floor plane, polygon x in [-3, 3], z in [-5, 1],
+  // keyed the way production keys it: by the plane object itself.
   const planeSpace = {};
-  engine.detectedPlanes.set('p1', {
+  const xrPlane = {
     planeSpace,
     orientation: 'horizontal',
+    lastChangedTime: 1,
     polygon: [
       { x: -3, z: 1 }, { x: 3, z: 1 }, { x: 3, z: -5 }, { x: -3, z: -5 },
     ],
-  });
+  };
+  engine.detectedPlanes.set(xrPlane, { orientation: 'horizontal', lastChangedTime: 1, mesh: null, dots: null });
 
   engine.session = {
     requestHitTestSource: async () => ({ cancel() {} }),
@@ -56,56 +60,54 @@ test('drag05', async () => {
   const viewerTransform = {
     position: { x: 0, y: 1.4, z: 0 },
     orientation: { x: 0, y: 0, z: 0, w: 1 },
-    // Column-major view transform for the projection helper.
     matrix: new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1.4, 0, 1]),
   };
   const frame = {
+    detectedPlanes: new Set([xrPlane]),
     getViewerPose: () => ({ transform: viewerTransform, views: [{ projectionMatrix: proj }] }),
     getPose: (space) => (space === planeSpace
-      ? { transform: { position: { x: 0, y: 0, z: 0 }, orientation: { x: 0, y: 0, z: 0, w: 1 } } }
+      ? { transform: { position: { x: 0, y: 0, z: 0 }, orientation: { x: 0, y: 0, z: 0, w: 1 }, matrix: new Float32Array(16) } }
       : undefined),
     getHitTestResults: () => [], // sources never hit: polygons must do the work
   };
+  let ts = 0;
+  const runFrames = (n) => { for (let i = 0; i < n; i++) { ts += 16; loopCb(ts, frame); } };
 
   check('beginDragMove accepts the placed model', engine.beginDragMove('m1') === true);
 
-  // Grab the model where it stands: ray through (0.5, 0.75) meets
-  // the floor at (0, 0, -2.8); the grab offset (0, +0.8) keeps the
-  // centre exactly where it was.
+  // Grab the model where it stands: the ray through (0.5, 0.75)
+  // meets the polygon at (0, 0, -2.8) — a seed only, no motion.
   engine.updateDragPoint(0.5, 0.75);
-  loopCb(16, frame);
-  await tick();
+  runFrames(1);
   let pos = engine.anchors.get('m1').position;
-  check('model unmoved at the grab point', near(pos[0], 0) && near(pos[1], 0) && near(pos[2], -2));
+  check('polygon hit seeded the drag', near3(engine._dragMove.lastHit, [0, 0, -2.8], 0.01));
+  check('model unmoved at the grab point', near3(pos, [0, 0, -2]));
 
-  // Slide the finger right: the model must follow DURING the drag
-  // (not only on release) — ray through (0.75, 0.75) meets the
-  // floor at (1.4, 0, -2.8), so the centre goes to (1.4, 0, -2).
+  // Slide the finger right: the polygon hit moves to
+  // (1.4, 0, -2.8), the goal follows by the delta, and the damped
+  // position converges DURING the drag.
   engine.updateDragPoint(0.75, 0.75);
-  loopCb(32, frame);
-  await tick();
+  runFrames(1);
+  check('goal followed the polygon hit', near3(engine._dragMove.goal, [1.4, 0, -2], 0.01));
+  runFrames(40);
   pos = engine.anchors.get('m1').position;
-  check('model follows the finger mid-drag', near(pos[0], 1.4) && near(pos[1], 0) && near(pos[2], -2));
-  check(
-    'rendered object matches the record mid-drag',
-    near(root.position.x, 1.4) && near(root.position.z, -2)
-  );
+  check('model converged mid-drag', near3(pos, [1.4, 0, -2]));
+  check('rendered object matches the record mid-drag', near(root.position.x, 1.4) && near(root.position.z, -2));
 
   // Flick the finger to the top of the screen (ray points up, off
-  // every surface): the model must STAY at its last drag position
-  // — never vanish, never fly off.
+  // every surface, and the fallback plane intersection is behind
+  // the ray): the model must STAY — never vanish, never fly off.
   engine.updateDragPoint(0.5, 0.05);
-  loopCb(48, frame);
-  await tick();
+  runFrames(3);
   pos = engine.anchors.get('m1').position;
-  check('a full miss leaves the model where it was', near(pos[0], 1.4) && near(pos[2], -2));
+  check('a full miss leaves the model where it was', near3(pos, [1.4, 0, -2]));
+  check('a full miss leaves the goal where it was', near3(engine._dragMove.goal, [1.4, 0, -2], 0.01));
 
   // The screen-position cache (ARView's grab gate) tracks the
   // model: at (1.4, 0, -2) from a camera at (0, 1.4, 0) with a 90°
   // lens it projects to about (0.85, 0.85).
   await new Promise((r) => setTimeout(r, 120));
-  loopCb(200, frame);
-  await tick();
+  ts += 200; loopCb(ts, frame);
   const sp = engine.getModelScreenPosition('m1');
   check('screen position cached', !!sp);
   check('screen position plausible', sp.x > 0.8 && sp.x < 0.9 && sp.y > 0.8 && sp.y < 0.9);

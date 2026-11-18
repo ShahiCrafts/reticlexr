@@ -38,8 +38,10 @@ export class ARView {
     });
     const result = await this.engine.startSession({
       domOverlay: this.overlay,
-      planeDetection: options.planeDetection !== false,
-      lightEstimation: options.lightEstimation !== false,
+      // Tier 0 posture (see startSession): plane detection and
+      // light estimation are opt-in tiers, off unless requested.
+      planeDetection: options.planeDetection === true,
+      lightEstimation: options.lightEstimation === true,
       // Opt-in: requests WebXR camera-access for takeScreenshot (SEC-04)
       enableScreenshots: options.enableScreenshots === true,
       anchors: options.anchors,

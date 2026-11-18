@@ -111,8 +111,8 @@ await ar.create({
   showReticle: true,     // centre placement reticle
   showPlaneDots: true,   // dotted visualisation over detected planes
   showShadow: true,      // soft blob shadow under the model
-  planeDetection: true,
-  lightEstimation: true,
+  planeDetection: false, // opt-in tier; the default session is hit-test only
+  lightEstimation: false, // opt-in tier
 });
 
 // Cache the parsed models so placement and switching are fast.

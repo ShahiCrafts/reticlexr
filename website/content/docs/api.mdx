@@ -138,7 +138,7 @@ element for the immersive session's overlay.
 | Member | Signature / behaviour |
 | --- | --- |
 | `checkSupport()` | → engine `checkSupport()` → `{ supported, reason, code? }` |
-| `create(options?)` | Starts the session. Options: `{ overlay?, showReticle = true, showPlaneDots = true, dotSpacing = 0.14, dotSize = 0.014, showShadow = true, planeDetection = true, lightEstimation = true, enableScreenshots = false, framebufferScale = 1 }`. Resolves `{ success, hasOverlay, planeDetection }` |
+| `create(options?)` | Starts the session. Options: `{ overlay?, showReticle = true, showPlaneDots = true, dotSpacing = 0.14, dotSize = 0.014, showShadow = true, planeDetection = false, lightEstimation = false, anchors = false, enableScreenshots = false, framebufferScale = 1 }`. The default session requests hit-test only (Tier 0); plane detection, light estimation and anchors are opt-in tiers. Resolves `{ success, hasOverlay, planeDetection }` |
 | `destroy()` | Destroys gestures, then fully disposes the engine (`engine.dispose()`) |
 | `onFrame(cb)` / `onPlanes(cb)` | Subscribe to engine frame / plane listeners; both return an unsubscribe function |
 | `getSurface()` | Current surface state `{ hasSurface, position, rotation, planeType, confidence }` |
@@ -239,8 +239,8 @@ live placements are never evicted).
 
 ### Session and accessors
 
-`checkSupport()`, `startSession({ planeDetection = true,
-lightEstimation = true, enableScreenshots = false, framebufferScale = 1,
+`checkSupport()`, `startSession({ planeDetection = false,
+lightEstimation = false, anchors = false, enableScreenshots = false, framebufferScale = 1,
 domOverlay = null })`, `stopSession()`, `dispose()` (full
 teardown; the instance can start again), `clearModelCache()`,
 `getSession()`, `getRenderer()`, `getScene()`, `getCamera()`,

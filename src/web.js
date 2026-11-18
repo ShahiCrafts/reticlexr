@@ -243,6 +243,93 @@ export function dragPlaneTarget(ray, planeY, grabOffset) {
 }
 
 /**
+ * Intersect a ray with an arbitrary plane (a point on the plane
+ * plus its normal). Returns [x, y, z] or null when the ray runs
+ * parallel to the plane or the meeting point falls outside sane
+ * reach. The drag pipeline's fallback: when the finger's hit test
+ * misses for a frame, the finger ray is intersected with the last
+ * real surface plane instead, so the model keeps following the
+ * finger across the surface it is already on.
+ */
+export function intersectRayPlane(ray, planePoint, planeNormal) {
+  if (!ray || !planePoint || !planeNormal) return null;
+  const denom =
+    ray.direction.x * planeNormal[0] +
+    ray.direction.y * planeNormal[1] +
+    ray.direction.z * planeNormal[2];
+  if (Math.abs(denom) < 1e-6) return null;
+  const t =
+    ((planePoint[0] - ray.origin.x) * planeNormal[0] +
+      (planePoint[1] - ray.origin.y) * planeNormal[1] +
+      (planePoint[2] - ray.origin.z) * planeNormal[2]) /
+    denom;
+  if (!(t >= 0.1 && t <= 8)) return null;
+  return [
+    ray.origin.x + ray.direction.x * t,
+    ray.origin.y + ray.direction.y * t,
+    ray.origin.z + ray.direction.z * t,
+  ];
+}
+
+/**
+ * A single-axis critically damped spring, integrated with the
+ * exact closed-form solution (the model-viewer Damper design).
+ * The drag pipeline runs one per axis between the accumulated
+ * goal position and the model's rendered position: the goal can
+ * jump with the finger's hit tests, but the model eases after it
+ * with a fixed decay, which is what makes motion read as smooth
+ * and physical instead of teleported or laggy. Critically damped
+ * (zeta = 1) means it never overshoots or oscillates.
+ */
+export class Damper {
+  /**
+   * @param {number} decayMs - Time constant of the decay (50 ms
+   *   matches model-viewer's DECAY_MILLISECONDS for translation;
+   *   the vertical axis uses a slower 80 ms so surface steps feel
+   *   settled rather than bouncy).
+   * @param {number} maxVelocity - Velocity clamp (units/second),
+   *   a runaway guard for glitched goals.
+   */
+  constructor(decayMs = 50, maxVelocity = Infinity) {
+    this._omega = 1000 / decayMs;
+    this._maxVelocity = maxVelocity;
+    this._velocity = 0;
+  }
+
+  /** Current velocity (units/second), for tests and diagnostics. */
+  get velocity() {
+    return this._velocity;
+  }
+
+  /** Forget all velocity (a fresh grab starts from rest). */
+  reset() {
+    this._velocity = 0;
+  }
+
+  /**
+   * Advance one step of dt seconds from x toward goal; returns
+   * the new x. dt is clamped by the caller to a sane frame range.
+   *
+   * @param {number} x
+   * @param {number} goal
+   * @param {number} dt - seconds
+   * @returns {number}
+   */
+  update(x, goal, dt) {
+    const omega = this._omega;
+    const y = x - goal;
+    const c = this._velocity + omega * y;
+    const e = Math.exp(-omega * dt);
+    const y1 = (y + c * dt) * e;
+    let v1 = (this._velocity - omega * c * dt) * e;
+    if (v1 > this._maxVelocity) v1 = this._maxVelocity;
+    else if (v1 < -this._maxVelocity) v1 = -this._maxVelocity;
+    this._velocity = v1;
+    return goal + y1;
+  }
+}
+
+/**
  * Project a world position to normalised screen coordinates under
  * the given view — the inverse of rayFromScreenPoint. Used by the
  * debug readout to report where a model's centre actually falls on
@@ -491,6 +578,7 @@ export class ARCoreWeb extends WebPlugin {
     this._lastFrameTs = 0;
     this.viewerSpace = null;
     this.hitTestSource = null;
+    this.transientHitTestSource = null;
     this.onDebugProject = null;
     this._screenPositions = new Map();
     this.xrGlBinding = null;
@@ -1420,20 +1508,34 @@ export class ARCoreWeb extends WebPlugin {
 
   async startSession(options = {}) {
     const {
-      planeDetection = true,
-      lightEstimation = true,
+      // Tier 0 feature posture (system design 2026-11-18, modelled
+      // on Google's model-viewer, the production WebXR viewer whose
+      // stability and drag feel this SDK targets): the session asks
+      // for hit-test and nothing else by default. Every extra
+      // feature costs a per-frame native-to-JS data update in
+      // Chromium and widens the surface for session instability on
+      // mid-range phones; on device, the full-feature build died
+      // in seconds where the hit-test-only build persisted. The
+      // richer features remain available as explicit opt-ins
+      // (tiers): lightEstimation is Tier 1, anchors Tier 2, and
+      // planeDetection is a diagnostic extra. None of them is
+      // needed for surface-accurate placement or drag: hit-test
+      // 'plane' results come from the underlying AR system whether
+      // or not the plane-detection feature is enabled.
+      planeDetection = false,
+      lightEstimation = false,
       // Screenshots need raw camera access, which is a materially larger
       // permission than the rest of the session. It is opt-in via
       // enableScreenshots and is NOT implied by lightEstimation (SEC-04).
       // Without it, takeScreenshot() returns CAMERA_CAPTURE_UNAVAILABLE.
       enableScreenshots = false,
-      // Anchors are requested by default (world-lock). A session
-      // can opt out (anchors: false) to run with the minimal
-      // hit-test-only feature posture of model-viewer-class apps;
-      // placement then rides plain coordinates and the anchor
-      // machinery stays silent (its failure fallbacks already
-      // cover the not-granted case).
-      anchors = true,
+      // Anchors are a Tier 2 opt-in (anchors: true): one anchor
+      // minted from the final hit result when a drag ends. The
+      // default session creates none: the 'local' reference space
+      // already absorbs the runtime's world-model corrections,
+      // which is how model-viewer ships world-locked placement
+      // with zero anchors.
+      anchors = false,
       domOverlay = null,
       // XR render scale (0..1]. Fragment work scales with its
       // square (0.85 ≈ 28% fewer fragments), which is the single
@@ -1508,14 +1610,19 @@ export class ARCoreWeb extends WebPlugin {
       // to while the engine used its own chain — when those
       // disagree, rendered content is offset from (or drifts
       // against) the world the hit tests describe. The chain is
-      // local-floor, then local (COMPAT-01). "viewer" is NOT a
-      // fallback any more: it is defined relative to the device's
-      // current pose, so anything placed in it moves WITH the view
-      // — the opposite of AR. A session that can only offer viewer
-      // space cannot do world-locked AR at all; failing loudly is
-      // better than gluing models to the user's face.
+      // local, then local-floor (COMPAT-01): 'local' is the space
+      // model-viewer-class viewers standardise on — surface
+      // heights come from hit tests, not from a floor origin, and
+      // the space carries the runtime's world-model corrections.
+      // local-floor remains as the fallback for runtimes that
+      // grant it but not local. "viewer" is NOT a fallback: it is
+      // defined relative to the device's current pose, so anything
+      // placed in it moves WITH the view — the opposite of AR. A
+      // session that can only offer viewer space cannot do
+      // world-locked AR at all; failing loudly is better than
+      // gluing models to the user's face.
       this.referenceSpaceType = null;
-      for (const spaceType of ["local-floor", "local"]) {
+      for (const spaceType of ["local", "local-floor"]) {
         try {
           this.referenceSpace = await this.session.requestReferenceSpace(spaceType);
           this.referenceSpaceType = spaceType;
@@ -1525,7 +1632,7 @@ export class ARCoreWeb extends WebPlugin {
         }
       }
       if (!this.referenceSpace) {
-        throw new Error("No world-locked reference space available (local-floor and local both rejected)");
+        throw new Error("No world-locked reference space available (local and local-floor both rejected)");
       }
       if (typeof this.renderer.xr.setReferenceSpaceType === "function") {
         this.renderer.xr.setReferenceSpaceType(this.referenceSpaceType);
@@ -1553,6 +1660,29 @@ export class ARCoreWeb extends WebPlugin {
         entityTypes: ["plane", "point"],
       });
 
+      // One transient-input hit-test source for the whole session:
+      // the drag pipeline reads it (via
+      // frame.getHitTestResultsForTransientInput) only while a
+      // touch gesture is active, so it costs nothing at rest. This
+      // is the model-viewer drag design: the runtime hit-tests the
+      // ACTUAL finger ray each frame, instead of the engine
+      // maintaining a trail of per-point persistent sources whose
+      // rays are frozen at their creation-time points. Guarded:
+      // runtimes without the transient-input API leave it null and
+      // the drag falls back to DOM-point raycasting.
+      this.transientHitTestSource = null;
+      try {
+        if (typeof this.session.requestHitTestSourceForTransientInput === "function") {
+          this.transientHitTestSource =
+            await this.session.requestHitTestSourceForTransientInput({
+              profile: "generic-touchscreen",
+              entityTypes: ["plane", "point"],
+            });
+        }
+      } catch (_) {
+        this.transientHitTestSource = null;
+      }
+
       // Check if plane detection is supported
       this.planeDetectionSupported = typeof XRFrame !== 'undefined' && 'detectedPlanes' in XRFrame.prototype;
       this.debugLog(`[ARCore] Plane detection API supported: ${this.planeDetectionSupported}`);
@@ -1567,6 +1697,10 @@ export class ARCoreWeb extends WebPlugin {
         this.stopRendering();
         this.session = null;
         this.hitTestSource = null;
+        if (this.transientHitTestSource) {
+          try { this.transientHitTestSource.cancel(); } catch (_) {}
+          this.transientHitTestSource = null;
+        }
         this.referenceSpace = null;
         this.referenceSpaceType = null;
         this.viewerSpace = null;
@@ -1655,228 +1789,176 @@ export class ARCoreWeb extends WebPlugin {
         }
       }
 
-      // Drag-to-move tracking: while a drag is active, the loop
-      // positions the model every frame by intersecting the
-      // finger's current ray with the drag surface's plane (see
-      // beginDragMove / dragPlaneTarget). A hit-test source for the
-      // latest drag point runs alongside, but only to establish and
-      // refresh that plane's height — positioning from its hits
-      // trailed the finger, because a source's ray is fixed at its
-      // creation-time point.
-      if (this._dragMove && this._dragMove.point && this.referenceSpace && this.session) {
+      // Drag pipeline (model-viewer design, system design
+      // 2026-11-18; see beginDragMove): while a drag is active,
+      // accumulate the goal from the finger's hit tests by delta,
+      // and ease the model's position toward the goal through
+      // critically damped springs. The transient-input source is
+      // read ONLY while a gesture point is live, so an idle scene
+      // pays nothing for it.
+      if (this._dragMove && this.referenceSpace) {
         const drag = this._dragMove;
-        // Provisional plane + offset from the FIRST frame: do not
-        // wait for the drag's first hit-test result to start
-        // tracking — a short drag can end before that result lands,
-        // and then the model never moved at all. The model's own
-        // surface height (its anchor Y) and this frame's ray give a
-        // provisional plane and grab offset immediately; the first
-        // real hit refines both without moving the model (the
-        // offset is recomputed from the then-current centre).
-        // The seeding RETRIES until both values exist. The first
-        // version ran only while planeY was null, but planeY is
-        // assigned before the ray test: if the first frame's ray
-        // missed the plane (finger near the horizon at grab time),
-        // the grab offset never seeded, and with no tracked
-        // polygons and no source hit to refine it, the drag was
-        // silently dead for the whole gesture. Tracked polygons
-        // masked this completely (their branch needs no offset);
-        // the minimal-feature build (plane-detection off) exposed
-        // it on device, 2026-11-18.
-        if (drag.planeY == null || !drag.grabOffset) {
-          const anchorPos = this.anchors.get(drag.modelId)?.position;
-          const pose0 = frame.getViewerPose(this.referenceSpace);
-          const view0 = pose0 && pose0.views && pose0.views[0];
-          if (anchorPos && pose0 && view0) {
-            const c = Array.isArray(anchorPos)
-              ? anchorPos
-              : [anchorPos.x, anchorPos.y, anchorPos.z];
-            if (drag.planeY == null) drag.planeY = c[1];
-            if (!drag.grabOffset) {
-              const ray0 = rayFromScreenPoint(
-                pose0.transform,
-                view0.projectionMatrix,
-                drag.point.x,
-                drag.point.y
-              );
-              const t0 = dragPlaneTarget(ray0, drag.planeY, null);
-              if (t0) {
-                drag.grabOffset = { x: c[0] - t0[0], z: c[2] - t0[2] };
+        const record = this.anchors.get(drag.modelId);
+        if (!record) {
+          this.endDragMove();
+        } else {
+          // Frame delta for the dampers, clamped so a stalled
+          // frame cannot slingshot the model.
+          const dt =
+            drag.lastFrameTs == null
+              ? 1 / 60
+              : Math.min(0.1, Math.max(0.001, (timestamp - drag.lastFrameTs) / 1000));
+          drag.lastFrameTs = timestamp;
+
+          if (drag.point) {
+            let entries = null;
+            if (
+              this.transientHitTestSource &&
+              typeof frame.getHitTestResultsForTransientInput === "function"
+            ) {
+              try {
+                entries = frame.getHitTestResultsForTransientInput(
+                  this.transientHitTestSource
+                );
+              } catch (_) {
+                entries = null;
               }
             }
-          }
-        }
-        // Create-then-swap: while a replacement source is created for
-        // the latest point, the existing source keeps serving hits
-        // for the previous point, so the model keeps tracking the
-        // finger instead of freezing until the new source lands. The
-        // old code cancelled the live source the moment the point
-        // moved, and at pointer-event rates the replacement rarely
-        // survived a frame — the model trailed far behind the finger
-        // and drags felt broken (device report 2026-11-18).
-        const needsSource =
-          !drag.source ||
-          !drag.sourcePoint ||
-          drag.sourcePoint.x !== drag.point.x ||
-          drag.sourcePoint.y !== drag.point.y;
-        if (needsSource && !drag.creating) {
-          const viewerPose = frame.getViewerPose(this.referenceSpace);
-          const view = viewerPose && viewerPose.views && viewerPose.views[0];
-          if (viewerPose && view) {
-            drag.creating = true;
-            const point = { x: drag.point.x, y: drag.point.y };
-            const generation = drag.generation;
-            const ray = rayFromScreenPoint(
-              viewerPose.transform,
-              view.projectionMatrix,
-              point.x,
-              point.y
-            );
-            this.session
-              .requestHitTestSource({
-                space: this.referenceSpace,
-                offsetRay: new XRRay(ray.origin, ray.direction),
-                // Feature-point hits included (as in hitTestAtPoint):
-                // where plane trackables are unavailable (e.g. a
-                // session without plane-detection), point hits still
-                // arrive and keep the drag's surface height current.
-                entityTypes: ["plane", "point"],
-              })
-              .then((source) => {
-                if (this._dragMove !== drag) {
-                  try { source.cancel(); } catch (_) {}
-                  return;
+            if (entries) {
+              if (entries.length === 1) {
+                const entry = entries[0];
+                // The finger's own ray (the input pose's -Z), for
+                // frames where the hit test misses.
+                let fingerRay = null;
+                try {
+                  const inputPose =
+                    entry.inputSource && typeof frame.getPose === "function"
+                      ? frame.getPose(entry.inputSource.targetRaySpace, this.referenceSpace)
+                      : null;
+                  if (inputPose) {
+                    const t = inputPose.transform;
+                    const o = t.orientation;
+                    fingerRay = {
+                      origin: { x: t.position.x, y: t.position.y, z: t.position.z },
+                      // The target ray is the pose's -Z axis:
+                      // negated third column of the rotation.
+                      direction: {
+                        x: -(2 * (o.x * o.z + o.w * o.y)),
+                        y: -(2 * (o.y * o.z - o.w * o.x)),
+                        z: -(1 - 2 * (o.x * o.x + o.y * o.y)),
+                      },
+                    };
+                  }
+                } catch (_) {
+                  // Pose unavailable this frame; the hit path below
+                  // does not need it.
                 }
-                drag.creating = false;
-                if (drag.generation !== generation) {
-                  // The finger moved on while this source was being
-                  // created: drop it; the loop creates a fresh one
-                  // for the current point on the next frame. The
-                  // previous source (if any) stays live meanwhile.
-                  try { source.cancel(); } catch (_) {}
-                  return;
+                let accepted = false;
+                const results = entry.results || [];
+                if (results.length > 0) {
+                  try {
+                    const pose = results[0].getPose(this.referenceSpace);
+                    if (pose) {
+                      const o = pose.transform.orientation;
+                      // The hit pose's +Y axis is the surface
+                      // normal. Near-horizontal surfaces only:
+                      // walls and steep slopes are rejected, the
+                      // model-viewer rule (normal Y > 0.75), so a
+                      // drag never climbs a wall.
+                      const n = [
+                        2 * (o.x * o.y - o.w * o.z),
+                        1 - 2 * (o.x * o.x + o.z * o.z),
+                        2 * (o.y * o.z + o.w * o.x),
+                      ];
+                      if (n[1] > 0.75) {
+                        const p = pose.transform.position;
+                        const hitPos = [p.x, p.y, p.z];
+                        if (drag.lastHit) {
+                          drag.goal[0] += hitPos[0] - drag.lastHit[0];
+                          drag.goal[1] += hitPos[1] - drag.lastHit[1];
+                          drag.goal[2] += hitPos[2] - drag.lastHit[2];
+                        }
+                        drag.lastHit = hitPos;
+                        drag.surfacePoint = hitPos;
+                        drag.surfaceNormal = n;
+                        drag.lastPlanePoint = hitPos;
+                        accepted = true;
+                      }
+                    }
+                  } catch (_) {
+                    // A bad pose must not break the drag.
+                  }
                 }
-                if (drag.source) {
-                  try { drag.source.cancel(); } catch (_) {}
-                }
-                drag.source = source;
-                drag.sourcePoint = point;
-              })
-              .catch(() => {
-                if (this._dragMove === drag) drag.creating = false;
-              });
-          }
-        }
-        if (drag.source) {
-          let dragResults = [];
-          try {
-            dragResults = frame.getHitTestResults(drag.source);
-          } catch (_) {
-            // A cancelled/invalid source throws here; drop it —
-            // the loop creates a fresh one for the current point,
-            // and polygon positioning carries the drag meanwhile.
-            drag.source = null;
-          }
-          if (dragResults.length > 0) {
-            const dragPose = dragResults[0].getPose(this.referenceSpace);
-            if (dragPose) {
-              const t = dragPose.transform;
-              if (!drag.offsetFinal) {
-                // First real hit of the drag: refine the plane
-                // height and the grab offset (centre minus the
-                // grabbed point) WITHOUT moving the model — the
-                // offset is recomputed from the CURRENT centre, so
-                // the refinement itself causes no jump, and the
-                // per-frame plane positioning below takes it from
-                // here, so the model never snaps its centre to the
-                // finger.
-                const centre = this.anchors.get(drag.modelId)?.position;
-                if (centre) {
-                  const c = Array.isArray(centre)
-                    ? centre
-                    : [centre.x, centre.y, centre.z];
-                  drag.grabOffset = {
-                    x: c[0] - t.position.x,
-                    z: c[2] - t.position.z,
-                  };
-                  drag.planeY = t.position.y;
-                  drag.offsetFinal = true;
+                if (!accepted && fingerRay) {
+                  this._dragPlaneFallback(drag, fingerRay);
                 }
               } else {
-                // Later hits only keep the surface height current
-                // (the finger crossing onto a bed, a step, ...);
-                // they no longer position the model — a source's
-                // ray is built from the point at its creation time,
-                // so positioning from hits trails the finger by
-                // construction (device report 2026-11-18: "not
-                // attached to my finger while dragging").
-                drag.planeY = t.position.y;
+                // Zero inputs (a gap between DOM and XR state) or
+                // 2+ inputs (a pinch owns the gesture — the DOM
+                // controller ends this drag in that case anyway):
+                // pause translation and forget the last hit, so
+                // resuming never jumps by the gap.
+                drag.lastHit = null;
+                drag.lastPlanePoint = null;
+              }
+            } else if (this.session) {
+              // No transient-input hit testing on this runtime:
+              // drive the same delta machinery from the DOM point.
+              // Tracked polygons (when plane detection is on) are
+              // real surface hits; otherwise the last surface plane
+              // (or the model's own height) carries the drag.
+              const viewerPose = frame.getViewerPose
+                ? frame.getViewerPose(this.referenceSpace)
+                : null;
+              const view = viewerPose && viewerPose.views && viewerPose.views[0];
+              if (viewerPose && view) {
+                const ray = rayFromScreenPoint(
+                  viewerPose.transform,
+                  view.projectionMatrix,
+                  drag.point.x,
+                  drag.point.y
+                );
+                let accepted = false;
+                const polyHit = this._trackedPlaneHit(frame, ray);
+                if (polyHit) {
+                  const o = polyHit.rotation;
+                  const n = [
+                    2 * (o[0] * o[1] - o[3] * o[2]),
+                    1 - 2 * (o[0] * o[0] + o[2] * o[2]),
+                    2 * (o[1] * o[2] + o[3] * o[0]),
+                  ];
+                  if (n[1] > 0.75) {
+                    const hitPos = polyHit.position;
+                    if (drag.lastHit) {
+                      drag.goal[0] += hitPos[0] - drag.lastHit[0];
+                      drag.goal[1] += hitPos[1] - drag.lastHit[1];
+                      drag.goal[2] += hitPos[2] - drag.lastHit[2];
+                    }
+                    drag.lastHit = hitPos;
+                    drag.surfacePoint = hitPos;
+                    drag.surfaceNormal = n;
+                    drag.lastPlanePoint = hitPos;
+                    accepted = true;
+                  }
+                }
+                if (!accepted) {
+                  this._dragPlaneFallback(drag, ray);
+                }
               }
             }
           }
-        }
-        // Per-frame positioning, in this same frame — no async step
-        // sits between the finger and the model. The finger's ray
-        // is intersected with the REAL tracked plane polygons
-        // first — the same geometry that makes taps land exactly —
-        // so the model rides the actual surface under the finger.
-        // The math drag plane is the fallback for rays that leave
-        // the tracked polygons, and when both miss, the model
-        // simply stays where it is: a drag must never make it
-        // vanish or fly off (device report 2026-11-18: "while
-        // dragging the model vanishes ... we should show the model
-        // while moving too").
-        if (drag.point) {
-          const viewerPose = frame.getViewerPose(this.referenceSpace);
-          const view = viewerPose && viewerPose.views && viewerPose.views[0];
-          if (viewerPose && view) {
-            const ray = rayFromScreenPoint(
-              viewerPose.transform,
-              view.projectionMatrix,
-              drag.point.x,
-              drag.point.y
-            );
-            let target = null;
-            const polyHit = this._trackedPlaneHit(frame, ray);
-            if (polyHit) {
-              if (!drag.offsetFinal) {
-                // A polygon hit is a real surface hit: refine the
-                // grab offset from it (centre minus the grabbed
-                // surface point) exactly as a hit-test result
-                // would, so the grabbed point stays under the
-                // finger instead of the centre snapping to it.
-                const centre = this.anchors.get(drag.modelId)?.position;
-                if (centre) {
-                  const c = Array.isArray(centre)
-                    ? centre
-                    : [centre.x, centre.y, centre.z];
-                  drag.grabOffset = {
-                    x: c[0] - polyHit.position[0],
-                    z: c[2] - polyHit.position[2],
-                  };
-                  drag.offsetFinal = true;
-                }
-              }
-              drag.planeY = polyHit.position[1];
-              const ox = drag.grabOffset ? drag.grabOffset.x : 0;
-              const oz = drag.grabOffset ? drag.grabOffset.z : 0;
-              target = [
-                polyHit.position[0] + ox,
-                polyHit.position[1],
-                polyHit.position[2] + oz,
-              ];
-            } else if (drag.planeY != null && drag.grabOffset) {
-              target = dragPlaneTarget(ray, drag.planeY, drag.grabOffset);
-            }
-            if (target) {
-              this.transformModel({
-                modelId: drag.modelId,
-                position: target,
-              }).catch(() => {
-                // The model was removed mid-drag: end quietly.
-                if (this._dragMove === drag) this.endDragMove();
-              });
-            }
+
+          // Damped follow: the rendered position eases toward the
+          // goal every frame (even between hit updates), and the
+          // record carries it, so updateModelPositions below
+          // renders model, shadow and base ring in the same frame.
+          const c = drag.current;
+          const nx = drag.dampers.x.update(c[0], drag.goal[0], dt);
+          const ny = drag.dampers.y.update(c[1], drag.goal[1], dt);
+          const nz = drag.dampers.z.update(c[2], drag.goal[2], dt);
+          if (nx !== c[0] || ny !== c[1] || nz !== c[2]) {
+            drag.current = [nx, ny, nz];
+            record.position = drag.current;
           }
         }
       }
@@ -3025,15 +3107,49 @@ export class ARCoreWeb extends WebPlugin {
   }
 
   /**
-   * Begin a frame-loop drag for a placed model. The render loop
-   * positions the model from the finger's current ray and the drag
-   * plane every frame (see the loop and dragPlaneTarget); a
-   * hit-test source maintained alongside establishes the plane's
-   * height from its first hit and keeps it current. The older
-   * routes — one hitTestAtPoint promise per pointer move, then
-   * positioning directly from source hits — both put an async step
-   * between finger and model, so the model trailed the finger and
-   * landed where it HAD been.
+   * Drag fallback for frames where the finger's hit test misses:
+   * intersect the finger ray with the last real surface plane
+   * (or, before any hit, the horizontal plane at the goal's
+   * height) and apply the same delta rule as a real hit, diffed
+   * against the last fallback point. The model keeps following
+   * the finger across hit-test gaps instead of freezing, and the
+   * plane being the LAST HIT's plane means its height follows the
+   * drag across surfaces.
+   *
+   * @param {object} drag - The active drag state
+   * @param {{origin: object, direction: object}} ray - The finger ray
+   */
+  _dragPlaneFallback(drag, ray) {
+    const point = drag.surfacePoint || drag.goal;
+    const normal = drag.surfaceNormal || [0, 1, 0];
+    const p = intersectRayPlane(ray, point, normal);
+    if (!p) return;
+    if (drag.lastPlanePoint) {
+      drag.goal[0] += p[0] - drag.lastPlanePoint[0];
+      drag.goal[1] += p[1] - drag.lastPlanePoint[1];
+      drag.goal[2] += p[2] - drag.lastPlanePoint[2];
+    }
+    drag.lastPlanePoint = p;
+  }
+
+  /**
+   * Begin a frame-loop drag for a placed model (the model-viewer
+   * pipeline, system design 2026-11-18). The render loop reads
+   * the session's transient-input hit-test source while the
+   * gesture is active and moves a GOAL position by delta
+   * accumulation (each accepted hit moves the goal by the change
+   * since the last hit, so the point the user grabbed stays under
+   * their finger — no centre snap, no grab offset bookkeeping).
+   * When a frame's hit test misses, the finger ray is intersected
+   * with the last real surface plane and the same delta rule
+   * applies, so the model keeps tracking across hit-test gaps and
+   * follows surface height changes. The model's rendered position
+   * then eases toward the goal through per-axis critically damped
+   * springs (50 ms; 80 ms vertical). The older routes — one
+   * hitTestAtPoint promise per pointer move, per-point persistent
+   * sources whose rays freeze at creation time, direct
+   * positioning on a fixed-height math plane — each put lag, a
+   * snap, or a dead zone between finger and model.
    *
    * @param {string} modelId
    * @returns {boolean} false when the model is unknown
@@ -3041,24 +3157,46 @@ export class ARCoreWeb extends WebPlugin {
   beginDragMove(modelId) {
     if (!modelId || !this.anchors.has(modelId)) return false;
     this.endDragMove();
+    const record = this.anchors.get(modelId);
+    const start = Array.isArray(record.position)
+      ? [...record.position]
+      : [record.position.x, record.position.y, record.position.z];
+    // An anchored model (Tier 2 opt-in) must not be posed by its
+    // anchor while it is being dragged: release the anchor once,
+    // here — the loop re-mints at rest after the drag, and the
+    // release must not happen per frame (anchor churn).
+    if (record.xrAnchor) {
+      try { record.xrAnchor.delete(); } catch (_) {}
+      record.xrAnchor = null;
+      record.needsAnchor = true;
+    }
     this._dragMove = {
       modelId,
+      // Latest DOM drag point (normalised). Its presence is the
+      // gesture-active signal: transient hit results are read
+      // only while a point is live. It also drives the fallback
+      // ray on runtimes without transient-input hit testing.
       point: null,
-      source: null,
-      sourcePoint: null,
-      creating: false,
-      generation: 0,
-      // The height of the surface being dragged over and the
-      // offset from the grabbed point to the model's centre. Both
-      // start provisional — seeded from the model's own anchor and
-      // the first frame's ray — and the drag's first hit-test
-      // result refines them (offsetFinal). From then on the loop
-      // positions the model by intersecting the finger's CURRENT
-      // ray with that plane every frame (see dragPlaneTarget) —
-      // hit-test sources only keep the height current.
-      planeY: null,
-      grabOffset: null,
-      offsetFinal: false,
+      // The accumulated target the finger is asking for, and the
+      // damped position actually rendered. Both start at the
+      // model's current position: a grab never moves the model
+      // until the finger itself moves.
+      goal: [...start],
+      current: [...start],
+      dampers: {
+        x: new Damper(50, 4),
+        y: new Damper(80, 1.5),
+        z: new Damper(50, 4),
+      },
+      // Last accepted surface hit and the plane it defines. The
+      // first hit of a gesture only seeds these (no delta — there
+      // is nothing to diff against), which is what keeps the
+      // grabbed point under the finger from the first frame.
+      lastHit: null,
+      surfacePoint: null,
+      surfaceNormal: null,
+      lastPlanePoint: null,
+      lastFrameTs: null,
     };
     return true;
   }
@@ -3074,23 +3212,16 @@ export class ARCoreWeb extends WebPlugin {
       x: Math.min(1, Math.max(0, x)),
       y: Math.min(1, Math.max(0, y)),
     };
-    // Deliberately NO generation bump here: pointermove fires far
-    // faster than hit-test sources can be created, and bumping on
-    // every move invalidated each in-flight creation before it
-    // landed, so the drag's source (and its plane-height refresh)
-    // never materialised at all. Create-then-swap in the loop
-    // compares the source's own point instead.
   }
 
-  /** End the active drag (if any) and release its hit-test source. */
+  /**
+   * End the active drag (if any). The transient hit-test source
+   * is session-scoped and survives; the model stays at its last
+   * damped position, and the caller's release settle (one precise
+   * hit test) lands it exactly.
+   */
   endDragMove() {
-    const drag = this._dragMove;
-    if (!drag) return;
     this._dragMove = null;
-    if (drag.source) {
-      try { drag.source.cancel(); } catch (_) {}
-      drag.source = null;
-    }
   }
 
   /**
