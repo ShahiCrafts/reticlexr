@@ -209,7 +209,19 @@ export default function DemoClient() {
         // The white footprint outline native viewers draw around
         // a placed model: the surface-lock cue.
         showBaseRing: true,
-        lightEstimation: true,
+        // MINIMAL-FEATURE A/B (2026-11-18): six recorder reports
+        // show the browser dying even in an EMPTY session (4 s,
+        // no model placed, full Chrome), so the fault is in the
+        // session's own feature load, not content. This build runs
+        // with the model-viewer-class feature posture: hit-test +
+        // local-floor + dom-overlay only. Plane detection, light
+        // estimation and anchors are OFF; placement still works
+        // (hit-test sources + floor fallback), models ride plain
+        // coordinates, and lighting is the fixed default (models
+        // look flatter this run — expected, part of the test).
+        planeDetection: false,
+        lightEstimation: false,
+        anchors: false,
         // Screenshots OFF (2026-11-18): the camera-access session
         // feature makes Chrome produce JS-readable camera frames
         // every frame, the heaviest extra pipeline a WebXR session

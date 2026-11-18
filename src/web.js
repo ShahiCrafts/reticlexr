@@ -1427,6 +1427,13 @@ export class ARCoreWeb extends WebPlugin {
       // enableScreenshots and is NOT implied by lightEstimation (SEC-04).
       // Without it, takeScreenshot() returns CAMERA_CAPTURE_UNAVAILABLE.
       enableScreenshots = false,
+      // Anchors are requested by default (world-lock). A session
+      // can opt out (anchors: false) to run with the minimal
+      // hit-test-only feature posture of model-viewer-class apps;
+      // placement then rides plain coordinates and the anchor
+      // machinery stays silent (its failure fallbacks already
+      // cover the not-granted case).
+      anchors = true,
       domOverlay = null,
       // XR render scale (0..1]. Fragment work scales with its
       // square (0.85 ≈ 28% fewer fragments), which is the single
@@ -1456,7 +1463,7 @@ export class ARCoreWeb extends WebPlugin {
       // real XRAnchors (see updateModelPositions) so the runtime's
       // surface refinement carries them instead of the model
       // sliding against the surface it sits on.
-      optionalFeatures: ["local-floor", "anchors"],
+      optionalFeatures: anchors ? ["local-floor", "anchors"] : ["local-floor"],
     };
 
     // Add plane-detection as optional feature

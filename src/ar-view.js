@@ -42,6 +42,7 @@ export class ARView {
       lightEstimation: options.lightEstimation !== false,
       // Opt-in: requests WebXR camera-access for takeScreenshot (SEC-04)
       enableScreenshots: options.enableScreenshots === true,
+      anchors: options.anchors,
       framebufferScale: options.framebufferScale,
     });
     // Ensure groups reflect config immediately even if created before setConfig.
