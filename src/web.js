@@ -1487,6 +1487,35 @@ export class ARCoreWeb extends WebPlugin {
       // creation-time point.
       if (this._dragMove && this._dragMove.point && this.referenceSpace && this.session) {
         const drag = this._dragMove;
+        // Provisional plane + offset from the FIRST frame: do not
+        // wait for the drag's first hit-test result to start
+        // tracking — a short drag can end before that result lands,
+        // and then the model never moved at all. The model's own
+        // surface height (its anchor Y) and this frame's ray give a
+        // provisional plane and grab offset immediately; the first
+        // real hit refines both without moving the model (the
+        // offset is recomputed from the then-current centre).
+        if (drag.planeY == null) {
+          const anchorPos = this.anchors.get(drag.modelId)?.position;
+          const pose0 = frame.getViewerPose(this.referenceSpace);
+          const view0 = pose0 && pose0.views && pose0.views[0];
+          if (anchorPos && pose0 && view0) {
+            const c = Array.isArray(anchorPos)
+              ? anchorPos
+              : [anchorPos.x, anchorPos.y, anchorPos.z];
+            drag.planeY = c[1];
+            const ray0 = rayFromScreenPoint(
+              pose0.transform,
+              view0.projectionMatrix,
+              drag.point.x,
+              drag.point.y
+            );
+            const t0 = dragPlaneTarget(ray0, drag.planeY, null);
+            if (t0) {
+              drag.grabOffset = { x: c[0] - t0[0], z: c[2] - t0[2] };
+            }
+          }
+        }
         // Create-then-swap: while a replacement source is created for
         // the latest point, the existing source keeps serving hits
         // for the previous point, so the model keeps tracking the
@@ -1549,10 +1578,12 @@ export class ARCoreWeb extends WebPlugin {
             const dragPose = dragResults[0].getPose(this.referenceSpace);
             if (dragPose) {
               const t = dragPose.transform;
-              if (drag.grabOffset == null) {
-                // First hit of the drag: establish the surface
+              if (!drag.offsetFinal) {
+                // First real hit of the drag: refine the plane
                 // height and the grab offset (centre minus the
                 // grabbed point) WITHOUT moving the model — the
+                // offset is recomputed from the CURRENT centre, so
+                // the refinement itself causes no jump, and the
                 // per-frame plane positioning below takes it from
                 // here, so the model never snaps its centre to the
                 // finger.
@@ -1566,6 +1597,7 @@ export class ARCoreWeb extends WebPlugin {
                     z: c[2] - t.position.z,
                   };
                   drag.planeY = t.position.y;
+                  drag.offsetFinal = true;
                 }
               } else {
                 // Later hits only keep the surface height current
@@ -1585,7 +1617,7 @@ export class ARCoreWeb extends WebPlugin {
         // grab offset) in this same frame. No async step sits
         // between the finger and the model, so the grabbed point
         // stays under the finger.
-        if (drag.planeY != null && drag.point) {
+        if (drag.planeY != null && drag.grabOffset && drag.point) {
           const viewerPose = frame.getViewerPose(this.referenceSpace);
           const view = viewerPose && viewerPose.views && viewerPose.views[0];
           if (viewerPose && view) {
@@ -2330,14 +2362,17 @@ export class ARCoreWeb extends WebPlugin {
       sourcePoint: null,
       creating: false,
       generation: 0,
-      // Established by the drag's first hit-test result: the height
-      // of the surface being dragged over, and the offset from the
-      // grabbed point to the model's centre. From then on the loop
+      // The height of the surface being dragged over and the
+      // offset from the grabbed point to the model's centre. Both
+      // start provisional — seeded from the model's own anchor and
+      // the first frame's ray — and the drag's first hit-test
+      // result refines them (offsetFinal). From then on the loop
       // positions the model by intersecting the finger's CURRENT
       // ray with that plane every frame (see dragPlaneTarget) —
       // hit-test sources only keep the height current.
       planeY: null,
       grabOffset: null,
+      offsetFinal: false,
     };
     return true;
   }

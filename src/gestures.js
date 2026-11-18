@@ -138,6 +138,23 @@ export function createARGestureController({
       lastSingle = now;
     }
   };
+  // When a two-pointer gesture drops to one pointer (a pinch that
+  // ends with one finger still down), the remaining finger becomes
+  // a fresh single-pointer drag: re-seed its start so its travel is
+  // measured and its release fires onDragEnd. Without this the
+  // remainder drag was a dead gesture — `start` had been cleared
+  // when the second finger landed, so the up handler skipped the
+  // release entirely and the drag's final move never happened
+  // (device report 2026-11-18: interactions after a pinch did
+  // nothing). The re-seeded start is backdated past the tap window,
+  // so the remainder finger can end a drag but can never fire a
+  // tap by merely lifting.
+  const reseedRemainder = () => {
+    const remaining = [...pointers.values()][0];
+    lastSingle = remaining;
+    start = { ...remaining, time: performance.now() - tapMaxDuration - 1 };
+    dragTravelled = false;
+  };
   const up = e => {
     if (preventDefault) e.preventDefault();
     const end = point(e);
@@ -150,7 +167,7 @@ export function createARGestureController({
     }
     pointers.delete(e.pointerId);
     if (pointers.size < 2) gesture = null;
-    if (pointers.size === 1) lastSingle = [...pointers.values()][0]; else lastSingle = null;
+    if (pointers.size === 1) reseedRemainder(); else { lastSingle = null; start = null; }
   };
   const cancel = e => {
     // pointercancel means the gesture was interrupted (system gesture,
@@ -167,8 +184,8 @@ export function createARGestureController({
     }
     pointers.delete(e.pointerId);
     if (pointers.size < 2) gesture = null;
-    if (pointers.size === 1) lastSingle = [...pointers.values()][0]; else lastSingle = null;
-    if (pointers.size === 0) start = null;
+    if (pointers.size === 1) reseedRemainder();
+    else { lastSingle = null; if (pointers.size === 0) start = null; }
   };
   element.addEventListener('pointerdown', down, {passive:false});
   element.addEventListener('pointermove', move, {passive:false});

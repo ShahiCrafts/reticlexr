@@ -38,6 +38,7 @@ export default function DemoClient() {
   const overlayRef = useRef(null);
   const viewRef = useRef(null);
   const modelIndexRef = useRef(0);
+  const autoPlaceRef = useRef(false);
   // Gesture callbacks fire at pointer-event rate; pushing each one
   // through React state re-rendered the whole demo dozens of times a
   // second on a mid-range phone and the frame drops read as gesture
@@ -128,7 +129,10 @@ export default function DemoClient() {
       await v.create({
         overlay: overlayRef.current,
         showReticle: false,
-        showPlaneDots: true,
+        // No dot grid on the ground: plane detection keeps running
+        // in the background (the centre hit test drives surface
+        // state and auto-placement); only the dots are not drawn.
+        showPlaneDots: false,
         dotSpacing: 0.14,
         lightEstimation: true,
         // The demo has a screenshot button, so camera access is
@@ -142,7 +146,29 @@ export default function DemoClient() {
         framebufferScale: 0.85,
       });
       v.onFrame((e) => {
-        if (e.type === 'surfaceDetected') setSurface(true);
+        if (e.type === 'surfaceDetected') {
+          setSurface(true);
+          // Auto-place the first model wherever the phone is
+          // pointing (placeModel's default point is the view
+          // centre) as soon as a surface is available — no tap
+          // needed. Latched off after the first successful
+          // placement, whether it was this auto-place or the
+          // user's own tap; a failed attempt re-arms for the next
+          // surface event.
+          if (!autoPlaceRef.current) {
+            autoPlaceRef.current = true;
+            v.placeModel(MODELS[modelIndexRef.current].url)
+              .then((r) => {
+                if (r?.success) {
+                  setPlaced(true);
+                  setToast('Drag to move • pinch to scale • twist to rotate');
+                } else {
+                  autoPlaceRef.current = false;
+                }
+              })
+              .catch(() => { autoPlaceRef.current = false; });
+          }
+        }
         if (e.type === 'surfaceLost') setSurface(false);
         if (e.type === 'sessionEnded') {
           setSurface(false);
@@ -172,6 +198,7 @@ export default function DemoClient() {
         onTap: () =>
           setTimeout(() => {
             if (v.activeModelId) {
+              autoPlaceRef.current = true;
               setPlaced(true);
               setToast('Drag to move • pinch to scale • twist to rotate');
             }
@@ -464,8 +491,8 @@ export default function DemoClient() {
               ) : (
                 <div className="rounded-full bg-black/50 px-4 py-2 text-xs">
                   {surface
-                    ? `Tap a dotted surface to place the ${MODELS[modelIndex].label.toLowerCase()}`
-                    : 'Aim at a flat surface until dots appear, then tap to place'}
+                    ? `Placing the ${MODELS[modelIndex].label.toLowerCase()} where you point…`
+                    : 'Aim at a floor or table — the model appears where you point'}
                 </div>
               )}
             </div>
