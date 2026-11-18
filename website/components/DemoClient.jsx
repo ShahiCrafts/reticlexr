@@ -402,7 +402,12 @@ export default function DemoClient() {
         }, 1000);
       }
       setToast('Move slowly. Dots show detected surfaces');
-      v.preloadModels(MODELS.map((m) => m.url)).catch(() => {});
+      // No background preload of the other models. The flight
+      // recorder (2026-11-18) showed the whole browser dying
+      // seconds into a session: parsing ~12 MB of GLBs on the
+      // main thread during live AR stalls the frame loop and
+      // spikes memory until the browser process is killed.
+      // Models load lazily on first switch instead.
     } catch (e) {
       setToast(e.message);
     }
