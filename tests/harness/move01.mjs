@@ -1,15 +1,17 @@
-// Tap-to-move regression harness (device report 2026-11-17: once a
-// model was placed it could not be moved — tapping a new spot did
-// nothing, because ARView's gesture handler only placed when no model
-// was active and had no move path at all, despite the engine having
-// moveModel). The gesture chain is exercised against the real
-// ARView + gesture controller with a stub engine:
-//  A. A tap with no active model places (unchanged behaviour).
-//  B. A tap WITH an active model moves it: engine.moveModel receives
-//     the active id and the tap point in normalised coordinates, and
-//     no second model is placed.
-//  C. A move that misses every surface routes NO_SURFACE to onError
-//     (same contract as a failed placement) and does not fire onTap.
+// Gesture contract since 2026-11-18 (owner's call): taps never
+// place or move models; drag is the placement and move gesture.
+// Exercised against the real ARView + gesture controller with a
+// stub engine:
+//  A. A tap with no active model places nothing (onTap still
+//     reports the tap to the host).
+//  B. A drag with no active model places it (drag-to-place).
+//  C. A tap WITH an active model does not move it.
+//  D. A drag with an active model moves it: the settle calls
+//     engine.moveModel once, with the active id and the release
+//     point in normalised coordinates; no second model is placed.
+//  E. A settle that misses every surface is silent by design
+//     (the model keeps its last dragged position; drag01 covers
+//     the session mechanics).
 
 import { test, expect } from 'vitest';
 
@@ -40,6 +42,9 @@ test('move01', async () => {
         ? { hit: true, success: true, position: [0.2, 0, -0.5], rotation: [0, 0, 0, 1] }
         : { hit: false, code: 'NO_SURFACE' };
     },
+    beginDragMove: () => true,
+    updateDragPoint: () => {},
+    endDragMove: () => {},
   };
   const view = createARView({ engine: stubEngine, overlay: el });
   let errors = [];
@@ -50,32 +55,47 @@ test('move01', async () => {
     onTap: () => { taps++; },
   });
   const ev = (pointerId, x, y) => ({ pointerId, clientX: x, clientY: y, target: null, preventDefault() {} });
+  const tick = () => new Promise((r) => setTimeout(r, 10));
   const tap = async (x, y) => {
     handlers.pointerdown(ev(1, x, y));
     handlers.pointerup(ev(1, x, y));
-    await new Promise((r) => setTimeout(r, 10));
+    await tick();
+  };
+  const drag = async (x0, y0, x1, y1) => {
+    handlers.pointerdown(ev(1, x0, y0));
+    handlers.pointermove(ev(1, x1, y1));
+    handlers.pointerup(ev(1, x1, y1));
+    await tick();
   };
 
-  // A: first tap places.
+  // A: a tap places nothing.
   await tap(100, 200);
-  check('first tap places the model', calls.place.length === 1 && view.activeModelId === 'm1');
-  check('placement tap does not move', calls.move.length === 0);
-  check('placement tap fires onTap', taps === 1);
+  check('tap with no model places nothing', calls.place.length === 0 && view.activeModelId == null);
+  check('the tap is still reported to the host', taps === 1);
 
-  // B: second tap, elsewhere, moves the placed model.
+  // B: a drag places.
+  await drag(100, 200, 112, 212);
+  check('drag places the model', calls.place.length === 1 && view.activeModelId === 'm1');
+  check('the placing drag does not also settle-move', calls.move.length === 0);
+
+  // C: a tap does not move the placed model.
   await tap(300, 600);
-  check('tap with an active model calls engine.moveModel once', calls.move.length === 1);
+  check('tap with an active model does not move it', calls.move.length === 0);
+  check('the tap is still reported', taps === 2);
+
+  // D: a drag moves the placed model, settling at the release point.
+  await drag(280, 580, 300, 600);
+  check('drag calls engine.moveModel once for the settle', calls.move.length === 1);
   check(
-    'moveModel receives the active id and normalised tap point',
+    'moveModel receives the active id and normalised release point',
     calls.move.length === 1 && calls.move[0].modelId === 'm1' && calls.move[0].x === 0.75 && calls.move[0].y === 0.75
   );
-  check('move does not place a second model', calls.place.length === 1);
-  check('successful move fires onTap', taps === 2);
+  check('the move does not place a second model', calls.place.length === 1);
   check('no errors so far', errors.length === 0);
 
-  // C: a move onto no surface reports NO_SURFACE and skips onTap.
+  // E: a settle that misses is silent (model keeps its position).
   moveHit = false;
-  await tap(200, 400);
-  check('missed move routes NO_SURFACE to onError', errors.length === 1 && errors[0].code === 'NO_SURFACE');
-  check('missed move does not fire onTap', taps === 2);
+  await drag(280, 580, 200, 400);
+  check('the missed settle was attempted', calls.move.length === 2);
+  check('a missed settle routes no error', errors.length === 0);
 });

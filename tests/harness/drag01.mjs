@@ -10,8 +10,9 @@
 //  A. A drag opens one session, streams normalised points in order,
 //     and settles once at the release point. No mid-drag moveModel,
 //     no second placement, no tap, no error.
-//  B. A drag with nothing placed opens no session and settles
-//     nothing (the consumer onDrag still fires).
+//  B. A drag with nothing placed drag-places (2026-11-18: drag
+//     replaced tap as the placement gesture): one placement, a
+//     session, and a settle at the release point.
 //  C. A second finger (pinch) ends the drag at the first finger's
 //     last point; no tap follows.
 //  D. pointercancel ends the drag the same way.
@@ -62,18 +63,27 @@ test('drag01', async () => {
     return { handlers, calls, view, seen, ev };
   }
 
-  async function placeViaTap(ctx) {
+  async function placeViaDrag(ctx) {
     ctx.handlers.pointerdown(ctx.ev(1, 100, 200));
-    ctx.handlers.pointerup(ctx.ev(1, 100, 200));
+    ctx.handlers.pointermove(ctx.ev(1, 112, 212));
+    ctx.handlers.pointerup(ctx.ev(1, 112, 212));
     await tick();
+    // The placing drag opens and closes its own session; reset
+    // the drag counters so each case measures only its gesture.
+    ctx.calls.begin.length = 0;
+    ctx.calls.point.length = 0;
+    ctx.calls.settle.length = 0;
+    ctx.calls.end = 0;
+    ctx.seen.drags.length = 0;
+    ctx.seen.dragEnds = 0;
   }
 
   // ---------- A: drag streams points, settles once ----------
   {
     const ctx = makeView();
     const { handlers, calls, seen, ev } = ctx;
-    await placeViaTap(ctx);
-    check('setup: tap placed the model', calls.place.length === 1 && seen.taps === 1);
+    await placeViaDrag(ctx);
+    check('setup: drag placed the model', calls.place.length === 1 && seen.taps === 0);
 
     handlers.pointerdown(ev(1, 100, 200));
     handlers.pointermove(ev(1, 160, 280));
@@ -96,28 +106,33 @@ test('drag01', async () => {
       calls.settle.length === 1 && calls.settle[0].x === 0.75 && calls.settle[0].y === 0.75
     );
     check('no second placement, no tap, no error',
-      calls.place.length === 1 && seen.taps === 1 && seen.errors.length === 0);
+      calls.place.length === 1 && seen.taps === 0 && seen.errors.length === 0);
   }
 
-  // ---------- B: drag with nothing placed ----------
+  // ---------- B: drag with nothing placed drag-places ----------
+  // Fired as one synchronous flick (down, move, up before the
+  // async placement resolves): the model is placed at the drag
+  // point, and no drag session opens for a gesture that has
+  // already ended. A held drag (moves continuing after placement
+  // lands) flows into the session path covered by case A.
   {
     const { handlers, calls, seen, ev } = makeView();
     handlers.pointerdown(ev(1, 100, 200));
     handlers.pointermove(ev(1, 300, 600));
     handlers.pointerup(ev(1, 300, 600));
     await tick();
-    check('no session, no settle, no placement',
-      calls.begin.length === 0 && calls.point.length === 0 &&
-      calls.end === 0 && calls.settle.length === 0 && calls.place.length === 0);
-    check('consumer onDrag still fired', seen.drags.length === 1);
-    check('no error', seen.errors.length === 0);
+    check('the flick placed the model', calls.place.length === 1);
+    check('no session or settle for the finished gesture',
+      calls.begin.length === 0 && calls.end === 0 && calls.settle.length === 0);
+    check('consumer onDrag fired', seen.drags.length >= 1);
+    check('no tap, no error', seen.taps === 0 && seen.errors.length === 0);
   }
 
   // ---------- C: a second finger ends the drag ----------
   {
     const ctx = makeView();
     const { handlers, calls, seen, ev } = ctx;
-    await placeViaTap(ctx);
+    await placeViaDrag(ctx);
     handlers.pointerdown(ev(1, 100, 200));
     handlers.pointermove(ev(1, 160, 280));
     handlers.pointerdown(ev(2, 220, 320));
@@ -133,14 +148,14 @@ test('drag01', async () => {
     handlers.pointerup(ev(1, 160, 280));
     await tick();
     check('no second end, no tap, no error',
-      calls.end === 1 && seen.taps === 1 && seen.errors.length === 0);
+      calls.end === 1 && seen.taps === 0 && seen.errors.length === 0);
   }
 
   // ---------- D: pointercancel ends the drag ----------
   {
     const ctx = makeView();
     const { handlers, calls, seen, ev } = ctx;
-    await placeViaTap(ctx);
+    await placeViaDrag(ctx);
     handlers.pointerdown(ev(1, 100, 200));
     handlers.pointermove(ev(1, 200, 400));
     handlers.pointercancel(ev(1, 200, 400));
@@ -148,6 +163,6 @@ test('drag01', async () => {
     check('cancel ended the session with a settle at the last point',
       calls.end === 1 && calls.settle.length === 1 &&
       calls.settle[0].x === 0.5 && calls.settle[0].y === 0.5);
-    check('no tap, no error', seen.taps === 1 && seen.errors.length === 0);
+    check('no tap, no error', seen.taps === 0 && seen.errors.length === 0);
   }
 });

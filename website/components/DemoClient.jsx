@@ -41,6 +41,8 @@ const SWATCHES = [
 // built from it is shown on the next launch, ready to copy.
 const REC_KEY = 'reticlexr-flight-recorder';
 const CRASH_KEY = 'reticlexr-last-close';
+const OPEN_KEY = 'reticlexr-session-open';
+const HB_KEY = 'reticlexr-heartbeat';
 
 function recPush(kind, msg) {
   try {
@@ -134,6 +136,25 @@ export default function DemoClient() {
     try {
       const stored = localStorage.getItem(CRASH_KEY);
       if (stored) setCrashReport(JSON.parse(stored));
+      // A session that was left "open" never reached its own end
+      // handling: the browser or tab died mid-session (the
+      // failure this recorder exists to explain). Synthesise the
+      // report from the last heartbeat and the surviving ring.
+      const open = localStorage.getItem(OPEN_KEY);
+      if (open) {
+        const hb = JSON.parse(localStorage.getItem(HB_KEY) || 'null');
+        const report = {
+          browserDied: true,
+          endedAt: hb?.t || JSON.parse(open).at || new Date().toISOString(),
+          seconds: hb?.seconds ?? null,
+          diag: hb || {},
+          recent: recRead().slice(-18),
+        };
+        localStorage.setItem(CRASH_KEY, JSON.stringify(report));
+        setCrashReport(report);
+        localStorage.removeItem(OPEN_KEY);
+        localStorage.removeItem(HB_KEY);
+      }
     } catch (_) {
       /* ignore */
     }
@@ -225,6 +246,8 @@ export default function DemoClient() {
             rec.interval = null;
           }
           try {
+            localStorage.removeItem(OPEN_KEY);
+            localStorage.removeItem(HB_KEY);
             const eng = viewRef.current?.engine;
             if (eng) {
               eng.drainTrace().forEach((entry) => {
@@ -315,7 +338,7 @@ export default function DemoClient() {
         onError: (e) =>
           setToast(
             /surface/i.test(e?.message || '')
-              ? 'No surface there. Aim at the dots and tap'
+              ? 'No surface there. Aim at the dots and drag'
               : e?.message || 'Something went wrong',
           ),
       });
@@ -330,6 +353,11 @@ export default function DemoClient() {
         rec.startedAt = performance.now();
         rec.userClose = false;
         rec.framesStopped = false;
+        try {
+          localStorage.setItem(OPEN_KEY, JSON.stringify({ at: new Date().toISOString() }));
+        } catch (_) {
+          /* ignore */
+        }
         recPush('session-open', 'demo session started');
         if (rec.interval) clearInterval(rec.interval);
         rec.interval = setInterval(() => {
@@ -341,6 +369,24 @@ export default function DemoClient() {
               recPush(kind, JSON.stringify(rest));
             });
             const diag = eng.getDiagnostics();
+            // Heartbeat: overwritten every second, so if the
+            // whole browser dies, the next launch still knows how
+            // long the session lived and what it was doing last.
+            try {
+              localStorage.setItem(
+                HB_KEY,
+                JSON.stringify({
+                  t: new Date().toISOString(),
+                  seconds: rec.startedAt ? Math.round((performance.now() - rec.startedAt) / 1000) : null,
+                  frames: diag.frames,
+                  fps: diag.fps,
+                  lastOp: diag.lastOp,
+                  space: diag.space,
+                }),
+              );
+            } catch (_) {
+              /* ignore */
+            }
             if (
               diag.sessionActive &&
               diag.lastFrameAgoMs != null &&
@@ -379,7 +425,7 @@ export default function DemoClient() {
       setBusy(false);
       setToast(`${MODELS[i].label} switched in place`);
     } else {
-      setToast('Tap the dotted surface to place');
+      setToast('Drag onto a dotted surface to place');
     }
   };
 
@@ -393,7 +439,7 @@ export default function DemoClient() {
     setPlaced(false);
     setScale(1);
     setRotation(0);
-    setToast('Tap the dotted surface to place');
+    setToast('Drag onto a dotted surface to place');
   };
 
   const screenshot = async () => {
@@ -448,7 +494,7 @@ export default function DemoClient() {
             your space.
           </h2>
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-slate-300">
-            Scan a surface, tap to place, pinch to resize and twist to rotate. This demo runs the
+            Scan a surface, drag to place, pinch to resize and twist to rotate. This demo runs the
             actual <code className="font-mono text-[0.85em]">reticlexr</code> library in your
             browser.
           </p>
@@ -472,9 +518,14 @@ export default function DemoClient() {
 
           {crashReport ? (
             <div className="mt-6 w-full max-w-md rounded-lg border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-left text-sm text-rose-100" role="alert">
-              <strong className="font-semibold">The last AR session ended on its own.</strong>
+              <strong className="font-semibold">
+                {crashReport.browserDied
+                  ? 'The browser itself closed during the last AR session.'
+                  : 'The last AR session ended on its own.'}
+              </strong>
               <p className="mt-1 text-rose-200/90">
-                After {crashReport.seconds}s · {crashReport.diag?.frames ?? '?'} frames ·{' '}
+                {crashReport.seconds != null ? `After ${crashReport.seconds}s` : 'Duration unknown'} ·{' '}
+                {crashReport.diag?.frames ?? '?'} frames ·{' '}
                 {crashReport.diag?.fps ?? '?'} fps · last action: {crashReport.diag?.lastOp || 'none'} ·{' '}
                 space: {crashReport.diag?.space || '?'}
               </p>
@@ -554,7 +605,7 @@ export default function DemoClient() {
             <button
               type="button"
               aria-label="Gesture help"
-              onClick={() => setToast('Dots = detected surface • tap = place • pinch = scale • twist = rotate')}
+              onClick={() => setToast('Dots = detected surface • drag = place and move • pinch = scale • twist = rotate')}
               className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 focus-visible:outline-2 focus-visible:outline-blue-300"
             >
               <LuCircleHelp size={20} aria-hidden="true" />
@@ -685,8 +736,8 @@ export default function DemoClient() {
               ) : (
                 <div className="rounded-full bg-black/50 px-4 py-2 text-xs">
                   {surface
-                    ? `Tap a surface to place the ${MODELS[modelIndex].label.toLowerCase()}`
-                    : 'Aim at a flat surface, then tap to place'}
+                    ? `Drag onto a surface to place the ${MODELS[modelIndex].label.toLowerCase()}`
+                    : 'Aim at a flat surface, then drag to place'}
                 </div>
               )}
             </div>

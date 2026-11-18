@@ -63,6 +63,21 @@ test('debug01', async () => {
     await tick();
   };
 
+  // Placement is drag-driven (tap-to-place was removed 2026-11-18):
+  // press, move in steps totalling more than the controller's
+  // 12 px tap radius, release at the target point (releasing
+  // inside the tap radius would read as a tap and end no drag).
+  const dragTo = async (el, x, y) => {
+    const ev = { pointerId: 7, pointerType: 'touch', clientX: x, clientY: y, target: el, preventDefault() {}, stopPropagation() {} };
+    el.fire('pointerdown', { ...ev, clientX: x - 14, clientY: y - 14 });
+    el.fire('pointermove', { ...ev, clientX: x - 7, clientY: y - 7 });
+    el.fire('pointermove', { ...ev });
+    el.fire('pointerup', { ...ev });
+    await tick();
+    await tick();
+    await tick();
+  };
+
   // ---------- debug on ----------
   const entries = [];
   const el = makeEl();
@@ -81,15 +96,18 @@ test('debug01', async () => {
     'tap normalised via the overlay rect',
     Math.abs(tapEntry.normalised.x - 0.5) < 1e-9 && Math.abs(tapEntry.normalised.y - 0.525) < 1e-9,
   );
+  check('a tap alone places nothing', !entries.find((e) => e.type === 'placed'));
+
+  await dragTo(el, 200, 420);
   const placed = entries.find((e) => e.type === 'placed');
   check('placed entry reported', !!placed);
   check('placed hit is the runtime coordinate', placed.hit.x === 0.42 && placed.hit.z === -1.13);
-  check('centre after tap matches the anchor', placed.centre.x === 0.42 && placed.centre.z === -1.13);
+  check('centre after placement matches the anchor', placed.centre.x === 0.42 && placed.centre.z === -1.13);
   check('base centre is the measured centre (negated wrapper offset)', placed.baseCentre.x === 0.57 && placed.baseCentre.y === 0);
 
-  await tap(el, 100, 200);
+  await dragTo(el, 100, 200);
   const moved = entries.find((e) => e.type === 'moved');
-  check('moved entry reported on the second tap', !!moved);
+  check('moved entry reported on the second drag', !!moved);
   check('moved centre follows the new anchor', moved.centre.x === 0.1 && moved.centre.z === -0.5);
   view.destroy();
 

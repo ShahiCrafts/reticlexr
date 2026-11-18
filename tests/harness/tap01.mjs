@@ -64,7 +64,9 @@ test('tap01', async () => {
     check('point hit-test returns the hit position', settled && settled.position && settled.position[0] === 0.1);
   }
 
-  // ---------- B: a failed tap reaches onError ----------
+  // ---------- B: a failed drag-place reaches onError ----------
+  // (Placement moved from tap to drag on 2026-11-18; the error
+  // routing contract is unchanged.)
   {
     const handlers = {};
     const el = {
@@ -85,8 +87,9 @@ test('tap01', async () => {
     });
     const ev = (pointerId, x, y) => ({ pointerId, clientX: x, clientY: y, target: null, preventDefault() {} });
     handlers.pointerdown(ev(1, 100, 200));
-    handlers.pointerup(ev(1, 100, 200));
+    handlers.pointermove(ev(1, 112, 212));
+    handlers.pointerup(ev(1, 112, 212));
     await new Promise((r) => setTimeout(r, 10));
-    check('failed tap routes a NO_SURFACE error to onError', captured && captured.code === 'NO_SURFACE');
+    check('failed drag-place routes a NO_SURFACE error to onError', captured && captured.code === 'NO_SURFACE');
   }
 });

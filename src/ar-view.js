@@ -316,36 +316,48 @@ export class ARView {
       // The gesture payload is {x, y} in pixels (see gestures.js); it
       // has never carried an `event` field (API-06 drift).
       onTap: async ({ x, y }) => {
+        // Taps no longer place or move models (owner's call,
+        // 2026-11-18): drag is the placement and move gesture.
+        // The tap is still logged and reported to the host, so
+        // options.onTap remains available for UI feedback.
         const point = this._normalisePoint(x, y);
         this._debugLog({ type: 'tap', pixel: { x, y }, normalised: point });
-        try {
-          if (!this.activeModelId && options.modelUrl) {
-            // modelUrl accepts a plain string or a () => string (BUG-05)
-            const modelUrl = typeof options.modelUrl === 'function' ? options.modelUrl() : options.modelUrl;
-            const result = await this.placeModel(modelUrl, point);
-            // placeModel reports a missed hit test as a result, not a
-            // throw — convert it, so the failure reaches onError
-            // instead of the tap silently doing nothing.
-            if (!result.success) throw codedError('NO_SURFACE', 'No surface found at the tap point');
-          } else if (this.activeModelId) {
-            // Tap-to-move: with a model placed, a tap relocates it to
-            // the tapped surface point (the engine's moveModel). A
-            // miss converts to NO_SURFACE the same way and the model
-            // stays where it is.
-            const result = await this.moveModel(point);
-            if (!result.success) throw codedError('NO_SURFACE', 'No surface found at the tap point');
-          }
-        } catch (error) {
-          // The gesture controller never awaits this handler, so a
-          // rejection here would be unhandled. Route tap failures to
-          // the caller's error handler instead (BUG-05).
-          if (options.onError) { options.onError(error); return; }
-          console.error('[ARView] Tap failed:', error);
-          return;
-        }
         options.onTap?.({ x, y });
       },
-      onDrag: ({ x, y }) => {
+      onDrag: async ({ x, y }) => {
+        if (!this.activeModelId && options.modelUrl && !this._dragPlacing) {
+          // Drag-to-place: with nothing placed, a drag brings the
+          // model into the world at the drag point, and the same
+          // gesture then continues as an ordinary drag (the model
+          // follows the finger and is set down on release).
+          this._dragPlacing = true;
+          try {
+            // modelUrl accepts a plain string or a () => string (BUG-05)
+            const modelUrl = typeof options.modelUrl === 'function' ? options.modelUrl() : options.modelUrl;
+            const result = await this.placeModel(modelUrl, this._normalisePoint(x, y));
+            // placeModel reports a missed hit test as a result, not
+            // a throw — convert it, so the failure reaches onError
+            // instead of the drag silently doing nothing.
+            if (!result.success) throw codedError('NO_SURFACE', 'No surface found at the drag point');
+          } catch (error) {
+            // The gesture controller never awaits this handler, so
+            // a rejection here would be unhandled. Route the
+            // failure to the caller's error handler instead.
+            this._dragPlacing = false;
+            if (options.onError) { options.onError(error); return; }
+            console.error('[ARView] Drag-to-place failed:', error);
+            return;
+          }
+          this._dragPlacing = false;
+          if (this._dragPlaceEnded) {
+            // The finger lifted while placement was still in
+            // flight: the model stays where the drag placed it,
+            // and no drag session opens for a finished gesture.
+            this._dragPlaceEnded = false;
+            options.onDrag?.({ x, y });
+            return;
+          }
+        }
         if (this.activeModelId) {
           this.engine.noteOp?.('drag');
           if (!dragSession) {
@@ -382,6 +394,7 @@ export class ARView {
       onDragEnd: ({ x, y }) => {
         const point = this._normalisePoint(x, y);
         this._debugLog({ type: 'dragend', pixel: { x, y }, normalised: point });
+        if (this._dragPlacing) this._dragPlaceEnded = true;
         endDragSession(point);
         options.onDragEnd?.({ x, y });
       },

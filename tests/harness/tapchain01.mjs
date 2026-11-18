@@ -1,17 +1,18 @@
 import { describe, it, expect, vi } from 'vitest';
 
-// tapchain01 — tap-to-place / tap-to-move accuracy, end to end.
+// tapchain01 — placement accuracy, end to end (the chain is
+// drag-driven since 2026-11-18: drag-to-place, drag-to-move).
 // The REAL gesture controller, ARView and engine are wired to a
 // fake XR runtime whose hit test does honest ray-vs-floor maths:
 // the ray the engine builds is intersected with the floor plane
-// y = 0 analytically, exactly as ARCore would. For a grid of tap
-// pixels the placed model must land on the floor point that an
-// INDEPENDENT implementation (three's Raycaster through the same
-// camera) predicts, and projecting the landed position back to
-// screen pixels must reproduce the tapped pixel to under half a
-// pixel. Any error in the chain (normalisation, rect mapping,
-// y-flip, ray construction, pose plumbing, placement offset)
-// breaks one of these equalities.
+// y = 0 analytically, exactly as ARCore would. For a grid of
+// target pixels the placed model must land on the floor point
+// that an INDEPENDENT implementation (three's Raycaster through
+// the same camera) predicts, and projecting the landed position
+// back to screen pixels must reproduce the target pixel to under
+// half a pixel. Any error in the chain (normalisation, rect
+// mapping, y-flip, ray construction, pose plumbing, placement
+// offset) breaks one of these equalities.
 
 globalThis.window = globalThis;
 globalThis.innerWidth = 400;
@@ -98,7 +99,7 @@ function projectToPixel(pos) {
 }
 
 describe('tapchain01', () => {
-  it('taps land on the tapped pixel (place + moves, sub-pixel round trip)', async () => {
+  it('drags land on the target pixel (place + moves, sub-pixel round trip)', async () => {
     const el = fakeElement();
     const engine = new ARCoreWeb();
     engine.scene = new THREE.Scene();
@@ -136,10 +137,33 @@ describe('tapchain01', () => {
         await tick();
       }
     };
-    const tap = async (x, y) => {
-      const ev = { pointerId: 5, pointerType: 'touch', clientX: x, clientY: y, target: el, preventDefault() {}, stopPropagation() {} };
-      el.fire('pointerdown', { ...ev });
-      el.fire('pointerup', { ...ev });
+    // Drags, as a finger really makes them. The first drag
+    // places: press beside the target, one move onto it (the
+    // placing hit test reads that point), release. Later drags
+    // MOVE: they must start on the model (the grab gate refuses
+    // drags that begin away from it) and stream through
+    // intermediate points to the target, travelling well past
+    // the controller's 12 px tap radius so the release ends a
+    // drag (and settles) instead of reading as a tap.
+    let current = null;
+    const dragTo = async (x, y) => {
+      const ev = { pointerId: 5, pointerType: 'touch', target: el, preventDefault() {}, stopPropagation() {} };
+      if (!current) {
+        el.fire('pointerdown', { ...ev, clientX: x - 3, clientY: y - 3 });
+        el.fire('pointermove', { ...ev, clientX: x, clientY: y });
+        el.fire('pointerup', { ...ev, clientX: x, clientY: y });
+      } else {
+        el.fire('pointerdown', { ...ev, clientX: current.x, clientY: current.y });
+        for (let i = 1; i <= 6; i++) {
+          el.fire('pointermove', {
+            ...ev,
+            clientX: Math.round(current.x + ((x - current.x) * i) / 6),
+            clientY: Math.round(current.y + ((y - current.y) * i) / 6),
+          });
+        }
+        el.fire('pointerup', { ...ev, clientX: x, clientY: y });
+      }
+      current = { x, y };
       await pump();
     };
 
@@ -150,7 +174,7 @@ describe('tapchain01', () => {
       [310, 260],
     ];
     for (const [px, py] of points) {
-      await tap(px, py);
+      await dragTo(px, py);
       expect(view.activeModelId).toBeTruthy();
       const anchor = engine.anchors.get(view.activeModelId);
       const pos = Array.isArray(anchor.position)
