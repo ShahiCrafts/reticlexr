@@ -1958,6 +1958,67 @@ export class ARCoreWeb extends WebPlugin {
       // Update model positions
       this.updateModelPositions(frame);
 
+      // Anchor health (every ~2.5 s): an anchor is only as good
+      // as the surface estimate it was minted from, and that
+      // estimate is re-fit as tracking matures — a model can end
+      // up riding a stale anchor while the runtime's current
+      // surface sits centimetres away. For each anchored model
+      // in view, compare the surface point under its projected
+      // centre (the tap-proven polygon raycast) with the model's
+      // recorded base: two consecutive divergences beyond 3 cm
+      // mean the anchor went stale, so re-anchor to a fresh
+      // trackable hit at the current surface and adopt its
+      // position. Hysteresis (2 checks), a 5 s cooldown, and the
+      // in-view requirement keep this from ever servoing or
+      // jittering the model; global tracking drift is untouched
+      // by design (anchor, planes and camera share it — no
+      // pose-only check can see it).
+      if (timestamp - (this._lastHealthCheckAt || 0) > 2500) {
+        this._lastHealthCheckAt = timestamp;
+        try {
+          const hp = frame.getViewerPose(this.referenceSpace);
+          const hv = hp && hp.views && hp.views[0];
+          if (hp && hv) {
+            this.anchors.forEach((data, id) => {
+              if (!data.xrAnchor || data._healthPending) return;
+              if (this._dragMove && this._dragMove.modelId === id) return;
+              const sp = this._screenPositions.get(id);
+              if (!sp || sp.x < 0.1 || sp.x > 0.9 || sp.y < 0.1 || sp.y > 0.9) return;
+              const ray = rayFromScreenPoint(hp.transform, hv.projectionMatrix, sp.x, sp.y);
+              const hit = this._trackedPlaneHit(frame, ray);
+              if (!hit || !data.position) return;
+              const divergence = Math.hypot(
+                hit.position[0] - data.position[0],
+                hit.position[1] - data.position[1],
+                hit.position[2] - data.position[2]
+              );
+              data._healthDiverged = divergence > 0.03 ? (data._healthDiverged || 0) + 1 : 0;
+              if (data._healthDiverged < 2) return;
+              if (timestamp - (data._healthCooldownAt || 0) < 5000) return;
+              data._healthDiverged = 0;
+              data._healthCooldownAt = timestamp;
+              data._healthPending = true;
+              const oldAnchor = data.xrAnchor;
+              this._trackableAnchorForPoint(ray, hit.position).then((fresh) => {
+                data._healthPending = false;
+                if (this.anchors.get(id) !== data || data.xrAnchor !== oldAnchor) {
+                  if (fresh) { try { fresh.delete(); } catch (_) {} }
+                  return;
+                }
+                if (fresh) {
+                  try { oldAnchor.delete(); } catch (_) {}
+                  data.xrAnchor = fresh;
+                }
+                // Adopt the current surface position either way:
+                // it is the runtime's best present estimate of
+                // where this model's base actually sits.
+                data.position = hit.position;
+              });
+            });
+          }
+        } catch (_) { /* health checks must never break the frame loop */ }
+      }
+
       // Advance GLB animation clips (walking characters and the like)
       this._updateModelAnimations(timestamp);
 

@@ -56,6 +56,7 @@ export default function DemoClient() {
   const [supportReason, setSupportReason] = useState('');
   const [active, setActive] = useState(false);
   const [surface, setSurface] = useState(false);
+  const surfaceBankRef = useRef({ banked: 0, since: null });
   const [modelIndex, setModelIndex] = useState(0);
   const [placed, setPlaced] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -124,6 +125,7 @@ export default function DemoClient() {
   const start = async () => {
     const v = viewRef.current;
     if (!v) return;
+    surfaceBankRef.current = { banked: 0, since: null };
     setBusy(true);
     try {
       await v.create({
@@ -146,10 +148,26 @@ export default function DemoClient() {
         framebufferScale: 0.85,
       });
       v.onFrame((e) => {
-        if (e.type === 'surfaceDetected') setSurface(true);
-        if (e.type === 'surfaceLost') setSurface(false);
+        // Track how long a surface has been held in total: the
+        // placement gate below waits for a short bank of stable
+        // surface time before enabling taps — Scene Viewer's
+        // scan discipline (never place on an immature map).
+        const bank = surfaceBankRef.current;
+        if (e.type === 'surfaceDetected') {
+          setSurface(true);
+          if (bank.since == null) bank.since = performance.now();
+        }
+        if (e.type === 'surfaceLost') {
+          setSurface(false);
+          if (bank.since != null) {
+            bank.banked += performance.now() - bank.since;
+            bank.since = null;
+          }
+        }
         if (e.type === 'sessionEnded') {
           setSurface(false);
+          bank.banked = 0;
+          bank.since = null;
           setNeedsResume(true);
         }
       });
@@ -157,6 +175,21 @@ export default function DemoClient() {
       // the AR view opens promptly, then warm the cache with the
       // rest in the background (they load on first use regardless).
       await v.preloadModels([MODELS[modelIndexRef.current].url]);
+      // Placement maturity gate: hold gesture placement until
+      // the tracker has held a surface for a short bank of time
+      // (800 ms), so the first model never lands on an immature
+      // map — a leading cause of early drift, and the reason
+      // Scene Viewer makes you scan before it lets you place.
+      // Capped at 6 s so a difficult room can never trap anyone.
+      {
+        const bank = surfaceBankRef.current;
+        const gateStart = performance.now();
+        const bankedMs = () =>
+          bank.banked + (bank.since != null ? performance.now() - bank.since : 0);
+        while (bankedMs() < 800 && performance.now() - gateStart < 6000) {
+          await new Promise((r) => setTimeout(r, 100));
+        }
+      }
       v.enableCustomization({
         modelUrl: () => MODELS[modelIndexRef.current].url,
         debug: true,
