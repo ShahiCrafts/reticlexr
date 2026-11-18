@@ -155,7 +155,10 @@ export default function DemoClient() {
       v.enableCustomization({
         modelUrl: () => MODELS[modelIndexRef.current].url,
         debug: true,
-        onDebug: (entry) => setDebugEntries((prev) => [...prev.slice(-7), entry]),
+        // Keep a deep window: at 8 entries, a few seconds of drag
+        // events evicted the last 'placed' entry and the panel's
+        // model/base-centre lines went blank mid-session.
+        onDebug: (entry) => setDebugEntries((prev) => [...prev.slice(-39), entry]),
         onTap: () =>
           setTimeout(() => {
             if (v.activeModelId) {

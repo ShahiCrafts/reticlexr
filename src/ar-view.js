@@ -129,7 +129,9 @@ export class ARView {
   /**
    * Move the active model to the surface under a normalised screen
    * point ({ x, y } in 0..1, default centre). The model keeps its
-   * scale; position and surface orientation come from the hit. A miss
+   * scale and its current facing; only the position comes from the
+   * hit (the hit's orientation is the surface plane's, not the
+   * model's, and applying it twisted the model on every move). A miss
    * is a result, not a throw: { success: false, code: 'NO_SURFACE' }
    * and the model stays where it is.
    */

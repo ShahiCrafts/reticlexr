@@ -1436,16 +1436,20 @@ export class ARCoreWeb extends WebPlugin {
       // move, keeps the model within a frame or two of the finger.
       if (this._dragMove && this._dragMove.point && this.referenceSpace && this.session) {
         const drag = this._dragMove;
-        if (
-          drag.source &&
-          drag.sourcePoint &&
-          (drag.sourcePoint.x !== drag.point.x || drag.sourcePoint.y !== drag.point.y)
-        ) {
-          try { drag.source.cancel(); } catch (_) {}
-          drag.source = null;
-          drag.sourcePoint = null;
-        }
-        if (!drag.source && !drag.creating) {
+        // Create-then-swap: while a replacement source is created for
+        // the latest point, the existing source keeps serving hits
+        // for the previous point, so the model keeps tracking the
+        // finger instead of freezing until the new source lands. The
+        // old code cancelled the live source the moment the point
+        // moved, and at pointer-event rates the replacement rarely
+        // survived a frame — the model trailed far behind the finger
+        // and drags felt broken (device report 2026-11-18).
+        const needsSource =
+          !drag.source ||
+          !drag.sourcePoint ||
+          drag.sourcePoint.x !== drag.point.x ||
+          drag.sourcePoint.y !== drag.point.y;
+        if (needsSource && !drag.creating) {
           const viewerPose = frame.getViewerPose(this.referenceSpace);
           const view = viewerPose && viewerPose.views && viewerPose.views[0];
           if (viewerPose && view) {
@@ -1472,9 +1476,13 @@ export class ARCoreWeb extends WebPlugin {
                 if (drag.generation !== generation) {
                   // The finger moved on while this source was being
                   // created: drop it; the loop creates a fresh one
-                  // for the current point on the next frame.
+                  // for the current point on the next frame. The
+                  // previous source (if any) stays live meanwhile.
                   try { source.cancel(); } catch (_) {}
                   return;
+                }
+                if (drag.source) {
+                  try { drag.source.cancel(); } catch (_) {}
                 }
                 drag.source = source;
                 drag.sourcePoint = point;
@@ -1490,15 +1498,13 @@ export class ARCoreWeb extends WebPlugin {
             const dragPose = dragResults[0].getPose(this.referenceSpace);
             if (dragPose) {
               const t = dragPose.transform;
+              // Position only: the hit pose's orientation is the
+              // surface plane's, not the model's — applying it on
+              // every drag frame twisted the model to the plane's
+              // axes and silently discarded the user's rotation.
               this.transformModel({
                 modelId: drag.modelId,
                 position: [t.position.x, t.position.y, t.position.z],
-                rotation: [
-                  t.orientation.x,
-                  t.orientation.y,
-                  t.orientation.z,
-                  t.orientation.w,
-                ],
               }).catch(() => {
                 // The model was removed mid-drag: end quietly.
                 if (this._dragMove === drag) this.endDragMove();
@@ -1989,6 +1995,12 @@ export class ARCoreWeb extends WebPlugin {
    * session that ends while the source is still being created) — so
    * per-tap sources never accumulate in the runtime.
    *
+   * A genuine miss (the grace expires with no results) falls back to
+   * the floor plane — see `_floorPlaneHit` — and resolves with
+   * `fallback: true` when the tap ray meets the known floor within a
+   * sane reach, so taps on untracked floor still land where the
+   * finger pointed instead of doing nothing.
+   *
    * @param {number} x - Normalised X [0, 1]
    * @param {number} y - Normalised Y [0, 1]
    * @returns {Promise<{hit: boolean, position?: number[], rotation?: number[], planeType?: string, code?: string, error?: string}>} Failures resolve (never reject) with `hit: false` and a stable `code` (API-05)
@@ -2000,6 +2012,7 @@ export class ARCoreWeb extends WebPlugin {
     return new Promise((resolve) => {
       let settled = false;
       let raySource = null;
+      let tapRay = null;
       let emptyFrames = 0;
       // A freshly created source commonly delivers nothing on its
       // first frame or two (the runtime raycasts asynchronously), so
@@ -2072,6 +2085,23 @@ export class ARCoreWeb extends WebPlugin {
         // session-end paths still bound the wait overall.
         emptyFrames++;
         if (emptyFrames >= MAX_EMPTY_FRAMES) {
+          // A genuine runtime miss. Before reporting it, try the
+          // floor-plane fallback: the runtime only answers where it
+          // has tracked planes, and the floor right under the user
+          // (where low taps aim) is commonly outside every tracked
+          // polygon — those taps missed outright. A tracked surface
+          // always wins; this only rescues the miss.
+          const floor = this._floorPlaneHit(tapRay);
+          if (floor) {
+            settle({
+              hit: true,
+              position: floor,
+              rotation: this.lastHitRotation || [0, 0, 0, 1],
+              planeType: "horizontal",
+              fallback: true,
+            });
+            return;
+          }
           settle({ hit: false });
           return;
         }
@@ -2093,6 +2123,7 @@ export class ARCoreWeb extends WebPlugin {
             x,
             y
           );
+          tapRay = ray;
           raySource = await session.requestHitTestSource({
             space: referenceSpace,
             offsetRay: new XRRay(ray.origin, ray.direction),
@@ -2114,6 +2145,38 @@ export class ARCoreWeb extends WebPlugin {
       session.addEventListener("end", onSessionEnd);
       session.requestAnimationFrame(onPoseFrame);
     });
+  }
+
+  /**
+   * Last-resort surface for a point hit test the runtime could not
+   * resolve: intersect the tap ray with the horizontal plane at the
+   * height of the most recent centre hit. The runtime's hit test
+   * only answers where it has tracked planes, and the floor right
+   * under the user — exactly where a low tap aims when pulling a
+   * model closer — is commonly outside every tracked polygon, so
+   * those taps missed outright (device report 2026-11-18: five
+   * low-screen taps in a row produced no move at all). The centre
+   * hit's height is the floor the user is standing on; where the
+   * ray meets it is where the finger was pointing. The reach is
+   * bounded to sane distances (15 cm – 6 m) and the ray must head
+   * meaningfully downward, so taps at walls or the horizon still
+   * miss honestly.
+   *
+   * @param {{origin: {x,y,z}, direction: {x,y,z}}} ray - From rayFromScreenPoint
+   * @returns {number[]|null} [x, y, z] on the floor plane, or null
+   */
+  _floorPlaneHit(ray) {
+    if (!ray || !this.lastHitPosition) return null;
+    const floorY = this.lastHitPosition[1];
+    const dy = ray.direction.y;
+    if (!dy || dy > -0.05) return null;
+    const t = (floorY - ray.origin.y) / dy;
+    if (!(t >= 0.15 && t <= 6)) return null;
+    return [
+      ray.origin.x + ray.direction.x * t,
+      floorY,
+      ray.origin.z + ray.direction.z * t,
+    ];
   }
 
   /**
@@ -2457,11 +2520,56 @@ export class ARCoreWeb extends WebPlugin {
    * the model. When every mesh belongs to the cluster, which is
    * the normal case, the result is exactly the whole-model box.
    */
+  /**
+   * The box one mesh contributes to the placement measurement. For a
+   * skinned mesh this MUST be the skinned bounds, measured
+   * explicitly. The placement clone has never been rendered or
+   * updated when this runs, so its bones' world matrices are stale —
+   * and with stale bone matrices even a skinning-aware box measure
+   * silently degrades to the RAW geometry. In exports whose vertices
+   * are stored pre-transformed (Sketchfab's — the demo astronaut is
+   * one) the raw geometry sits ~0.9 m from where skinning actually
+   * draws it, so the wrapper centres the wrong box and the visible
+   * model lands that far from the tapped point, floating or sunk by
+   * the same error in Y. Skinning each vertex here
+   * (applyBoneTransform mirrors the shader path), after
+   * _placementBox has brought the clone's world matrices current,
+   * measures what the user actually sees. Verified offline against
+   * the demo GLBs: the astronaut's measured centre was 0.94 m
+   * forward / 0.29 m up from its rendered centre before this; the
+   * rhino (stored consistently) measured within ~2 cm either way.
+   */
+  _meshPlacementBox(obj) {
+    const pos = obj.geometry?.attributes?.position;
+    if (
+      obj.isSkinnedMesh &&
+      obj.skeleton &&
+      pos &&
+      obj.geometry.attributes.skinIndex &&
+      obj.geometry.attributes.skinWeight
+    ) {
+      obj.skeleton.update();
+      const box = new THREE.Box3();
+      const v = new THREE.Vector3();
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i);
+        obj.applyBoneTransform(i, v);
+        v.applyMatrix4(obj.matrixWorld);
+        box.expandByPoint(v);
+      }
+      return box;
+    }
+    return new THREE.Box3().setFromObject(obj);
+  }
+
   _placementBox(model) {
+    // World matrices (bones included) must be current before any
+    // measurement: the clone is not in a scene yet at this point.
+    model.updateMatrixWorld(true);
     const meshBoxes = [];
     model.traverse((obj) => {
       if ((obj.isMesh || obj.isSkinnedMesh) && obj.geometry) {
-        const b = new THREE.Box3().setFromObject(obj);
+        const b = this._meshPlacementBox(obj);
         if (!b.isEmpty()) meshBoxes.push(b);
       }
     });
@@ -3015,7 +3123,12 @@ export class ARCoreWeb extends WebPlugin {
     const modelId = options.modelId || options.anchorId;
     const hit = await this.hitTest({ x: options.x ?? 0.5, y: options.y ?? 0.5 });
     if (!hit.hit) return hit;
-    await this.transformModel({ modelId, position: hit.position, rotation: hit.rotation });
+    // Position only: the hit's orientation is the surface plane's,
+    // not the model's — applying it twisted the model to the plane's
+    // axes on every move and silently discarded the user's rotation.
+    // The model keeps its current facing; rotation stays owned by
+    // transformModel/rotateBy.
+    await this.transformModel({ modelId, position: hit.position });
     return { ...hit, success: true };
   }
 
