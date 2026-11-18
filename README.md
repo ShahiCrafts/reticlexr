@@ -12,56 +12,95 @@
   <a href="https://reticlexr.vercel.app"><img src="https://img.shields.io/badge/docs-reticlexr.vercel.app-5740d8" alt="documentation site"></a>
 </p>
 
-**Product AR for React + Capacitor in about ten lines of code.**
-`reticlexr` is a high-level AR SDK: point the camera at the floor, and
-your GLB product models land on real surfaces: tap-to-place with a
-centre reticle and hit testing, plane visualisation, touch gestures,
-runtime recolouring and screenshots, handled for you. Models render in
-a WebXR + Three.js runtime; a native Capacitor plugin adds ARCore
-session management, hit testing and surface events on Android (models
-render via WebXR; native model rendering is not implemented).
+# reticlexr
 
-📖 **Full documentation: [reticlexr.vercel.app](https://reticlexr.vercel.app)**.
-The getting-started walkthrough, guides, the complete API reference,
-compatibility and known issues live there. This README is only the
-front door.
+**Place 3D products in the real world with React and Capacitor.**
 
-## Install
+ReticleXR is a high-level augmented reality SDK that makes product visualization on real surfaces straightforward. Load a GLB model, point your camera at a surface, and let users place, interact with, and customize 3D products in their environment.
+
+Built on WebXR and Three.js, with native Android ARCore integration through Capacitor.
+
+**[Documentation](https://reticlexr.vercel.app/) · [Live Demo](https://reticlexr.vercel.app/demo) · [API Reference](https://reticlexr.vercel.app/docs/api)**
+
+---
+
+## Features
+
+- **Surface Detection**: Detect real-world surfaces using WebXR hit testing.
+- **Tap-to-Place**: Position 3D models using a centre reticle.
+- **Plane Visualization**: Visualize detected surfaces before placing objects.
+- **Touch Interactions**: Rotate, scale, and move placed models using gestures.
+- **Runtime Customization**: Recolour and customize 3D models without reloading them.
+- **Screenshots**: Capture AR scenes directly from the experience.
+- **React Integration**: A high-level API designed for React applications.
+- **Native Android Integration**: Capacitor plugin for ARCore session management, hit testing, and surface events.
+
+## Installation
+
+Install the package:
 
 ```bash
 npm install reticlexr
+```
+
+Synchronize your Capacitor project:
+
+```bash
 npx cap sync
 ```
 
-The package ships the `capacitor` metadata key, so `npx cap sync`
-discovers the Android plugin automatically. Then follow
-[Getting started](https://reticlexr.vercel.app/docs/getting-started)
-for the walkthrough. WebXR AR needs a secure context (HTTPS or
-`localhost`) and an ARCore-capable Android phone with Chrome.
+The package includes Capacitor plugin metadata, allowing the Android plugin to be discovered automatically during synchronization.
+
+For complete setup instructions, see the [Getting Started Guide](https://reticlexr.vercel.app/docs/getting-started).
+
+## Requirements
+
+- **React**: ≥ 16.8
+- **Capacitor**: 8
+- **Android minSdk**: 24
+- **Browser**: Chrome
+- **AR Runtime**: WebXR with `hit-test`
+- **Device**: ARCore-compatible Android device
+- **Deployment**: HTTPS or localhost
+
+**Tested devices:** Redmi Note 9S and Samsung Galaxy A24.
+
+For detailed platform support and limitations, see the [Compatibility Guide](https://reticlexr.vercel.app/docs/compatibility).
+
+## Architecture
+
+ReticleXR uses a hybrid architecture combining browser-based 3D rendering with native Android AR capabilities.
+
+- **WebXR + Three.js:** Handles the AR rendering pipeline, GLB models, and 3D interactions.
+- **Native Capacitor Plugin:** Manages Android ARCore sessions, hit testing, and surface events.
+
+3D models are rendered through the WebXR runtime. Native model rendering is not currently implemented.
+
+Learn more in the [Architecture Guide](https://reticlexr.vercel.app/docs/concepts/architecture).
 
 ## Documentation
 
-- 📖 **Docs home**: [reticlexr.vercel.app](https://reticlexr.vercel.app)
-- 🚀 **Getting started**: [getting-started](https://reticlexr.vercel.app/docs/getting-started)
-- 🧩 **API reference**: [docs/api](https://reticlexr.vercel.app/docs/api)
-- ▶️ **Live demo**: [reticlexr.vercel.app/demo](https://reticlexr.vercel.app/demo), open it on your phone
-- 🐞 **Known issues**: [docs/known-issues](https://reticlexr.vercel.app/docs/known-issues)
-- 🗺️ **Architecture**: [docs/concepts/architecture](https://reticlexr.vercel.app/docs/concepts/architecture) · [ARCHITECTURE.md](https://github.com/ShahiCrafts/reticlexr/blob/main/ARCHITECTURE.md)
-- 📋 **Changelog**: [docs/changelog](https://reticlexr.vercel.app/docs/changelog) · [CHANGELOG.md](https://github.com/ShahiCrafts/reticlexr/blob/main/CHANGELOG.md)
+The complete documentation covers installation, configuration, usage, APIs, and platform-specific considerations.
 
-## Compatibility
+## Live Demo
 
-Requires Chrome on an ARCore-capable Android phone (WebXR `hit-test`);
-the native plugin builds for Android minSdk 24 with Capacitor 8, and
-React ≥ 16.8 is a peer dependency. Tested on device (Redmi Note 9S,
-Samsung Galaxy A24). The full matrix is at
-[docs/compatibility](https://reticlexr.vercel.app/docs/compatibility).
+Experience ReticleXR directly on a supported Android device.
+
+**[Open the ReticleXR Demo](https://reticlexr.vercel.app/demo)**
+
+For the best experience, open the demo in Chrome on an ARCore-compatible Android device.
 
 ## Contributing
 
-Issues and PRs are welcome. See [CONTRIBUTING.md](https://github.com/ShahiCrafts/reticlexr/blob/main/CONTRIBUTING.md) or
-the [contributing guide](https://reticlexr.vercel.app/docs/contributing).
+Contributions, bug reports, and feature requests are welcome.
+
+- [Report an Issue](https://github.com/ShahiCrafts/reticlexr/issues)
+- [Contributing Guidelines](https://github.com/ShahiCrafts/reticlexr/blob/main/CONTRIBUTING.md)
+
+Please review the contributing guidelines before submitting a pull request.
 
 ## License
 
-MIT © Saugat Shahi. See [LICENSE](https://github.com/ShahiCrafts/reticlexr/blob/main/LICENSE).
+ReticleXR is open-source software licensed under the [MIT License](https://github.com/ShahiCrafts/reticlexr/blob/main/LICENSE).
+
+Copyright © Saugat Shahi.
