@@ -484,6 +484,7 @@ export class ARCoreWeb extends WebPlugin {
     // WebXR session state
     this.session = null;
     this.referenceSpace = null;
+    this.referenceSpaceType = null;
     this.viewerSpace = null;
     this.hitTestSource = null;
     this.onDebugProject = null;
@@ -1342,8 +1343,12 @@ export class ARCoreWeb extends WebPlugin {
     const sessionOptions = {
       requiredFeatures: ["hit-test"],
       // local-floor is optional: devices/browsers without floor-level
-      // tracking degrade to local/viewer reference spaces (COMPAT-01)
-      optionalFeatures: ["local-floor"],
+      // tracking degrade to the local reference space (COMPAT-01).
+      // anchors is optional too: where granted, placed models ride
+      // real XRAnchors (see updateModelPositions) so the runtime's
+      // surface refinement carries them instead of the model
+      // sliding against the surface it sits on.
+      optionalFeatures: ["local-floor", "anchors"],
     };
 
     // Add plane-detection as optional feature
@@ -1382,6 +1387,34 @@ export class ARCoreWeb extends WebPlugin {
       if (typeof this.renderer.xr.setFramebufferScaleFactor === "function") {
         this.renderer.xr.setFramebufferScaleFactor(framebufferScale);
       }
+      // Reference space: chosen BEFORE setSession so three.js can
+      // be pinned to the SAME space the engine places content in.
+      // Until now the renderer's space was whatever three defaulted
+      // to while the engine used its own chain — when those
+      // disagree, rendered content is offset from (or drifts
+      // against) the world the hit tests describe. The chain is
+      // local-floor, then local (COMPAT-01). "viewer" is NOT a
+      // fallback any more: it is defined relative to the device's
+      // current pose, so anything placed in it moves WITH the view
+      // — the opposite of AR. A session that can only offer viewer
+      // space cannot do world-locked AR at all; failing loudly is
+      // better than gluing models to the user's face.
+      this.referenceSpaceType = null;
+      for (const spaceType of ["local-floor", "local"]) {
+        try {
+          this.referenceSpace = await this.session.requestReferenceSpace(spaceType);
+          this.referenceSpaceType = spaceType;
+          break;
+        } catch (_) {
+          // Space not granted — try the next, less capable one
+        }
+      }
+      if (!this.referenceSpace) {
+        throw new Error("No world-locked reference space available (local-floor and local both rejected)");
+      }
+      if (typeof this.renderer.xr.setReferenceSpaceType === "function") {
+        this.renderer.xr.setReferenceSpaceType(this.referenceSpaceType);
+      }
       await this.renderer.xr.setSession(this.session);
 
       try {
@@ -1393,24 +1426,16 @@ export class ARCoreWeb extends WebPlugin {
         this.xrGlBinding = null;
       }
 
-      // Reference space fallback chain matching the optional local-floor
-      // feature above: local-floor, then local, then viewer (COMPAT-01)
-      for (const spaceType of ["local-floor", "local", "viewer"]) {
-        try {
-          this.referenceSpace = await this.session.requestReferenceSpace(spaceType);
-          break;
-        } catch (_) {
-          // Space not granted — try the next, less capable one
-        }
-      }
-      if (!this.referenceSpace) {
-        throw new Error("No reference space available (local-floor, local, viewer all rejected)");
-      }
       this.viewerSpace = await this.session.requestReferenceSpace("viewer");
 
-      // Request hit test source for instant positioning
+      // Request hit test source for instant positioning. Ask for
+      // feature-point hits as well as plane hits (ARCore's native
+      // hit test uses both): a point hit succeeds on textured
+      // surfaces before any plane has been formalized there, which
+      // is part of why Google's placement feels instant.
       this.hitTestSource = await this.session.requestHitTestSource({
         space: this.viewerSpace,
+        entityTypes: ["plane", "point"],
       });
 
       // Check if plane detection is supported
@@ -1423,7 +1448,16 @@ export class ARCoreWeb extends WebPlugin {
         this.session = null;
         this.hitTestSource = null;
         this.referenceSpace = null;
+        this.referenceSpaceType = null;
         this.viewerSpace = null;
+        // XRAnchors die with their session: drop the references so
+        // no later frame tries to pose-query a dead anchor (the
+        // records themselves fall back to plain coordinates).
+        this.anchors.forEach((data) => {
+          data.xrAnchor = null;
+          data.needsAnchor = false;
+          data.anchorPending = false;
+        });
       });
 
       // Reset transient state (config.showReticle is the user preference
@@ -1431,11 +1465,11 @@ export class ARCoreWeb extends WebPlugin {
       this.modelPlaced = false;
       this.reticleVisible = false;
 
-      this.debugLog("[ARCore] Session started - showReticle:", this.config.showReticle, "planeDetection:", this.planeDetectionSupported);
+      this.debugLog("[ARCore] Session started - showReticle:", this.config.showReticle, "planeDetection:", this.planeDetectionSupported, "referenceSpace:", this.referenceSpaceType);
 
       this.startRendering();
 
-      return { success: true, hasOverlay: !!domOverlay, planeDetection: this.planeDetectionSupported };
+      return { success: true, hasOverlay: !!domOverlay, planeDetection: this.planeDetectionSupported, referenceSpace: this.referenceSpaceType };
     } catch (error) {
       // If requestSession succeeded but a later step (reference space,
       // hit-test source) failed, end the live session — otherwise it keeps
@@ -1803,6 +1837,38 @@ export class ARCoreWeb extends WebPlugin {
       // Animate reticle
       this.animateReticle(timestamp);
 
+      // (Re)anchor models whose anchor is missing or was released
+      // by a transform, once they are at rest at a new pose. The
+      // model currently being dragged is skipped — it re-anchors
+      // on the first frame after the drag ends.
+      if (typeof frame.createAnchor === "function" && typeof XRRigidTransform !== "undefined") {
+        this.anchors.forEach((data, id) => {
+          if (!data.needsAnchor || data.xrAnchor || data.anchorPending) return;
+          if (this._dragMove && this._dragMove.modelId === id) return;
+          if (!data.position || !data.rotation) return;
+          data.anchorPending = true;
+          const p = data.position;
+          const q = data.rotation;
+          frame.createAnchor(
+            new XRRigidTransform(
+              { x: p[0], y: p[1], z: p[2] },
+              { x: q[0], y: q[1], z: q[2], w: q[3] }
+            ),
+            this.referenceSpace
+          ).then((xrAnchor) => {
+            data.anchorPending = false;
+            if (data.needsAnchor && !data.xrAnchor && this.anchors.get(id) === data) {
+              data.xrAnchor = xrAnchor;
+              data.needsAnchor = false;
+            } else {
+              try { xrAnchor.delete(); } catch (_) {}
+            }
+          }).catch(() => {
+            data.anchorPending = false;
+          });
+        });
+      }
+
       // Update model positions
       this.updateModelPositions(frame);
 
@@ -1854,6 +1920,38 @@ export class ARCoreWeb extends WebPlugin {
     this.loadedModels.forEach((model, anchorId) => {
       const anchorData = this.anchors.get(anchorId);
       if (!anchorData) return;
+
+      // Surface-anchored models follow their XRAnchor's live pose:
+      // the runtime re-poses the anchor as its surface estimate
+      // refines, so the model stays glued to the physical surface
+      // instead of sliding against it (the native-viewer pattern).
+      // The refined pose is written back into the record so every
+      // other reader (projection debug, getters) sees the same
+      // truth the user sees.
+      if (anchorData.xrAnchor && frame && this.referenceSpace) {
+        try {
+          const anchorPose = frame.getPose(
+            anchorData.xrAnchor.anchorSpace,
+            this.referenceSpace
+          );
+          if (anchorPose) {
+            const t = anchorPose.transform;
+            anchorData.position = [t.position.x, t.position.y, t.position.z];
+            anchorData.rotation = [
+              t.orientation.x,
+              t.orientation.y,
+              t.orientation.z,
+              t.orientation.w,
+            ];
+          }
+        } catch (_) {
+          // The runtime deleted the anchor (its trackable is gone):
+          // drop it and let the loop mint a fresh one at the
+          // model's current recorded pose.
+          anchorData.xrAnchor = null;
+          anchorData.needsAnchor = true;
+        }
+      }
 
       if (anchorData.position) {
         model.position.set(
@@ -2048,15 +2146,16 @@ export class ARCoreWeb extends WebPlugin {
    * @param {Object} [options]
    * @param {number} [options.x=0.5] - Normalised X [0, 1]
    * @param {number} [options.y=0.5] - Normalised Y [0, 1]
-   * @returns {Promise<{hit: boolean, position?: number[], rotation?: number[], planeType?: string, code?: string, error?: string}>} Failures resolve (never reject) with `hit: false` and a stable `code` (API-05)
+   * @param {boolean} [options.anchor=false] - Also mint an XRAnchor at the hit pose (returned as `anchor` on the result) so a model placed there rides the surface. Only for off-centre points; the centre fast path cannot mint.
+   * @returns {Promise<{hit: boolean, position?: number[], rotation?: number[], planeType?: string, anchor?: object, code?: string, error?: string}>} Failures resolve (never reject) with `hit: false` and a stable `code` (API-05)
    */
-  async hitTest({ x = 0.5, y = 0.5 } = {}) {
+  async hitTest({ x = 0.5, y = 0.5, anchor = false } = {}) {
     if (!this.session || !this.referenceSpace) {
       return { hit: false, code: "SESSION_NOT_ACTIVE", error: "Session not active" };
     }
 
     if (x !== 0.5 || y !== 0.5) {
-      return this.hitTestAtPoint(x, y);
+      return this.hitTestAtPoint(x, y, { anchor });
     }
 
     if (!this.hitTestSource) {
@@ -2164,7 +2263,33 @@ export class ARCoreWeb extends WebPlugin {
    * @param {number} y - Normalised Y [0, 1]
    * @returns {Promise<{hit: boolean, position?: number[], rotation?: number[], planeType?: string, code?: string, error?: string}>} Failures resolve (never reject) with `hit: false` and a stable `code` (API-05)
    */
-  hitTestAtPoint(x, y) {
+  /**
+   * Mint a real XRAnchor at a hit pose, or return null when the
+   * session did not grant the anchors feature / the runtime
+   * refuses. Anchored models are re-posed by the runtime every
+   * frame (see updateModelPositions): when ARCore refines the
+   * surface a model sits on, the anchor — and the model — move
+   * WITH the surface, which is how native viewers keep content
+   * glued down. Unanchored content only holds map coordinates and
+   * visibly slides when the map shifts under it. Anchor creation
+   * must never break a placement, hence the null-on-any-failure
+   * contract.
+   */
+  async _createAnchorAt(frame, position, rotation) {
+    try {
+      if (!frame || typeof frame.createAnchor !== "function") return null;
+      if (typeof XRRigidTransform === "undefined") return null;
+      const pose = new XRRigidTransform(
+        { x: position[0], y: position[1], z: position[2] },
+        { x: rotation[0], y: rotation[1], z: rotation[2], w: rotation[3] }
+      );
+      return await frame.createAnchor(pose, this.referenceSpace);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  hitTestAtPoint(x, y, options = {}) {
     const session = this.session;
     const referenceSpace = this.referenceSpace;
 
@@ -2221,7 +2346,7 @@ export class ARCoreWeb extends WebPlugin {
                 planeType = plane.orientation;
               }
             }
-            settle({
+            const result = {
               hit: true,
               position,
               rotation: [
@@ -2231,7 +2356,14 @@ export class ARCoreWeb extends WebPlugin {
                 pose.transform.orientation.w,
               ],
               planeType,
-            });
+            };
+            if (options.anchor) {
+              this._createAnchorAt(frame, result.position, result.rotation).then(
+                (anchor) => settle(anchor ? { ...result, anchor } : result)
+              );
+            } else {
+              settle(result);
+            }
             return;
           }
         }
@@ -2252,13 +2384,20 @@ export class ARCoreWeb extends WebPlugin {
           // always wins; this only rescues the miss.
           const floor = this._floorPlaneHit(tapRay);
           if (floor) {
-            settle({
+            const result = {
               hit: true,
               position: floor,
               rotation: this.lastHitRotation || [0, 0, 0, 1],
               planeType: "horizontal",
               fallback: true,
-            });
+            };
+            if (options.anchor) {
+              this._createAnchorAt(frame, result.position, result.rotation).then(
+                (anchor) => settle(anchor ? { ...result, anchor } : result)
+              );
+            } else {
+              settle(result);
+            }
             return;
           }
           settle({ hit: false });
@@ -2291,17 +2430,22 @@ export class ARCoreWeb extends WebPlugin {
           // (and, beyond it, the floor-plane fallback).
           const tracked = this._trackedPlaneHit(frame, ray);
           if (tracked) {
+            const anchor = options.anchor
+              ? await this._createAnchorAt(frame, tracked.position, tracked.rotation)
+              : null;
             settle({
               hit: true,
               position: tracked.position,
               rotation: tracked.rotation,
               planeType: tracked.planeType,
+              ...(anchor ? { anchor } : {}),
             });
             return;
           }
           raySource = await session.requestHitTestSource({
             space: referenceSpace,
             offsetRay: new XRRay(ray.origin, ray.direction),
+            entityTypes: ["plane", "point"],
           });
         } catch (error) {
           settle({ hit: false, code: "HIT_TEST_UNAVAILABLE", error: "HIT_TEST_UNAVAILABLE" });
@@ -2900,6 +3044,9 @@ export class ARCoreWeb extends WebPlugin {
    * @param {number|number[]|{x:number,y:number,z:number}} [options.scale] -
    *   Scale; defaults to [1, 1, 1]. Clamped to [0.1, 5] per axis — the
    *   one scale range shared by every layer and runtime (API-08)
+   * @param {object} [options.anchor] - An XRAnchor minted at this
+   *   pose (see hitTest's `anchor` option); the model rides it.
+   *   When omitted, the render loop mints one on the next frame.
    * @returns {Promise<{modelId: string, anchorId: string}>} `modelId`
    *   is the canonical identifier (API-01); `anchorId` is its
    *   deprecated alias — the same string.
@@ -2910,6 +3057,7 @@ export class ARCoreWeb extends WebPlugin {
     position,
     rotation,
     scale,
+    anchor = null,
   }) {
     if (modelPath && !modelUrl) {
       warnDeprecatedOnce(
@@ -2934,6 +3082,12 @@ export class ARCoreWeb extends WebPlugin {
       position,
       rotation,
       scale,
+      // A real XRAnchor when the hit that placed this model minted
+      // one; otherwise the render loop mints one on the next frame
+      // (needsAnchor) so the model still ends up surface-anchored.
+      xrAnchor: anchor || null,
+      needsAnchor: !anchor,
+      anchorPending: false,
     });
 
     try {
@@ -3016,6 +3170,11 @@ export class ARCoreWeb extends WebPlugin {
       this.modelBaseRings.delete(anchorId);
     }
 
+    const record = this.anchors.get(anchorId);
+    if (record && record.xrAnchor) {
+      try { record.xrAnchor.delete(); } catch (_) {}
+    }
+
     this.anchors.delete(anchorId);
 
     this.modelPlaced = this.loadedModels.size > 0;
@@ -3086,6 +3245,20 @@ export class ARCoreWeb extends WebPlugin {
     rotation = rotation === undefined ? undefined : normalizeQuaternion(rotation, undefined);
     scale = scale === undefined ? undefined : normalizeScale(scale, undefined);
     if (scale) scale = clampScale(scale);
+
+    // Moving or rotating the model leaves its XRAnchor behind at
+    // the old pose: release it and let the render loop mint a fresh
+    // one at the new pose once the model is at rest (it skips the
+    // model being dragged, so a drag doesn't churn anchors every
+    // frame). Scale alone does not invalidate the anchor — its pose
+    // carries no scale.
+    if (position || rotation) {
+      if (anchor.xrAnchor) {
+        try { anchor.xrAnchor.delete(); } catch (_) {}
+        anchor.xrAnchor = null;
+      }
+      anchor.needsAnchor = true;
+    }
 
     if (position) anchor.position = position;
     if (rotation) anchor.rotation = rotation;
@@ -3380,7 +3553,7 @@ export class ARCoreWeb extends WebPlugin {
 
   async moveModel(options = {}) {
     const modelId = options.modelId || options.anchorId;
-    const hit = await this.hitTest({ x: options.x ?? 0.5, y: options.y ?? 0.5 });
+    const hit = await this.hitTest({ x: options.x ?? 0.5, y: options.y ?? 0.5, anchor: true });
     if (!hit.hit) return hit;
     // Position only: the hit's orientation is the surface plane's,
     // not the model's — applying it twisted the model to the plane's
@@ -3388,6 +3561,17 @@ export class ARCoreWeb extends WebPlugin {
     // The model keeps its current facing; rotation stays owned by
     // transformModel/rotateBy.
     await this.transformModel({ modelId, position: hit.position });
+    // Adopt the anchor minted at the new pose (transformModel just
+    // released the old one). When the hit carried none (the centre
+    // fast path), needsAnchor stays set and the render loop mints
+    // one on the next frame.
+    if (hit.anchor) {
+      const record = this.anchors.get(modelId);
+      if (record) {
+        record.xrAnchor = hit.anchor;
+        record.needsAnchor = false;
+      }
+    }
     return { ...hit, success: true };
   }
 

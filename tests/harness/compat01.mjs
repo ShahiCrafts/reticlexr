@@ -26,7 +26,10 @@ function makeEngine({ granted }) {
   };
   engine.renderer = {
     domElement: {},
-    xr: { async setSession() {} },
+    xr: {
+      async setSession() {},
+      setReferenceSpaceType(type) { state.renderSpaceType = type; },
+    },
     getContext() { return {}; },
   };
   engine.startRendering = () => {};
@@ -45,6 +48,10 @@ function makeEngine({ granted }) {
   check('local-floor granted: referenceSpace is local-floor', engine.referenceSpace === spaces['local-floor']);
   check('requiredFeatures is [hit-test] only', JSON.stringify(state.sessionOptions.requiredFeatures) === '["hit-test"]');
   check('local-floor moved to optionalFeatures', state.sessionOptions.optionalFeatures.includes('local-floor'));
+  check('anchors requested as optionalFeature', state.sessionOptions.optionalFeatures.includes('anchors'));
+  check('referenceSpaceType recorded', engine.referenceSpaceType === 'local-floor');
+  check('renderer pinned to the same space', state.renderSpaceType === 'local-floor');
+  check('result reports the space', r.referenceSpace === 'local-floor');
 }
 
 // Case 2: local-floor rejected, local granted
@@ -55,12 +62,19 @@ function makeEngine({ granted }) {
   check('local fallback: referenceSpace is local', engine.referenceSpace === spaces['local']);
 }
 
-// Case 3: only viewer granted
+// Case 3: only viewer granted -> startup FAILS. The viewer space
+// is defined relative to the device's current pose, so content
+// placed in it moves WITH the view — the opposite of world-locked
+// AR (device report 2026-11-18: "model moves with the view"). A
+// session that cannot offer a world-locked space must fail loudly
+// rather than glue models to the user's face.
 {
-  const { engine, spaces } = makeEngine({ granted: ['viewer'] });
-  const r = await engine.startSession({});
-  check('viewer fallback: session starts', r.success === true);
-  check('viewer fallback: referenceSpace is viewer', engine.referenceSpace === spaces['viewer']);
+  const { engine, state } = makeEngine({ granted: ['viewer'] });
+  let threw = false;
+  try { await engine.startSession({}); } catch { threw = true; }
+  check('viewer-only: startSession throws', threw === true);
+  check('viewer-only: live session was ended', state.ended === true);
+  check('viewer-only: no reference space kept', engine.referenceSpace === null);
 }
 
 // Case 4: no space granted -> startup fails AND the session is ended (BUG-07 interplay)

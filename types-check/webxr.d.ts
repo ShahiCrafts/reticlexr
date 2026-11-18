@@ -11,3 +11,4 @@ interface Navigator {
 declare const XRFrame: any;
 declare const XRWebGLBinding: any;
 declare const XRRay: any;
+declare const XRRigidTransform: any;

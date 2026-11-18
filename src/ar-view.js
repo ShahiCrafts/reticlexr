@@ -84,7 +84,7 @@ export class ARView {
    */
   async placeModel(modelUrl, options = {}) {
     const pointTest = !options.position && ((options.x ?? .5) !== .5 || (options.y ?? .5) !== .5);
-    let hit = options.position ? { hit: true, position: options.position, rotation: options.rotation } : await this.engine.hitTest({ x: options.x ?? .5, y: options.y ?? .5 });
+    let hit = options.position ? { hit: true, position: options.position, rotation: options.rotation } : await this.engine.hitTest({ x: options.x ?? .5, y: options.y ?? .5, anchor: true });
     if (!hit.hit && pointTest) {
       // The per-tap ray test can still miss on a good surface (its
       // one-off source races the runtime's raycast). Fall back to the
@@ -95,7 +95,7 @@ export class ARView {
     if (!hit.hit) return { success: false, code: 'NO_SURFACE', reason: 'NO_SURFACE' };
     const scale = options.scale ?? this.transform.scale;
     const rotation = options.rotation || hit.rotation || [0,0,0,1];
-    const result = await this.engine.placeModel({ modelUrl, position: hit.position, rotation, scale });
+    const result = await this.engine.placeModel({ modelUrl, position: hit.position, rotation, scale, anchor: hit.anchor || null });
     this.activeModelId = result.modelId;
     this.activeModelUrl = modelUrl;
     this.placedModelUrls.set(result.modelId, modelUrl);
