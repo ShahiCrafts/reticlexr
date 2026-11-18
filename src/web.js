@@ -490,6 +490,7 @@ export class ARCoreWeb extends WebPlugin {
     this.viewerSpace = null;
     this.hitTestSource = null;
     this.onDebugProject = null;
+    this._screenPositions = new Map();
     this.xrGlBinding = null;
     this.pendingScreenshot = null;
     this._screenshotHintWarned = false;
@@ -1659,12 +1660,18 @@ export class ARCoreWeb extends WebPlugin {
             }
           }
         }
-        // Per-frame positioning: intersect the finger's CURRENT ray
-        // with the drag plane and place the model there (plus the
-        // grab offset) in this same frame. No async step sits
-        // between the finger and the model, so the grabbed point
-        // stays under the finger.
-        if (drag.planeY != null && drag.grabOffset && drag.point) {
+        // Per-frame positioning, in this same frame — no async step
+        // sits between the finger and the model. The finger's ray
+        // is intersected with the REAL tracked plane polygons
+        // first — the same geometry that makes taps land exactly —
+        // so the model rides the actual surface under the finger.
+        // The math drag plane is the fallback for rays that leave
+        // the tracked polygons, and when both miss, the model
+        // simply stays where it is: a drag must never make it
+        // vanish or fly off (device report 2026-11-18: "while
+        // dragging the model vanishes ... we should show the model
+        // while moving too").
+        if (drag.point) {
           const viewerPose = frame.getViewerPose(this.referenceSpace);
           const view = viewerPose && viewerPose.views && viewerPose.views[0];
           if (viewerPose && view) {
@@ -1674,7 +1681,38 @@ export class ARCoreWeb extends WebPlugin {
               drag.point.x,
               drag.point.y
             );
-            const target = dragPlaneTarget(ray, drag.planeY, drag.grabOffset);
+            let target = null;
+            const polyHit = this._trackedPlaneHit(frame, ray);
+            if (polyHit) {
+              if (!drag.offsetFinal) {
+                // A polygon hit is a real surface hit: refine the
+                // grab offset from it (centre minus the grabbed
+                // surface point) exactly as a hit-test result
+                // would, so the grabbed point stays under the
+                // finger instead of the centre snapping to it.
+                const centre = this.anchors.get(drag.modelId)?.position;
+                if (centre) {
+                  const c = Array.isArray(centre)
+                    ? centre
+                    : [centre.x, centre.y, centre.z];
+                  drag.grabOffset = {
+                    x: c[0] - polyHit.position[0],
+                    z: c[2] - polyHit.position[2],
+                  };
+                  drag.offsetFinal = true;
+                }
+              }
+              drag.planeY = polyHit.position[1];
+              const ox = drag.grabOffset ? drag.grabOffset.x : 0;
+              const oz = drag.grabOffset ? drag.grabOffset.z : 0;
+              target = [
+                polyHit.position[0] + ox,
+                polyHit.position[1],
+                polyHit.position[2] + oz,
+              ];
+            } else if (drag.planeY != null && drag.grabOffset) {
+              target = dragPlaneTarget(ray, drag.planeY, drag.grabOffset);
+            }
             if (target) {
               this.transformModel({
                 modelId: drag.modelId,
@@ -1695,9 +1733,9 @@ export class ARCoreWeb extends WebPlugin {
       // error in a single screenshot — the two are indistinguishable
       // in the world-space numbers alone (device investigation
       // 2026-11-18).
-      if (this.onDebugProject && this.referenceSpace && this.anchors.size > 0) {
+      if (this.referenceSpace && this.anchors.size > 0) {
         const now = performance.now();
-        if (now - (this._lastProjectAt || 0) > 150) {
+        if (now - (this._lastProjectAt || 0) > 100) {
           this._lastProjectAt = now;
           try {
             const viewerPose = frame.getViewerPose(this.referenceSpace);
@@ -1711,11 +1749,19 @@ export class ARCoreWeb extends WebPlugin {
                   view.projectionMatrix
                 );
                 if (n) {
-                  try { this.onDebugProject({ modelId, normalised: n }); } catch (_) {}
+                  // Cached for consumers that need to know where a
+                  // model currently sits on screen (ARView's
+                  // grab-to-drag gate) ...
+                  this._screenPositions.set(modelId, n);
+                  // ... and reported on the debug channel when a
+                  // consumer is listening.
+                  if (this.onDebugProject) {
+                    try { this.onDebugProject({ modelId, normalised: n }); } catch (_) {}
+                  }
                 }
               }
             }
-          } catch (_) { /* debug must never break the frame loop */ }
+          } catch (_) { /* projection must never break the frame loop */ }
         }
       }
 
@@ -2645,7 +2691,12 @@ export class ARCoreWeb extends WebPlugin {
       x: Math.min(1, Math.max(0, x)),
       y: Math.min(1, Math.max(0, y)),
     };
-    drag.generation++;
+    // Deliberately NO generation bump here: pointermove fires far
+    // faster than hit-test sources can be created, and bumping on
+    // every move invalidated each in-flight creation before it
+    // landed, so the drag's source (and its plane-height refresh)
+    // never materialised at all. Create-then-swap in the loop
+    // compares the source's own point instead.
   }
 
   /** End the active drag (if any) and release its hit-test source. */
@@ -2657,6 +2708,20 @@ export class ARCoreWeb extends WebPlugin {
       try { drag.source.cancel(); } catch (_) {}
       drag.source = null;
     }
+  }
+
+  /**
+   * Where a placed model's centre currently falls on screen
+   * (normalised 0..1), from the render loop's projection cache —
+   * or null when the model is not placed or is off-camera/behind.
+   * Consumers use it to tell a deliberate grab of the model from a
+   * resting-finger camera move.
+   *
+   * @param {string} modelId
+   * @returns {{x: number, y: number} | null}
+   */
+  getModelScreenPosition(modelId) {
+    return this._screenPositions.get(modelId) || null;
   }
 
   getSurfaceState() {

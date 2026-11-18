@@ -348,6 +348,21 @@ export class ARView {
       onDrag: ({ x, y }) => {
         if (this.activeModelId) {
           if (!dragSession) {
+            // Manipulation starts ON the object (the native-viewer
+            // rule): a drag that begins far from the model is the
+            // user repositioning the camera with a finger resting
+            // on the screen, not a grab. Treating it as a grab
+            // carries the model along with the view — the exact
+            // "model moves with the camera" failure reported on
+            // device 2026-11-18. When the model's screen position
+            // is unknown (no projection yet), allow the drag: a
+            // gate must never eat a real grab.
+            const startPoint = this._normalisePoint(x, y);
+            const sp = this.engine.getModelScreenPosition?.(this.activeModelId);
+            if (sp && Math.hypot(startPoint.x - sp.x, startPoint.y - sp.y) > 0.4) {
+              options.onDrag?.({ x, y });
+              return;
+            }
             dragSession = true;
             try { this.engine.beginDragMove?.(this.activeModelId); } catch { /* engine gone */ }
           }
