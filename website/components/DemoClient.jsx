@@ -210,10 +210,17 @@ export default function DemoClient() {
         // a placed model: the surface-lock cue.
         showBaseRing: true,
         lightEstimation: true,
-        // The demo has a screenshot button, so camera access is
-        // requested up front: WebXR grants session features only at
-        // requestSession — there is no way to ask later, mid-session.
-        enableScreenshots: true,
+        // Screenshots OFF (2026-11-18): the camera-access session
+        // feature makes Chrome produce JS-readable camera frames
+        // every frame, the heaviest extra pipeline a WebXR session
+        // can carry, and it is the demo's biggest differentiator
+        // from minimal viewers. The flight-recorder deaths (4 s,
+        // untouched, in full Chrome too) put the session's own
+        // feature load at the top of the suspect list; screenshots
+        // never worked on the test phones anyway
+        // (CAMERA_CAPTURE_UNAVAILABLE). The screenshot button will
+        // report unavailable while this is off.
+        enableScreenshots: false,
         // Render the XR layer at 85% scale: fragment work drops by
         // ~28% (it scales with the square), which is the difference
         // between holding and missing 60 fps on mid-range phones.
