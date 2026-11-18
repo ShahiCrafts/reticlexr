@@ -113,7 +113,7 @@ test('drag02', async () => {
   check('goal moved by the hit delta only', near3(engine._dragMove.goal, [0.4, 0, -2]));
   const midPos = [...engine.anchors.get('m1').position];
   check('position eased toward the goal (not teleported)', midPos[0] > 0 && midPos[0] < 0.4);
-  runFrames(40);
+  runFrames(120);
   check('position converged to the goal', near3(engine.anchors.get('m1').position, [0.4, 0, -2]));
   check('no overshoot past the goal', engine.anchors.get('m1').position[0] <= 0.4 + 1e-9);
   check('rendered object matches the record', near(root.position.x, 0.4) && near(root.position.z, -2));

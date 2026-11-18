@@ -18,6 +18,16 @@
  *   vice versa. (The scalars are smoothed, not the pointer positions:
  *   smoothing positions pulls them chord-wise during a twist and the
  *   model would slowly shrink while rotating.)
+ * - A second contact landing DURING an established drag is guarded:
+ *   a resting palm or thumb edge touching the screen mid-drag would
+ *   otherwise read as a pinch, because the inter-finger distance is
+ *   driven by the drag finger's motion (device report 2026-11-19:
+ *   the model scaled up or down while being dragged). In a guarded
+ *   phase, pinch/rotate stay silent until the NEW finger itself has
+ *   moved ~10 px — proof it is a participating pinch finger, not a
+ *   resting contact. A two-finger gesture that starts as one is
+ *   never guarded, so an anchored pinch (one finger still, the
+ *   other moving) works exactly as before.
  *
  * @param {Object} options
  * @param {HTMLElement} [options.element] - Element to listen on
@@ -64,6 +74,14 @@ export function createARGestureController({
   let contA = 0;
   let smoothA = 0;
   let lastRawA = 0;
+  // Mid-drag second-contact guard (see the header note): the id of
+  // a second pointer that landed during an established drag, the
+  // point where it landed, and whether it has since proven itself
+  // a real pinch finger by moving.
+  let guardId = null;
+  let guardStart = null;
+  let guardActive = false;
+  const GUARD_TRAVEL_PX = 10;
 
   // Weight of the newest sample in the smoothed distance/angle, and
   // the per-component deadzones (see the header note).
@@ -86,11 +104,20 @@ export function createARGestureController({
       gesture = null;
     } else if (pointers.size === 2) {
       // A second finger ends any single-pointer drag in progress:
-      // the gesture becomes a pinch/rotate from here.
+      // the gesture becomes a pinch/rotate from here. When the
+      // drag had actually travelled, the new contact is guarded
+      // until it moves itself (see the header note).
       if (dragTravelled) {
+        guardId = e.pointerId;
+        guardStart = point(e);
+        guardActive = false;
         dragTravelled = false;
         const first = [...pointers.values()][0];
         onDragEnd?.({ x: first.x, y: first.y });
+      } else {
+        guardId = null;
+        guardStart = null;
+        guardActive = false;
       }
       // Seed the smoothed state from the raw geometry so the new
       // baseline starts exactly where the fingers are — no jump.
@@ -110,6 +137,26 @@ export function createARGestureController({
     pointers.set(e.pointerId, point(e));
     if (pointers.size === 2 && gesture) {
       const [a,b] = [...pointers.values()];
+      // Guarded phase (see the header note): while the late second
+      // contact has not moved itself, keep the baselines pinned to
+      // the live geometry and fire nothing — the drag finger's
+      // motion must not leak into pinch/rotate. Once the new finger
+      // has travelled, the phase runs as a normal pinch from the
+      // current geometry, with no accumulated jump.
+      if (guardId !== null && !guardActive) {
+        const gp = pointers.get(guardId);
+        if (gp && distance(guardStart, gp) >= GUARD_TRAVEL_PX) {
+          guardActive = true;
+        } else {
+          smoothD = Math.max(1, distance(a, b));
+          contA = angle(a, b);
+          smoothA = contA;
+          lastRawA = contA;
+          gesture.distance = smoothD;
+          gesture.angle = smoothA;
+          return;
+        }
+      }
       const rawD = Math.max(1, distance(a,b));
       const rawA = angle(a,b);
       let step = rawA - lastRawA;
@@ -166,7 +213,7 @@ export function createARGestureController({
       dragTravelled = false;
     }
     pointers.delete(e.pointerId);
-    if (pointers.size < 2) gesture = null;
+    if (pointers.size < 2) { gesture = null; guardId = null; guardStart = null; guardActive = false; }
     if (pointers.size === 1) reseedRemainder(); else { lastSingle = null; start = null; }
   };
   const cancel = e => {
@@ -183,7 +230,7 @@ export function createARGestureController({
       if (last) onDragEnd?.({ x: last.x, y: last.y });
     }
     pointers.delete(e.pointerId);
-    if (pointers.size < 2) gesture = null;
+    if (pointers.size < 2) { gesture = null; guardId = null; guardStart = null; guardActive = false; }
     if (pointers.size === 1) reseedRemainder();
     else { lastSingle = null; if (pointers.size === 0) start = null; }
   };

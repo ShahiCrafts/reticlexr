@@ -106,7 +106,7 @@ test('drag07', async () => {
   entries = [hitEntry([0.4, 0.3, -2.4])]; // the finger climbs a 0.3 m step
   runFrames(1);
   check('goal climbed the step by the hit delta', near3(engine._dragMove.goal, [0.4, 0.3, -2.2], 0.01));
-  runFrames(50);
+  runFrames(150);
   check('model settled on the step', near3(engine.anchors.get('m1').position, [0.4, 0.3, -2.2], 0.01));
   check('rendered object matches the record', near(root.position.y, 0.3, 0.01));
 });

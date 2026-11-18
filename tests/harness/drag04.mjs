@@ -73,7 +73,7 @@ test('drag04', async () => {
   engine.updateDragPoint(0.5, 0.75);
   runFrames(1);
   check('goal followed the finger with no hit results at all', near3(engine._dragMove.goal, [1.4, 0, 0], 0.01));
-  runFrames(40);
+  runFrames(120);
   check('position converged to the goal', near3(engine.anchors.get('m1').position, [1.4, 0, 0]));
   check('rendered object matches the record', near(root.position.x, 1.4) && near(root.position.z, 0));
 

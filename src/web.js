@@ -283,14 +283,16 @@ export function intersectRayPlane(ray, planePoint, planeNormal) {
  */
 export class Damper {
   /**
-   * @param {number} decayMs - Time constant of the decay (50 ms
-   *   matches model-viewer's DECAY_MILLISECONDS for translation;
-   *   the vertical axis uses a slower 80 ms so surface steps feel
-   *   settled rather than bouncy).
+   * @param {number} decayMs - Time constant of the decay. The
+   *   drag pipeline uses 160 ms on every axis: model-viewer's
+   *   50 ms was the design's starting point, but on device the
+   *   longer decay is the feel Saugat picked from the design
+   *   page's damper demo (2026-11-19) — a softer glide that
+   *   still tracks the finger.
    * @param {number} maxVelocity - Velocity clamp (units/second),
    *   a runaway guard for glitched goals.
    */
-  constructor(decayMs = 50, maxVelocity = Infinity) {
+  constructor(decayMs = 160, maxVelocity = Infinity) {
     this._omega = 1000 / decayMs;
     this._maxVelocity = maxVelocity;
     this._velocity = 0;
@@ -3145,7 +3147,7 @@ export class ARCoreWeb extends WebPlugin {
    * applies, so the model keeps tracking across hit-test gaps and
    * follows surface height changes. The model's rendered position
    * then eases toward the goal through per-axis critically damped
-   * springs (50 ms; 80 ms vertical). The older routes — one
+   * springs (160 ms decay, the device-tuned value). The older routes — one
    * hitTestAtPoint promise per pointer move, per-point persistent
    * sources whose rays freeze at creation time, direct
    * positioning on a fixed-height math plane — each put lag, a
@@ -3184,9 +3186,9 @@ export class ARCoreWeb extends WebPlugin {
       goal: [...start],
       current: [...start],
       dampers: {
-        x: new Damper(50, 4),
-        y: new Damper(80, 1.5),
-        z: new Damper(50, 4),
+        x: new Damper(160, 4),
+        y: new Damper(160, 1.5),
+        z: new Damper(160, 4),
       },
       // Last accepted surface hit and the plane it defines. The
       // first hit of a gesture only seeds these (no delta — there
@@ -3705,6 +3707,26 @@ export class ARCoreWeb extends WebPlugin {
       // (see _wrapPlacementModel).
       const model = this._wrapPlacementModel(loadedModel);
 
+      // Measure the footprint NOW, at unit scale, from one box.
+      // The ring and shadow geometries are baked at this size,
+      // and the model's scale reaches them exactly once, through
+      // their per-frame sync in updateModelPositions. Measuring
+      // after the scale is applied (the old order) baked the
+      // scale into the geometry AND applied it again in the sync:
+      // at any scale but 1 the ring and shadow came out a factor
+      // of the scale too small or large — most visibly on a model
+      // switch at a pinched scale, where the new model inherited
+      // a ring sized like neither model (device report
+      // 2026-11-19).
+      const placeBox = this._placementBox(model);
+      const placeSize = new THREE.Vector3();
+      placeBox.getSize(placeSize);
+      const footprint = Math.max(placeSize.x, placeSize.z) / 2;
+      const footprintSize = {
+        width: Math.max(placeSize.x, 0.05),
+        depth: Math.max(placeSize.z, 0.05),
+      };
+
       model.position.set(position[0], position[1], position[2]);
       model.quaternion.set(rotation[0], rotation[1], rotation[2], rotation[3]);
       model.scale.set(scale[0], scale[1], scale[2]);
@@ -3714,8 +3736,6 @@ export class ARCoreWeb extends WebPlugin {
       this.loadedModels.set(anchorId, model);
       this._startModelAnimation(anchorId, model, modelUrl);
 
-      const footprint = this.getModelFootprint(model);
-
       if (this.config.showShadow) {
         const shadow = this.createShadowPlane(footprint);
         shadow.position.set(position[0], position[1] + 0.001, position[2]);
@@ -3724,8 +3744,7 @@ export class ARCoreWeb extends WebPlugin {
       }
 
       if (this.config.showBaseRing) {
-        const size = this.getModelFootprintSize(model);
-        const ring = this.createBaseRing(size.width, size.depth);
+        const ring = this.createBaseRing(footprintSize.width, footprintSize.depth);
         ring.position.set(position[0], position[1] + 0.002, position[2]);
         _scratchQuat.set(rotation[0], rotation[1], rotation[2], rotation[3]);
         _scratchEuler.setFromQuaternion(_scratchQuat, "YXZ");
@@ -4047,6 +4066,18 @@ export class ARCoreWeb extends WebPlugin {
     if (!anchor || !oldModel) throw codedError("MODEL_NOT_FOUND", `Anchor ${anchorId} not found`);
     const loadedNext = await this.loadModel(modelUrl);
     const next = this._wrapPlacementModel(loadedNext);
+    // Footprint at unit scale, measured before the old model's
+    // transform is copied over — see placeModel for why the order
+    // matters (a scaled measurement double-applies the scale to
+    // the ring and shadow).
+    const switchBox = this._placementBox(next);
+    const switchSize = new THREE.Vector3();
+    switchBox.getSize(switchSize);
+    const footprint = Math.max(switchSize.x, switchSize.z) / 2;
+    const footprintSize = {
+      width: Math.max(switchSize.x, 0.05),
+      depth: Math.max(switchSize.z, 0.05),
+    };
     // No material cloning: the new model shares its cache's materials
     // (LEAK-01); the preservation below clones on write per material.
     next.position.copy(oldModel.position);
@@ -4105,15 +4136,14 @@ export class ARCoreWeb extends WebPlugin {
     const oldShadow = this.modelShadows.get(anchorId);
     if (oldShadow) { this.scene.remove(oldShadow); disposeObject(oldShadow, this._sharedResources); this.modelShadows.delete(anchorId); }
     if (this.config.showShadow) {
-      const shadow = this.createShadowPlane(this.getModelFootprint(next));
+      const shadow = this.createShadowPlane(footprint);
       shadow.position.set(anchor.position[0], anchor.position[1] + .001, anchor.position[2]);
       this.scene.add(shadow); this.modelShadows.set(anchorId, shadow);
     }
     const oldRing = this.modelBaseRings.get(anchorId);
     if (oldRing) { this.scene.remove(oldRing); disposeObject(oldRing, this._sharedResources); this.modelBaseRings.delete(anchorId); }
     if (this.config.showBaseRing) {
-      const size = this.getModelFootprintSize(next);
-      const ring = this.createBaseRing(size.width, size.depth);
+      const ring = this.createBaseRing(footprintSize.width, footprintSize.depth);
       ring.position.set(anchor.position[0], anchor.position[1] + .002, anchor.position[2]);
       _scratchQuat.set(anchor.rotation[0], anchor.rotation[1], anchor.rotation[2], anchor.rotation[3]);
       _scratchEuler.setFromQuaternion(_scratchQuat, "YXZ");
