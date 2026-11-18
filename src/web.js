@@ -1467,6 +1467,7 @@ export class ARCoreWeb extends WebPlugin {
       // and must survive session restarts — BUG-04)
       this.modelPlaced = false;
       this.reticleVisible = false;
+      this._anchorMintBroken = false;
 
       this.debugLog("[ARCore] Session started - showReticle:", this.config.showReticle, "planeDetection:", this.planeDetectionSupported, "referenceSpace:", this.referenceSpaceType);
 
@@ -1621,7 +1622,15 @@ export class ARCoreWeb extends WebPlugin {
           }
         }
         if (drag.source) {
-          const dragResults = frame.getHitTestResults(drag.source);
+          let dragResults = [];
+          try {
+            dragResults = frame.getHitTestResults(drag.source);
+          } catch (_) {
+            // A cancelled/invalid source throws here; drop it —
+            // the loop creates a fresh one for the current point,
+            // and polygon positioning carries the drag meanwhile.
+            drag.source = null;
+          }
           if (dragResults.length > 0) {
             const dragPose = dragResults[0].getPose(this.referenceSpace);
             if (dragPose) {
@@ -1900,31 +1909,49 @@ export class ARCoreWeb extends WebPlugin {
       // by a transform, once they are at rest at a new pose. The
       // model currently being dragged is skipped — it re-anchors
       // on the first frame after the drag ends.
-      if (typeof frame.createAnchor === "function" && typeof XRRigidTransform !== "undefined") {
+      if (!this._anchorMintBroken && typeof frame.createAnchor === "function" && typeof XRRigidTransform !== "undefined") {
         this.anchors.forEach((data, id) => {
           if (!data.needsAnchor || data.xrAnchor || data.anchorPending) return;
           if (this._dragMove && this._dragMove.modelId === id) return;
           if (!data.position || !data.rotation) return;
+          // Rate-limit mints per model: a runtime that keeps
+          // failing must not be asked again every frame. A model
+          // that has never been minted is always allowed through.
+          if (data._lastAnchorMintAt != null && timestamp - data._lastAnchorMintAt < 250) return;
+          if (!data.position.every((n) => Number.isFinite(n))) return;
           data.anchorPending = true;
+          data._lastAnchorMintAt = timestamp;
           const p = data.position;
           const q = data.rotation;
-          frame.createAnchor(
-            new XRRigidTransform(
-              { x: p[0], y: p[1], z: p[2] },
-              { x: q[0], y: q[1], z: q[2], w: q[3] }
-            ),
-            this.referenceSpace
-          ).then((xrAnchor) => {
+          try {
+            frame.createAnchor(
+              new XRRigidTransform(
+                { x: p[0], y: p[1], z: p[2] },
+                { x: q[0], y: q[1], z: q[2], w: q[3] }
+              ),
+              this.referenceSpace
+            ).then((xrAnchor) => {
+              data.anchorPending = false;
+              if (data.needsAnchor && !data.xrAnchor && this.anchors.get(id) === data) {
+                data.xrAnchor = xrAnchor;
+                data.needsAnchor = false;
+              } else {
+                try { xrAnchor.delete(); } catch (_) {}
+              }
+            }).catch(() => {
+              data.anchorPending = false;
+            });
+          } catch (_) {
+            // createAnchor throws SYNCHRONOUSLY when the session
+            // did not actually grant the anchors feature (the
+            // method exists on XRFrame either way). Left unguarded,
+            // that throw escaped the frame callback before render
+            // and the view died. Treat it as "anchors unavailable
+            // on this session": models stay on plain coordinates
+            // (the pre-anchor behaviour) and we stop asking.
             data.anchorPending = false;
-            if (data.needsAnchor && !data.xrAnchor && this.anchors.get(id) === data) {
-              data.xrAnchor = xrAnchor;
-              data.needsAnchor = false;
-            } else {
-              try { xrAnchor.delete(); } catch (_) {}
-            }
-          }).catch(() => {
-            data.anchorPending = false;
-          });
+            this._anchorMintBroken = true;
+          }
         });
       }
 
@@ -1994,6 +2021,7 @@ export class ARCoreWeb extends WebPlugin {
             this.referenceSpace
           );
           if (anchorPose) {
+            anchorData._anchorPoseFailures = 0;
             const t = anchorPose.transform;
             anchorData.position = [t.position.x, t.position.y, t.position.z];
             anchorData.rotation = [
@@ -2004,11 +2032,17 @@ export class ARCoreWeb extends WebPlugin {
             ];
           }
         } catch (_) {
-          // The runtime deleted the anchor (its trackable is gone):
-          // drop it and let the loop mint a fresh one at the
-          // model's current recorded pose.
-          anchorData.xrAnchor = null;
-          anchorData.needsAnchor = true;
+          // Tolerate transient pose failures: only a SUSTAINED
+          // failure run means the runtime really deleted the
+          // anchor (its trackable is gone). Dropping on the first
+          // throw churned anchors — mint, throw, drop, re-mint —
+          // and anchor churn can destabilise the session itself.
+          anchorData._anchorPoseFailures = (anchorData._anchorPoseFailures || 0) + 1;
+          if (anchorData._anchorPoseFailures >= 30) {
+            anchorData._anchorPoseFailures = 0;
+            anchorData.xrAnchor = null;
+            anchorData.needsAnchor = true;
+          }
         }
       }
 
@@ -3333,6 +3367,11 @@ export class ARCoreWeb extends WebPlugin {
     }
 
     position = position === undefined ? undefined : normalizeVector3(position, undefined);
+    // A non-finite position (a glitched hit pose, a degenerate
+    // ray) must never enter the record: it poisons the anchor
+    // mint (XRRigidTransform rejects it) and the render alike.
+    // Ignore the position part and keep the last good one.
+    if (position && !position.every((n) => Number.isFinite(n))) position = undefined;
     rotation = rotation === undefined ? undefined : normalizeQuaternion(rotation, undefined);
     scale = scale === undefined ? undefined : normalizeScale(scale, undefined);
     if (scale) scale = clampScale(scale);
