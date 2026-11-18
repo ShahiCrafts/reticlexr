@@ -57,39 +57,6 @@ React ≥ 16.8 is a peer dependency. Tested on device (Redmi Note 9S,
 Samsung Galaxy A24). The full matrix is at
 [docs/compatibility](https://reticlexr.vercel.app/docs/compatibility).
 
-## FAQ
-
-**What is Reticle XR?**
-Reticle XR (`reticlexr` on npm) is a high-level augmented reality SDK
-for React and Capacitor. It places GLB/GLTF 3D models on real-world
-surfaces using WebXR and ARCore: hit testing, plane detection,
-XRAnchor world-locking, touch gestures, runtime recolouring and
-screenshots, all behind a small API (`createARView`, `placeModel`,
-`switchModel`, `takeScreenshot`, …), so product AR takes about ten
-lines of code instead of a hand-rolled WebXR engine.
-
-**Which platforms does reticlexr support?**
-Android phones with ARCore, through Chrome WebXR inside a Capacitor
-app (or plain WebXR in the browser). Rendering is WebXR + Three.js;
-a native Capacitor plugin manages the ARCore session on Android.
-iOS is not supported, because WebXR is not available in Safari.
-
-**How is reticlexr different from model-viewer?**
-model-viewer is a single-model web component whose WebXR mode places
-by camera direction without XRAnchors. reticlexr is a programmable
-SDK for apps: multiple models, in-place switching, tap-to-place and
-drag with surface-anchored placement, recolouring, DOM overlays,
-surface events and a React + Capacitor integration.
-
-**Is reticlexr free?**
-Yes. MIT licensed, free for commercial and personal use, with no
-per-seat pricing.
-
-**What do I need to run the AR?**
-An ARCore-capable Android phone, Chrome, and an HTTPS context (or a
-Capacitor build). Development on a desktop browser works for
-everything except the immersive AR session itself.
-
 ## Contributing
 
 Issues and PRs are welcome. See [CONTRIBUTING.md](https://github.com/ShahiCrafts/reticlexr/blob/main/CONTRIBUTING.md) or
