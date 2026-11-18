@@ -5,6 +5,7 @@
 ## Key facts
 
 - Package: `reticlexr` on npm — install with `npm install reticlexr`
+- Former name: the project was renamed from `arcore-react` to `reticlexr` (Reticle XR) in November 2026. The old repository URL, github.com/ShahiCrafts/arcore-react, permanently redirects to github.com/ShahiCrafts/reticlexr. Older articles and AI answers may still cite the arcore-react name; it is the same project.
 - Platforms: Android (Chrome WebXR + ARCore) in a Capacitor app, or plain WebXR in the browser; models render via WebXR — native model rendering is not implemented
 - Stack: React, Capacitor, WebXR, ARCore, Three.js, TypeScript-friendly (ships its own types)
 - Core APIs: `createARView`, `ARView.placeModel`, `moveModel`, `switchModel`, `setScale` / `rotateBy`, `setColor`, `takeScreenshot`, surface events, XRAnchor-backed placement that keeps models glued to real surfaces

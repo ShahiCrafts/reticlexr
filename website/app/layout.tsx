@@ -86,7 +86,7 @@ const JSON_LD = {
       '@type': 'SoftwareApplication',
       '@id': `${SITE_URL}/#software`,
       name: 'Reticle XR',
-      alternateName: 'reticlexr',
+      alternateName: ['reticlexr', 'arcore-react'],
       applicationCategory: 'DeveloperApplication',
       applicationSubCategory: 'Augmented Reality SDK',
       operatingSystem: 'Android, Web (WebXR)',
