@@ -24,15 +24,10 @@ Built on WebXR and Three.js, with native Android ARCore integration through Capa
 
 ## Installation
 
-Install the package:
+Install the package, then synchronize your Capacitor project:
 
 ```bash
 npm install reticlexr
-```
-
-Synchronize your Capacitor project:
-
-```bash
 npx cap sync
 ```
 
