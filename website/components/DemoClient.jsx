@@ -85,7 +85,6 @@ export default function DemoClient() {
   const [supportReason, setSupportReason] = useState('');
   const [active, setActive] = useState(false);
   const [surface, setSurface] = useState(false);
-  const surfaceBankRef = useRef({ banked: 0, since: null });
   const [crashReport, setCrashReport] = useState(null);
   const recorderRef = useRef({ interval: null, startedAt: 0, userClose: false, framesStopped: false });
   const [modelIndex, setModelIndex] = useState(0);
@@ -197,7 +196,6 @@ export default function DemoClient() {
   const start = async () => {
     const v = viewRef.current;
     if (!v) return;
-    surfaceBankRef.current = { banked: 0, since: null };
     setBusy(true);
     try {
       await v.create({
@@ -208,6 +206,9 @@ export default function DemoClient() {
         // state and auto-placement); only the dots are not drawn.
         showPlaneDots: false,
         dotSpacing: 0.14,
+        // The white footprint outline native viewers draw around
+        // a placed model: the surface-lock cue.
+        showBaseRing: true,
         lightEstimation: true,
         // The demo has a screenshot button, so camera access is
         // requested up front: WebXR grants session features only at
@@ -220,21 +221,11 @@ export default function DemoClient() {
         framebufferScale: 0.85,
       });
       v.onFrame((e) => {
-        // Track how long a surface has been held in total: the
-        // placement gate below waits for a short bank of stable
-        // surface time before enabling taps — Scene Viewer's
-        // scan discipline (never place on an immature map).
-        const bank = surfaceBankRef.current;
         if (e.type === 'surfaceDetected') {
           setSurface(true);
-          if (bank.since == null) bank.since = performance.now();
         }
         if (e.type === 'surfaceLost') {
           setSurface(false);
-          if (bank.since != null) {
-            bank.banked += performance.now() - bank.since;
-            bank.since = null;
-          }
         }
         if (e.type === 'sessionEnded') {
           // Flight recorder: close out the session. A close the
@@ -255,10 +246,19 @@ export default function DemoClient() {
                 recPush(kind, JSON.stringify(rest));
               });
               if (!rec.userClose && rec.startedAt) {
+                const rawDiag = eng.getDiagnostics();
                 const report = {
                   endedAt: new Date().toISOString(),
                   seconds: Math.round((performance.now() - rec.startedAt) / 1000),
-                  diag: eng.getDiagnostics(),
+                  diag: {
+                    ...rawDiag,
+                    heapMB:
+                      typeof performance !== 'undefined' && performance.memory
+                        ? Math.round(performance.memory.usedJSHeapSize / 1048576)
+                        : null,
+                    model: MODELS[modelIndexRef.current]?.label ?? null,
+                    frameMs: rawDiag.fps ? Math.round(1000 / rawDiag.fps) : null,
+                  },
                   recent: recRead().slice(-18),
                 };
                 localStorage.setItem(CRASH_KEY, JSON.stringify(report));
@@ -272,30 +272,19 @@ export default function DemoClient() {
           rec.userClose = false;
           rec.framesStopped = false;
           setSurface(false);
-          bank.banked = 0;
-          bank.since = null;
           setNeedsResume(true);
         }
       });
-      // The models total ~12 MB: preload only the selected one so
-      // the AR view opens promptly, then warm the cache with the
-      // rest in the background (they load on first use regardless).
+      // Preload only the selected model (~12 MB total for all
+      // three): background-parsing the rest during a live session
+      // is the load the flight recorder tied to the browser dying
+      // (2026-11-18). The others load lazily on first switch.
       await v.preloadModels([MODELS[modelIndexRef.current].url]);
-      // Placement maturity gate: hold gesture placement until
-      // the tracker has held a surface for a short bank of time
-      // (800 ms), so the first model never lands on an immature
-      // map — a leading cause of early drift, and the reason
-      // Scene Viewer makes you scan before it lets you place.
-      // Capped at 6 s so a difficult room can never trap anyone.
-      {
-        const bank = surfaceBankRef.current;
-        const gateStart = performance.now();
-        const bankedMs = () =>
-          bank.banked + (bank.since != null ? performance.now() - bank.since : 0);
-        while (bankedMs() < 800 && performance.now() - gateStart < 6000) {
-          await new Promise((r) => setTimeout(r, 100));
-        }
-      }
+      // Gestures enable immediately. An earlier build held them
+      // until 800 ms of surface time had banked (a scan-discipline
+      // gate); on device it read as slow plane detection, and the
+      // hit-test path already handles immature surfaces with its
+      // polygon, feature-point and floor fallbacks.
       v.enableCustomization({
         modelUrl: () => MODELS[modelIndexRef.current].url,
         debug: true,
@@ -368,7 +357,21 @@ export default function DemoClient() {
               const { t, kind, ...rest } = entry;
               recPush(kind, JSON.stringify(rest));
             });
-            const diag = eng.getDiagnostics();
+            const rawDiag = eng.getDiagnostics();
+            // Discrimination fields (2026-11-18): JS heap size
+            // separates a memory climb (our leak/pressure) from a
+            // GPU or container stall (heap flat); the active model
+            // name separates model cost from engine cost; frameMs
+            // is the frame time behind the fps figure.
+            const diag = {
+              ...rawDiag,
+              heapMB:
+                typeof performance !== 'undefined' && performance.memory
+                  ? Math.round(performance.memory.usedJSHeapSize / 1048576)
+                  : null,
+              model: MODELS[modelIndexRef.current]?.label ?? null,
+              frameMs: rawDiag.fps ? Math.round(1000 / rawDiag.fps) : null,
+            };
             // Heartbeat: overwritten every second, so if the
             // whole browser dies, the next launch still knows how
             // long the session lived and what it was doing last.
@@ -380,6 +383,9 @@ export default function DemoClient() {
                   seconds: rec.startedAt ? Math.round((performance.now() - rec.startedAt) / 1000) : null,
                   frames: diag.frames,
                   fps: diag.fps,
+                  frameMs: diag.frameMs,
+                  heapMB: diag.heapMB,
+                  model: diag.model,
                   lastOp: diag.lastOp,
                   space: diag.space,
                 }),

@@ -376,6 +376,8 @@ export function codedError(code, message) {
 // allocate a Matrix4 per plane per change. Only used for immediate
 // copy-into-target work, never retained.
 const _scratchMatrix4 = new THREE.Matrix4();
+const _scratchQuat = new THREE.Quaternion();
+const _scratchEuler = new THREE.Euler();
 
 // ============================================================
 // Resource ownership and disposal (LEAK-01/02/03/04/07)
@@ -1237,6 +1239,68 @@ export class ARCoreWeb extends WebPlugin {
     box.getSize(size);
     // Use the larger of width or depth for shadow radius
     return Math.max(size.x, size.z) / 2;
+  }
+
+  /**
+   * Footprint dimensions (width x depth, metres) of a model, from
+   * the same skinned placement measurement used everywhere else.
+   */
+  getModelFootprintSize(model) {
+    const box = this._placementBox(model);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    return { width: Math.max(size.x, 0.05), depth: Math.max(size.z, 0.05) };
+  }
+
+  /**
+   * The base outline native viewers draw on the surface around a
+   * placed model: a thin white rounded-rectangle band tracing the
+   * model's footprint. It is the visual proof that the model is
+   * locked to that patch of floor, and it follows the model
+   * through anchor updates, drags, rotations and scales (synced
+   * in updateModelPositions). Geometry is baked flat (rotated
+   * into the XZ plane) so the mesh itself only carries position,
+   * yaw and per-axis scale.
+   */
+  createBaseRing(width = 0.5, depth = 0.5) {
+    const margin = 0.05;
+    const band = 0.022;
+    const w = width + margin * 2;
+    const d = depth + margin * 2;
+    const r = Math.min(0.055, Math.min(w, d) / 2 - 0.005);
+    const roundedRect = (hw, hd, cr) => {
+      const s = new THREE.Shape();
+      s.moveTo(-hw + cr, -hd);
+      s.lineTo(hw - cr, -hd);
+      s.absarc(hw - cr, -hd + cr, cr, -Math.PI / 2, 0, false);
+      s.lineTo(hw, hd - cr);
+      s.absarc(hw - cr, hd - cr, cr, 0, Math.PI / 2, false);
+      s.lineTo(-hw + cr, hd);
+      s.absarc(-hw + cr, hd - cr, cr, Math.PI / 2, Math.PI, false);
+      s.lineTo(-hw, -hd + cr);
+      s.absarc(-hw + cr, -hd + cr, cr, Math.PI, Math.PI * 1.5, false);
+      return s;
+    };
+    const shape = roundedRect(w / 2, d / 2, r);
+    const hole = roundedRect(
+      Math.max(w / 2 - band, 0.01),
+      Math.max(d / 2 - band, 0.01),
+      Math.max(r - band, 0.005)
+    );
+    shape.holes.push(hole);
+    const geometry = new THREE.ShapeGeometry(shape, 24);
+    geometry.rotateX(-Math.PI / 2);
+    const material = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const ring = new THREE.Mesh(geometry, material);
+    ring.name = "model-base-ring";
+    ring.renderOrder = 2;
+    return ring;
   }
 
   initThreeJS() {
@@ -2203,6 +2267,32 @@ export class ARCoreWeb extends WebPlugin {
         if (shadow) {
           const avgScale = (anchorData.scale[0] + anchorData.scale[2]) / 2;
           shadow.scale.set(avgScale, avgScale, 1);
+        }
+      }
+
+      // The base outline rides the same record: position on the
+      // surface, yaw from the model's facing, footprint scale from
+      // the model's scale. Synced here so anchor refinements and
+      // drag updates move it in the same frame as the model.
+      const ring = this.modelBaseRings.get(anchorId);
+      if (ring && anchorData.position) {
+        ring.position.set(
+          anchorData.position[0],
+          anchorData.position[1] + 0.002,
+          anchorData.position[2]
+        );
+        if (anchorData.rotation) {
+          _scratchQuat.set(
+            anchorData.rotation[0],
+            anchorData.rotation[1],
+            anchorData.rotation[2],
+            anchorData.rotation[3]
+          );
+          _scratchEuler.setFromQuaternion(_scratchQuat, "YXZ");
+          ring.rotation.y = _scratchEuler.y;
+        }
+        if (anchorData.scale) {
+          ring.scale.set(anchorData.scale[0], 1, anchorData.scale[2]);
         }
       }
     });
@@ -3478,6 +3568,18 @@ export class ARCoreWeb extends WebPlugin {
         this.modelShadows.set(anchorId, shadow);
       }
 
+      if (this.config.showBaseRing) {
+        const size = this.getModelFootprintSize(model);
+        const ring = this.createBaseRing(size.width, size.depth);
+        ring.position.set(position[0], position[1] + 0.002, position[2]);
+        _scratchQuat.set(rotation[0], rotation[1], rotation[2], rotation[3]);
+        _scratchEuler.setFromQuaternion(_scratchQuat, "YXZ");
+        ring.rotation.y = _scratchEuler.y;
+        ring.scale.set(scale[0], 1, scale[2]);
+        this.scene.add(ring);
+        this.modelBaseRings.set(anchorId, ring);
+      }
+
       // Keep surface feedback active after placement. This lets users see where
       // another object could be placed and avoids losing spatial context.
       this.modelPlaced = true;
@@ -3851,6 +3953,18 @@ export class ARCoreWeb extends WebPlugin {
       const shadow = this.createShadowPlane(this.getModelFootprint(next));
       shadow.position.set(anchor.position[0], anchor.position[1] + .001, anchor.position[2]);
       this.scene.add(shadow); this.modelShadows.set(anchorId, shadow);
+    }
+    const oldRing = this.modelBaseRings.get(anchorId);
+    if (oldRing) { this.scene.remove(oldRing); disposeObject(oldRing, this._sharedResources); this.modelBaseRings.delete(anchorId); }
+    if (this.config.showBaseRing) {
+      const size = this.getModelFootprintSize(next);
+      const ring = this.createBaseRing(size.width, size.depth);
+      ring.position.set(anchor.position[0], anchor.position[1] + .002, anchor.position[2]);
+      _scratchQuat.set(anchor.rotation[0], anchor.rotation[1], anchor.rotation[2], anchor.rotation[3]);
+      _scratchEuler.setFromQuaternion(_scratchQuat, "YXZ");
+      ring.rotation.y = _scratchEuler.y;
+      ring.scale.set(anchor.scale[0], 1, anchor.scale[2]);
+      this.scene.add(ring); this.modelBaseRings.set(anchorId, ring);
     }
     this.frameListeners.forEach(cb => cb({ type:'modelSwitched', modelId: anchorId, anchorId, modelUrl }));
     return { modelId: anchorId, anchorId, modelUrl };

@@ -34,6 +34,7 @@ export class ARView {
       dotSpacing: options.dotSpacing ?? 0.14,
       dotSize: options.dotSize ?? 0.014,
       showShadow: options.showShadow !== false,
+      showBaseRing: options.showBaseRing === true,
     });
     const result = await this.engine.startSession({
       domOverlay: this.overlay,
