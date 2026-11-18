@@ -1,5 +1,6 @@
 <p align="center">
-  <img src="docs/assets/banner.svg" width="100%" alt="reticlexr: a high-level AR SDK. Put real products into your customers' rooms. Surfaces, models and gestures, handled.">
+  <img src="docs/assets/banner-light.svg#gh-light-mode-only" width="100%" alt="reticlexr: AR SDK for React & Capacitor">
+  <img src="docs/assets/banner-dark.svg#gh-dark-mode-only" width="100%" alt="reticlexr: AR SDK for React & Capacitor">
 </p>
 
 <p align="center">
