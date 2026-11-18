@@ -12,8 +12,6 @@
   <a href="https://reticlexr.vercel.app"><img src="https://img.shields.io/badge/docs-reticlexr.vercel.app-5740d8" alt="documentation site"></a>
 </p>
 
-# reticlexr
-
 **Place 3D products in the real world with React and Capacitor.**
 
 ReticleXR is a high-level augmented reality SDK that makes product visualization on real surfaces straightforward. Load a GLB model, point your camera at a surface, and let users place, interact with, and customize 3D products in their environment.
@@ -77,10 +75,6 @@ ReticleXR uses a hybrid architecture combining browser-based 3D rendering with n
 3D models are rendered through the WebXR runtime. Native model rendering is not currently implemented.
 
 Learn more in the [Architecture Guide](https://reticlexr.vercel.app/docs/concepts/architecture).
-
-## Documentation
-
-The complete documentation covers installation, configuration, usage, APIs, and platform-specific considerations.
 
 ## Live Demo
 
