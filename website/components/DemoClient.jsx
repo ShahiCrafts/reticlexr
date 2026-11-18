@@ -34,6 +34,33 @@ const SWATCHES = [
   ['Terracotta', '#a55f3b'],
 ];
 
+// Flight recorder: when an AR session ends unexpectedly on a
+// phone there is no console to read, so the demo keeps a small
+// ring of events (engine trace, page errors, gesture markers) in
+// local storage. It survives the session, and the close report
+// built from it is shown on the next launch, ready to copy.
+const REC_KEY = 'reticlexr-flight-recorder';
+const CRASH_KEY = 'reticlexr-last-close';
+
+function recPush(kind, msg) {
+  try {
+    const arr = JSON.parse(localStorage.getItem(REC_KEY) || '[]');
+    arr.push({ t: new Date().toISOString(), kind, msg: String(msg ?? '').slice(0, 400) });
+    while (arr.length > 120) arr.shift();
+    localStorage.setItem(REC_KEY, JSON.stringify(arr));
+  } catch (_) {
+    /* storage unavailable: the recorder is best-effort */
+  }
+}
+
+function recRead() {
+  try {
+    return JSON.parse(localStorage.getItem(REC_KEY) || '[]');
+  } catch (_) {
+    return [];
+  }
+}
+
 export default function DemoClient() {
   const overlayRef = useRef(null);
   const viewRef = useRef(null);
@@ -57,6 +84,8 @@ export default function DemoClient() {
   const [active, setActive] = useState(false);
   const [surface, setSurface] = useState(false);
   const surfaceBankRef = useRef({ banked: 0, since: null });
+  const [crashReport, setCrashReport] = useState(null);
+  const recorderRef = useRef({ interval: null, startedAt: 0, userClose: false, framesStopped: false });
   const [modelIndex, setModelIndex] = useState(0);
   const [placed, setPlaced] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -96,6 +125,28 @@ export default function DemoClient() {
   useEffect(() => {
     modelIndexRef.current = modelIndex;
   }, [modelIndex]);
+
+  // Flight recorder: surface a stored close report from a
+  // previous visit, and capture page-level errors into the ring
+  // (a session that dies from an exception leaves its last words
+  // here).
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(CRASH_KEY);
+      if (stored) setCrashReport(JSON.parse(stored));
+    } catch (_) {
+      /* ignore */
+    }
+    const onError = (e) => recPush('page-error', e.message || 'unknown error');
+    const onRejection = (e) =>
+      recPush('unhandled-rejection', e.reason?.message || String(e.reason || 'unknown'));
+    window.addEventListener('error', onError);
+    window.addEventListener('unhandledrejection', onRejection);
+    return () => {
+      window.removeEventListener('error', onError);
+      window.removeEventListener('unhandledrejection', onRejection);
+    };
+  }, []);
 
   useEffect(() => {
     let view = null;
@@ -165,6 +216,38 @@ export default function DemoClient() {
           }
         }
         if (e.type === 'sessionEnded') {
+          // Flight recorder: close out the session. A close the
+          // user did not ask for becomes a report they can copy
+          // and send; it is also stored for the next launch.
+          const rec = recorderRef.current;
+          if (rec.interval) {
+            clearInterval(rec.interval);
+            rec.interval = null;
+          }
+          try {
+            const eng = viewRef.current?.engine;
+            if (eng) {
+              eng.drainTrace().forEach((entry) => {
+                const { t, kind, ...rest } = entry;
+                recPush(kind, JSON.stringify(rest));
+              });
+              if (!rec.userClose && rec.startedAt) {
+                const report = {
+                  endedAt: new Date().toISOString(),
+                  seconds: Math.round((performance.now() - rec.startedAt) / 1000),
+                  diag: eng.getDiagnostics(),
+                  recent: recRead().slice(-18),
+                };
+                localStorage.setItem(CRASH_KEY, JSON.stringify(report));
+                setCrashReport(report);
+              }
+            }
+          } catch (_) {
+            /* the recorder must never break session teardown */
+          }
+          rec.startedAt = 0;
+          rec.userClose = false;
+          rec.framesStopped = false;
           setSurface(false);
           bank.banked = 0;
           bank.since = null;
@@ -237,6 +320,41 @@ export default function DemoClient() {
           ),
       });
       setActive(true);
+      // Flight recorder: from here the session is live. Drain the
+      // engine trace into storage once a second, and run a
+      // watchdog: if frames stop advancing while the session is
+      // supposedly active, that is a distinct failure from a
+      // session end and gets its own marker.
+      {
+        const rec = recorderRef.current;
+        rec.startedAt = performance.now();
+        rec.userClose = false;
+        rec.framesStopped = false;
+        recPush('session-open', 'demo session started');
+        if (rec.interval) clearInterval(rec.interval);
+        rec.interval = setInterval(() => {
+          try {
+            const eng = viewRef.current?.engine;
+            if (!eng) return;
+            eng.drainTrace().forEach((entry) => {
+              const { t, kind, ...rest } = entry;
+              recPush(kind, JSON.stringify(rest));
+            });
+            const diag = eng.getDiagnostics();
+            if (
+              diag.sessionActive &&
+              diag.lastFrameAgoMs != null &&
+              diag.lastFrameAgoMs > 2500 &&
+              !rec.framesStopped
+            ) {
+              rec.framesStopped = true;
+              recPush('frames-stopped', JSON.stringify(diag));
+            }
+          } catch (_) {
+            /* watchdog is best-effort */
+          }
+        }, 1000);
+      }
       setToast('Move slowly. Dots show detected surfaces');
       v.preloadModels(MODELS.map((m) => m.url)).catch(() => {});
     } catch (e) {
@@ -304,6 +422,7 @@ export default function DemoClient() {
   };
 
   const close = async () => {
+    recorderRef.current.userClose = true;
     await viewRef.current?.destroy();
     setActive(false);
     setPlaced(false);
@@ -348,6 +467,56 @@ export default function DemoClient() {
                 ? 'WebXR needs a secure context. Open this page over HTTPS (or localhost) and try again.'
                 : supportReason ||
                   'This browser does not support immersive WebXR AR. Use Chrome on an ARCore-capable Android phone.'}
+            </div>
+          ) : null}
+
+          {crashReport ? (
+            <div className="mt-6 w-full max-w-md rounded-lg border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-left text-sm text-rose-100" role="alert">
+              <strong className="font-semibold">The last AR session ended on its own.</strong>
+              <p className="mt-1 text-rose-200/90">
+                After {crashReport.seconds}s · {crashReport.diag?.frames ?? '?'} frames ·{' '}
+                {crashReport.diag?.fps ?? '?'} fps · last action: {crashReport.diag?.lastOp || 'none'} ·{' '}
+                space: {crashReport.diag?.space || '?'}
+              </p>
+              {crashReport.recent?.length ? (
+                <ul className="mt-2 space-y-0.5 font-mono text-[11px] leading-relaxed text-rose-200/80">
+                  {crashReport.recent.slice(-6).map((r, i) => (
+                    <li key={i} className="truncate">
+                      {r.kind}: {r.msg}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  className="rounded-md bg-rose-500/80 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(JSON.stringify(crashReport, null, 1));
+                      setToast('Close report copied. Paste it in the chat');
+                    } catch (_) {
+                      setToast('Copy failed. Screenshot this card instead');
+                    }
+                  }}
+                >
+                  Copy report
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md bg-white/10 px-3 py-1.5 text-xs font-semibold text-rose-100 hover:bg-white/20"
+                  onClick={() => {
+                    setCrashReport(null);
+                    try {
+                      localStorage.removeItem(CRASH_KEY);
+                    } catch (_) {
+                      /* ignore */
+                    }
+                  }}
+                >
+                  Dismiss
+                </button>
+              </div>
             </div>
           ) : null}
 

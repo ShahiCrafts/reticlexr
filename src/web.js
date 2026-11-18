@@ -1313,6 +1313,47 @@ export class ARCoreWeb extends WebPlugin {
     return this.renderer;
   }
 
+  /**
+   * Flight recorder: a ring of the last 80 notable events
+   * (session lifecycle, faults, context loss) with wall-clock
+   * stamps, plus a heartbeat and a last-operation marker. A host
+   * app can drain and persist these so that when a session ends
+   * unexpectedly on a phone, where no console is reachable, the
+   * reason survives to be read on the next launch.
+   */
+  _tracePush(kind, data = {}) {
+    if (!this._trace) this._trace = [];
+    this._trace.push({ t: Date.now(), kind, ...data });
+    if (this._trace.length > 80) this._trace.splice(0, this._trace.length - 80);
+  }
+
+  /** Return the recorded trace entries and clear the ring. */
+  drainTrace() {
+    const entries = this._trace || [];
+    this._trace = [];
+    return entries;
+  }
+
+  /** Record the most recent user-level operation (gestures call
+   *  this at event rate; it is a single string, never a log). */
+  noteOp(op) {
+    this._lastOp = op;
+  }
+
+  /** Point-in-time diagnostics for watchdogs and crash reports. */
+  getDiagnostics() {
+    return {
+      frames: this._diagFrames || 0,
+      lastFrameAgoMs:
+        this._diagLastFrameAt != null ? Math.round(performance.now() - this._diagLastFrameAt) : null,
+      fps: this.fpsEstimate ? Math.round(this.fpsEstimate) : null,
+      sessionActive: !!this.session,
+      space: this.referenceSpaceType || null,
+      lastOp: this._lastOp || null,
+      anchorMintBroken: !!this._anchorMintBroken,
+    };
+  }
+
   async startSession(options = {}) {
     const {
       planeDetection = true,
@@ -1445,7 +1486,12 @@ export class ARCoreWeb extends WebPlugin {
       this.planeDetectionSupported = typeof XRFrame !== 'undefined' && 'detectedPlanes' in XRFrame.prototype;
       this.debugLog(`[ARCore] Plane detection API supported: ${this.planeDetectionSupported}`);
 
+      this._tracePush('session-start', { space: this.referenceSpaceType || null });
       this.session.addEventListener("end", () => {
+        this._tracePush('session-end', {
+          frames: this._diagFrames || 0,
+          lastOp: this._lastOp || null,
+        });
         this.frameListeners.forEach((cb) => cb({ type: "sessionEnded" }));
         this.stopRendering();
         this.session = null;
@@ -1499,10 +1545,22 @@ export class ARCoreWeb extends WebPlugin {
     let frameCount = 0;
     let lastLoggedPlaneType = null;
 
+    // Flight-recorder context watch: a lost WebGL context stops
+    // rendering while the session lives on, which reads on device
+    // exactly like "the AR view closed". Record it so the cause
+    // is distinguishable from a session end.
+    const canvas = this.renderer.domElement;
+    if (canvas && !canvas._traceBound) {
+      canvas._traceBound = true;
+      canvas.addEventListener('webglcontextlost', () => this._tracePush('webgl-context-lost', {}));
+      canvas.addEventListener('webglcontextrestored', () => this._tracePush('webgl-context-restored', {}));
+    }
     this.renderer.setAnimationLoop((timestamp, frame) => {
       if (!frame) return;
 
       frameCount++;
+      this._diagFrames = frameCount;
+      this._diagLastFrameAt = performance.now();
       // Smoothed render-rate estimate (EMA over frame deltas).
       // Exposed for diagnostics: a model can only track the world
       // as smoothly as frames are produced, and a low rate on a
@@ -1951,6 +2009,7 @@ export class ARCoreWeb extends WebPlugin {
             // (the pre-anchor behaviour) and we stop asking.
             data.anchorPending = false;
             this._anchorMintBroken = true;
+            this._tracePush('anchor-mint-broken', {});
           }
         });
       }
@@ -3547,7 +3606,10 @@ export class ARCoreWeb extends WebPlugin {
     // ray) must never enter the record: it poisons the anchor
     // mint (XRRigidTransform rejects it) and the render alike.
     // Ignore the position part and keep the last good one.
-    if (position && !position.every((n) => Number.isFinite(n))) position = undefined;
+    if (position && !position.every((n) => Number.isFinite(n))) {
+      this._tracePush('transform-nonfinite', {});
+      position = undefined;
+    }
     rotation = rotation === undefined ? undefined : normalizeQuaternion(rotation, undefined);
     scale = scale === undefined ? undefined : normalizeScale(scale, undefined);
     if (scale) scale = clampScale(scale);

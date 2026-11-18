@@ -347,6 +347,7 @@ export class ARView {
       },
       onDrag: ({ x, y }) => {
         if (this.activeModelId) {
+          this.engine.noteOp?.('drag');
           if (!dragSession) {
             // Manipulation starts ON the object (the native-viewer
             // rule): a drag that begins far from the model is the
@@ -387,11 +388,13 @@ export class ARView {
       onPinch: ({ factor }) => {
         if (!this.activeModelId) return;
         this.setScale(this.transform.scale * factor);
+        this.engine.noteOp?.(`pinch scale=${this.transform.scale.toFixed(3)}`);
         options.onScale?.(this.transform.scale);
       },
       onRotate: ({ delta }) => {
         if (!this.activeModelId) return;
         this.rotateBy(-delta);
+        this.engine.noteOp?.(`rotate y=${this.transform.rotationY.toFixed(2)}`);
         options.onRotate?.(this.transform.rotationY);
       },
     });
