@@ -22,17 +22,6 @@ Built on WebXR and Three.js, with native Android ARCore integration through Capa
 
 ---
 
-## Features
-
-- **Surface Detection**: Detect real-world surfaces using WebXR hit testing.
-- **Tap-to-Place**: Position 3D models using a centre reticle.
-- **Plane Visualization**: Visualize detected surfaces before placing objects.
-- **Touch Interactions**: Rotate, scale, and move placed models using gestures.
-- **Runtime Customization**: Recolour and customize 3D models without reloading them.
-- **Screenshots**: Capture AR scenes directly from the experience.
-- **React Integration**: A high-level API designed for React applications.
-- **Native Android Integration**: Capacitor plugin for ARCore session management, hit testing, and surface events.
-
 ## Installation
 
 Install the package:
