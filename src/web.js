@@ -2382,6 +2382,101 @@ export class ARCoreWeb extends WebPlugin {
     }
   }
 
+  /**
+   * Mint an anchor attached to the trackable the runtime hits
+   * along `ray`, when that hit confirms `expectedPosition` (within
+   * 0.3 m). Trackable-attached anchors are welded to their
+   * surface — they inherit the surface's own pose corrections —
+   * while pose-minted anchors merely hold a world coordinate, so
+   * for placements the trackable form is preferred wherever a
+   * confirming hit result can be had. Resolves null when no
+   * confirming result lands within a short window (~12 frames),
+   * when the confirming hit is somewhere else, or when hit-result
+   * anchors are unavailable; the caller falls back to a
+   * pose-minted anchor. Never rejects.
+   *
+   * @param {{origin: object, direction: object}} ray - Reference-space ray
+   * @param {number[]} expectedPosition - Position the hit must confirm
+   * @returns {Promise<object | null>} The trackable-attached anchor, or null
+   */
+  _trackableAnchorForPoint(ray, expectedPosition) {
+    const session = this.session;
+    if (!session || typeof session.requestHitTestSource !== "function") {
+      return Promise.resolve(null);
+    }
+    return new Promise((resolve) => {
+      let done = false;
+      let source = null;
+      const finish = (anchor) => {
+        if (done) return;
+        done = true;
+        if (source) {
+          try { source.cancel(); } catch (_) {}
+          source = null;
+        }
+        resolve(anchor || null);
+      };
+      (async () => {
+        try {
+          source = await session.requestHitTestSource({
+            space: this.referenceSpace,
+            offsetRay: new XRRay(ray.origin, ray.direction),
+            entityTypes: ["plane", "point"],
+          });
+        } catch (_) {
+          finish(null);
+          return;
+        }
+        if (done) {
+          try { source.cancel(); } catch (_) {}
+          return;
+        }
+        let frames = 0;
+        const onFrame = (time, frame) => {
+          if (done) return;
+          frames++;
+          try {
+            const results = frame.getHitTestResults(source);
+            if (results.length > 0) {
+              const pose = results[0].getPose(this.referenceSpace);
+              if (!pose || typeof results[0].createAnchor !== "function") {
+                finish(null);
+                return;
+              }
+              const p = pose.transform.position;
+              const d = Math.hypot(
+                p.x - expectedPosition[0],
+                p.y - expectedPosition[1],
+                p.z - expectedPosition[2]
+              );
+              if (d > 0.3) {
+                // The runtime's surface disagrees with the
+                // polygon position: do not weld the model to a
+                // different surface than the one it was placed on.
+                finish(null);
+                return;
+              }
+              results[0].createAnchor().then(
+                (a) => finish(a || null),
+                () => finish(null)
+              );
+              return;
+            }
+          } catch (_) {
+            finish(null);
+            return;
+          }
+          if (frames >= 12) {
+            finish(null);
+            return;
+          }
+          session.requestAnimationFrame(onFrame);
+        };
+        session.requestAnimationFrame(onFrame);
+      })();
+    });
+  }
+
   hitTestAtPoint(x, y, options = {}) {
     const session = this.session;
     const referenceSpace = this.referenceSpace;
@@ -2536,9 +2631,29 @@ export class ARCoreWeb extends WebPlugin {
           // (and, beyond it, the floor-plane fallback).
           const tracked = this._trackedPlaneHit(frame, ray);
           if (tracked) {
-            const anchor = options.anchor
-              ? await this._createAnchorAt(frame, tracked.position, tracked.rotation)
-              : null;
+            let anchor = null;
+            if (options.anchor) {
+              // The polygon path settles from geometry we computed
+              // ourselves, so it has no hit result to anchor to —
+              // but a trackable-attached anchor (welded to the
+              // surface the runtime hit) holds a model far better
+              // than a pose-minted one (Google's documented
+              // distinction: trackable-attached anchors inherit
+              // their surface's corrections). Run a one-off runtime
+              // hit test for the same point in parallel and prefer
+              // its anchor when it confirms the polygon position;
+              // the pose-minted anchor is the fallback.
+              const [poseAnchor, trackAnchor] = await Promise.all([
+                this._createAnchorAt(frame, tracked.position, tracked.rotation),
+                this._trackableAnchorForPoint(ray, tracked.position),
+              ]);
+              if (trackAnchor) {
+                if (poseAnchor) { try { poseAnchor.delete(); } catch (_) {} }
+                anchor = trackAnchor;
+              } else {
+                anchor = poseAnchor;
+              }
+            }
             settle({
               hit: true,
               position: tracked.position,

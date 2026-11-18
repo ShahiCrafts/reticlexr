@@ -165,11 +165,14 @@ test('anchor01', async () => {
   async function pump(promise) {
     let result = null;
     promise.then((r) => { result = r; });
-    for (let i = 0; i < 10 && result === null; i++) {
+    // Fire-and-tick, not await-per-callback: the polygon path's
+    // pose-frame callback now awaits rAF-driven work (the anchor
+    // upgrade), so awaiting the callback here would deadlock.
+    for (let i = 0; i < 24 && result === null; i++) {
       const cbs = rafQueue;
       rafQueue = [];
-      for (const cb of cbs) await cb(16 * i, frame2);
-      await new Promise((r) => setTimeout(r, 1));
+      for (const cb of cbs) cb(16 * i, frame2);
+      await new Promise((r) => setTimeout(r, 5));
     }
     return result;
   }
@@ -229,5 +232,105 @@ test('anchor01', async () => {
   check(
     'trackable-attached anchor preferred over pose-minted',
     result3.anchor === trackableAnchor
+  );
+
+  // ---- Part E: on the POLYGON fast path, a confirming runtime
+  // hit upgrades the placement to a trackable-attached anchor;
+  // a disagreeing hit leaves the pose-minted anchor in place ----
+  const makePolygonRig = (hitPosePosition) => {
+    const engine = new ARCoreWeb();
+    engine.referenceSpace = {};
+    engine.viewerSpace = {};
+    engine.planeDetectionSupported = true;
+    const planeSpaceE = {};
+    // detectedPlanes is keyed by the plane object itself (which
+    // carries polygon + planeSpace); the value holds the metadata.
+    engine.detectedPlanes.set(
+      {
+        planeSpace: planeSpaceE,
+        polygon: [
+          { x: -2, z: 0 }, { x: 2, z: 0 }, { x: 2, z: -4 }, { x: -2, z: -4 },
+        ],
+      },
+      { orientation: 'horizontal' }
+    );
+    let rafQE = [];
+    const sourceE = { cancel() {} };
+    engine.session = {
+      requestAnimationFrame: (cb) => { rafQE.push(cb); return rafQE.length; },
+      requestHitTestSource: async () => sourceE,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    };
+    const trackableE = { anchorSpace: {}, delete() {} };
+    const poseE = { anchorSpace: {}, delete() {} };
+    const hitResultE = {
+      getPose: () => ({
+        transform: {
+          position: hitPosePosition,
+          orientation: { x: 0, y: 0, z: 0, w: 1 },
+        },
+      }),
+      createAnchor: async () => trackableE,
+    };
+    const frameE = {
+      getViewerPose: () => ({
+        transform: {
+          position: { x: 0, y: 1.4, z: 0 },
+          orientation: { x: 0, y: 0, z: 0, w: 1 },
+        },
+        views: [{ projectionMatrix: proj }],
+      }),
+      getPose: (space) => (space === planeSpaceE
+        ? {
+            transform: {
+              position: { x: 0, y: 0, z: 0 },
+              orientation: { x: 0, y: 0, z: 0, w: 1 },
+            },
+          }
+        : undefined),
+      getHitTestResults: (src) => (src === sourceE ? [hitResultE] : []),
+      createAnchor: async () => poseE,
+    };
+    const pumpE = async (promise) => {
+      let result = null;
+      promise.then((r) => { result = r; });
+      // Do NOT await the frame callbacks: the polygon path now
+      // awaits rAF-driven work (the anchor upgrade) inside its
+      // pose-frame callback, so awaiting it here would deadlock
+      // the pump. Fire the callbacks, then let microtasks and the
+      // next pump iteration interleave as a real session would.
+      for (let i = 0; i < 24 && result === null; i++) {
+        const cbs = rafQE;
+        rafQE = [];
+        for (const cb of cbs) cb(16 * i, frameE);
+        await new Promise((r) => setTimeout(r, 5));
+      }
+      return result;
+    };
+    return { engine, pumpE, trackableE, poseE };
+  };
+
+  // The polygon hit for point (0.5, 0.75) from (0, 1.4, 0) is
+  // (0, 0, -2.8); a runtime hit at the same spot confirms it.
+  const rigNear = makePolygonRig({ x: 0, y: 0, z: -2.8 });
+  const nearResult = await rigNear.pumpE(
+    rigNear.engine.hitTestAtPoint(0.5, 0.75, { anchor: true })
+  );
+  check('polygon hit resolves with anchor upgrade rig', nearResult && nearResult.hit === true);
+  check(
+    'confirming hit upgrades to the trackable anchor',
+    nearResult.anchor === rigNear.trackableE
+  );
+
+  // A runtime hit 2 m away disagrees: keep the pose-minted anchor.
+  const rigFar = makePolygonRig({ x: 2, y: 0, z: -2.8 });
+  const farResult = await rigFar.pumpE(
+    rigFar.engine.hitTestAtPoint(0.5, 0.75, { anchor: true })
+  );
+  check('polygon hit resolves with far-hit rig', farResult && farResult.hit === true);
+  check(
+    'disagreeing hit keeps the pose-minted anchor',
+    farResult.anchor === rigFar.poseE
   );
 });
