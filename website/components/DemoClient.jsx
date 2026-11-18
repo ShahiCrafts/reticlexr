@@ -64,6 +64,7 @@ export default function DemoClient() {
   const [color, setColor] = useState(SWATCHES[0][1]);
   const [toast, setToast] = useState('');
   const [debugEntries, setDebugEntries] = useState([]);
+  const [projNorm, setProjNorm] = useState(null);
   const [debugVisible, setDebugVisible] = useState(true);
   const dbgLastOf = (types) => {
     for (let i = debugEntries.length - 1; i >= 0; i--) {
@@ -157,8 +158,17 @@ export default function DemoClient() {
         debug: true,
         // Keep a deep window: at 8 entries, a few seconds of drag
         // events evicted the last 'placed' entry and the panel's
-        // model/base-centre lines went blank mid-session.
-        onDebug: (entry) => setDebugEntries((prev) => [...prev.slice(-39), entry]),
+        // model/base-centre lines went blank mid-session. 'proj'
+        // entries (where the model's centre falls on screen) arrive
+        // several times a second, so they bypass the window and go
+        // straight to their own state.
+        onDebug: (entry) => {
+          if (entry.type === 'proj') {
+            setProjNorm(entry.normalised);
+            return;
+          }
+          setDebugEntries((prev) => [...prev.slice(-39), entry]);
+        },
         onTap: () =>
           setTimeout(() => {
             if (v.activeModelId) {
@@ -351,6 +361,31 @@ export default function DemoClient() {
 
           <div className="flex-1" />
 
+          {/* Debug markers: amber ring = where the last tap landed
+              (normalised overlay coordinates); cyan cross = where
+              the model's centre projects on screen right now. If the
+              ring sits under the fingertip but the cross is not on
+              the model's base, rendering diverges; if the cross is
+              on the base but away from the ring after a tap, the
+              hit test does. */}
+          {dbgTap?.normalised && (
+            <div
+              className="pointer-events-none absolute z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-amber-400"
+              style={{ left: `${dbgTap.normalised.x * 100}%`, top: `${dbgTap.normalised.y * 100}%` }}
+              aria-hidden="true"
+            />
+          )}
+          {projNorm && (
+            <div
+              className="pointer-events-none absolute z-10 h-7 w-7 -translate-x-1/2 -translate-y-1/2"
+              style={{ left: `${projNorm.x * 100}%`, top: `${projNorm.y * 100}%` }}
+              aria-hidden="true"
+            >
+              <span className="absolute left-1/2 top-0 h-full w-[2px] -translate-x-1/2 bg-cyan-300" />
+              <span className="absolute left-0 top-1/2 h-[2px] w-full -translate-y-1/2 bg-cyan-300" />
+            </div>
+          )}
+
           {debugVisible ? (
             <div className="absolute left-3 top-1/2 z-10 w-[272px] -translate-y-1/2 rounded-xl bg-black/70 px-3 py-2 font-mono text-[11px] leading-5 text-emerald-300 backdrop-blur-sm" data-ui="true">
               <div className="flex items-center justify-between">
@@ -366,6 +401,7 @@ export default function DemoClient() {
               <div>hit: {dbgFmt(dbgPlace?.hit)}</div>
               <div>centre after tap: {dbgFmt(dbgPlace?.centre)}</div>
               <div>Δ hit → centre: {dbgDeltaMm == null ? '—' : `${dbgDeltaMm.toFixed(1)} mm`}</div>
+              <div>model on screen: {projNorm ? `(${projNorm.x.toFixed(3)}, ${projNorm.y.toFixed(3)})` : '—'}</div>
             </div>
           ) : (
             <button type="button" data-ui="true" onClick={() => setDebugVisible(true)} className="absolute left-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/60 px-2.5 py-1 font-mono text-[10px] font-bold text-emerald-300">

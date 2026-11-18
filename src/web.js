@@ -216,6 +216,53 @@ export function rayFromScreenPoint(viewerTransform, projectionMatrix, x, y) {
   };
 }
 
+/**
+ * Where a drag should put the model THIS frame: intersect the
+ * finger's ray with the horizontal plane at the drag surface's
+ * height, then re-apply the grab offset (model centre minus the
+ * point originally grabbed), so the grabbed spot stays under the
+ * finger instead of the centre snapping to it. Pure math on the
+ * current frame's pose — no async hit test in the path — which is
+ * what keeps a drag glued to the finger. Returns [x, planeY, z],
+ * or null when the ray does not meet the plane within sane reach
+ * (pointing at/above the horizon, or implausibly far).
+ */
+export function dragPlaneTarget(ray, planeY, grabOffset) {
+  if (!ray || planeY == null) return null;
+  const dy = ray.direction.y;
+  if (dy > -0.02) return null;
+  const t = (planeY - ray.origin.y) / dy;
+  if (!(t >= 0.1 && t <= 8)) return null;
+  const ox = grabOffset ? grabOffset.x : 0;
+  const oz = grabOffset ? grabOffset.z : 0;
+  return [
+    ray.origin.x + ray.direction.x * t + ox,
+    planeY,
+    ray.origin.z + ray.direction.z * t + oz,
+  ];
+}
+
+/**
+ * Project a world position to normalised screen coordinates under
+ * the given view — the inverse of rayFromScreenPoint. Used by the
+ * debug readout to report where a model's centre actually falls on
+ * screen, so it can be compared with the tap point and with the
+ * model's rendered feet in a single screenshot. Returns null when
+ * the point is behind the camera.
+ */
+export function projectToScreen(position, viewerTransform, projectionMatrix) {
+  const p = Array.isArray(position)
+    ? position
+    : [position.x, position.y, position.z];
+  const viewMatrix = new THREE.Matrix4()
+    .fromArray(viewerTransform.matrix)
+    .invert();
+  const v = new THREE.Vector3(p[0], p[1], p[2]).applyMatrix4(viewMatrix);
+  if (v.z > -0.05) return null;
+  v.applyMatrix4(new THREE.Matrix4().fromArray(projectionMatrix));
+  return { x: (v.x + 1) / 2, y: (1 - v.y) / 2 };
+}
+
 // ============================================================
 // Scale limits (API-08)
 // ============================================================
@@ -439,6 +486,7 @@ export class ARCoreWeb extends WebPlugin {
     this.referenceSpace = null;
     this.viewerSpace = null;
     this.hitTestSource = null;
+    this.onDebugProject = null;
     this.xrGlBinding = null;
     this.pendingScreenshot = null;
     this._screenshotHintWarned = false;
@@ -1429,11 +1477,14 @@ export class ARCoreWeb extends WebPlugin {
         }
       }
 
-      // Drag-to-move tracking: while a drag is active, keep a
-      // hit-test source for the latest drag point and apply its hits
-      // as they land in this loop (see beginDragMove). Doing this
-      // per frame, instead of one promise-based hit test per pointer
-      // move, keeps the model within a frame or two of the finger.
+      // Drag-to-move tracking: while a drag is active, the loop
+      // positions the model every frame by intersecting the
+      // finger's current ray with the drag surface's plane (see
+      // beginDragMove / dragPlaneTarget). A hit-test source for the
+      // latest drag point runs alongside, but only to establish and
+      // refresh that plane's height — positioning from its hits
+      // trailed the finger, because a source's ray is fixed at its
+      // creation-time point.
       if (this._dragMove && this._dragMove.point && this.referenceSpace && this.session) {
         const drag = this._dragMove;
         // Create-then-swap: while a replacement source is created for
@@ -1498,19 +1549,94 @@ export class ARCoreWeb extends WebPlugin {
             const dragPose = dragResults[0].getPose(this.referenceSpace);
             if (dragPose) {
               const t = dragPose.transform;
-              // Position only: the hit pose's orientation is the
-              // surface plane's, not the model's — applying it on
-              // every drag frame twisted the model to the plane's
-              // axes and silently discarded the user's rotation.
+              if (drag.grabOffset == null) {
+                // First hit of the drag: establish the surface
+                // height and the grab offset (centre minus the
+                // grabbed point) WITHOUT moving the model — the
+                // per-frame plane positioning below takes it from
+                // here, so the model never snaps its centre to the
+                // finger.
+                const centre = this.anchors.get(drag.modelId)?.position;
+                if (centre) {
+                  const c = Array.isArray(centre)
+                    ? centre
+                    : [centre.x, centre.y, centre.z];
+                  drag.grabOffset = {
+                    x: c[0] - t.position.x,
+                    z: c[2] - t.position.z,
+                  };
+                  drag.planeY = t.position.y;
+                }
+              } else {
+                // Later hits only keep the surface height current
+                // (the finger crossing onto a bed, a step, ...);
+                // they no longer position the model — a source's
+                // ray is built from the point at its creation time,
+                // so positioning from hits trails the finger by
+                // construction (device report 2026-11-18: "not
+                // attached to my finger while dragging").
+                drag.planeY = t.position.y;
+              }
+            }
+          }
+        }
+        // Per-frame positioning: intersect the finger's CURRENT ray
+        // with the drag plane and place the model there (plus the
+        // grab offset) in this same frame. No async step sits
+        // between the finger and the model, so the grabbed point
+        // stays under the finger.
+        if (drag.planeY != null && drag.point) {
+          const viewerPose = frame.getViewerPose(this.referenceSpace);
+          const view = viewerPose && viewerPose.views && viewerPose.views[0];
+          if (viewerPose && view) {
+            const ray = rayFromScreenPoint(
+              viewerPose.transform,
+              view.projectionMatrix,
+              drag.point.x,
+              drag.point.y
+            );
+            const target = dragPlaneTarget(ray, drag.planeY, drag.grabOffset);
+            if (target) {
               this.transformModel({
                 modelId: drag.modelId,
-                position: [t.position.x, t.position.y, t.position.z],
+                position: target,
               }).catch(() => {
                 // The model was removed mid-drag: end quietly.
                 if (this._dragMove === drag) this.endDragMove();
               });
             }
           }
+        }
+      }
+
+      // Debug projection readout: where each placed model's centre
+      // falls on screen under the CURRENT view, throttled. The
+      // consumer (ARView's debug channel) can draw it next to the
+      // last tap point, which separates hit-test error from render
+      // error in a single screenshot — the two are indistinguishable
+      // in the world-space numbers alone (device investigation
+      // 2026-11-18).
+      if (this.onDebugProject && this.referenceSpace && this.anchors.size > 0) {
+        const now = performance.now();
+        if (now - (this._lastProjectAt || 0) > 150) {
+          this._lastProjectAt = now;
+          try {
+            const viewerPose = frame.getViewerPose(this.referenceSpace);
+            const view = viewerPose && viewerPose.views && viewerPose.views[0];
+            if (viewerPose && view && viewerPose.transform.matrix) {
+              for (const [modelId, anchor] of this.anchors) {
+                if (!anchor.position) continue;
+                const n = projectToScreen(
+                  anchor.position,
+                  viewerPose.transform,
+                  view.projectionMatrix
+                );
+                if (n) {
+                  try { this.onDebugProject({ modelId, normalised: n }); } catch (_) {}
+                }
+              }
+            }
+          } catch (_) { /* debug must never break the frame loop */ }
         }
       }
 
@@ -1742,6 +1868,7 @@ export class ARCoreWeb extends WebPlugin {
   async stopSession() {
     this.stopRendering();
     this.endDragMove();
+    this.onDebugProject = null;
 
     // Dispose per-instance resources on the way out (LEAK-03);
     // cache-owned resources survive for the next session
@@ -2180,13 +2307,15 @@ export class ARCoreWeb extends WebPlugin {
   }
 
   /**
-   * Begin a frame-loop drag for a placed model. While a drag is
-   * active the render loop keeps a hit-test source for the latest
-   * drag point (see updateDragPoint) and applies its hits directly,
-   * so the model tracks the finger within a frame or two. The older
-   * route, one hitTestAtPoint promise per pointer move, serialised
-   * source creation and result frames behind every point, so the
-   * model trailed the finger and landed where it HAD been.
+   * Begin a frame-loop drag for a placed model. The render loop
+   * positions the model from the finger's current ray and the drag
+   * plane every frame (see the loop and dragPlaneTarget); a
+   * hit-test source maintained alongside establishes the plane's
+   * height from its first hit and keeps it current. The older
+   * routes — one hitTestAtPoint promise per pointer move, then
+   * positioning directly from source hits — both put an async step
+   * between finger and model, so the model trailed the finger and
+   * landed where it HAD been.
    *
    * @param {string} modelId
    * @returns {boolean} false when the model is unknown
@@ -2201,6 +2330,14 @@ export class ARCoreWeb extends WebPlugin {
       sourcePoint: null,
       creating: false,
       generation: 0,
+      // Established by the drag's first hit-test result: the height
+      // of the surface being dragged over, and the offset from the
+      // grabbed point to the model's centre. From then on the loop
+      // positions the model by intersecting the finger's CURRENT
+      // ray with that plane every frame (see dragPlaneTarget) —
+      // hit-test sources only keep the height current.
+      planeY: null,
+      grabOffset: null,
     };
     return true;
   }

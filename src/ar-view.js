@@ -380,7 +380,19 @@ export class ARView {
         options.onRotate?.(this.transform.rotationY);
       },
     });
-    return () => { this.gestures?.destroy(); this.gestures = null; };
+    // Debug projection feed: the engine reports where each placed
+    // model's centre falls on screen (same debug channel, 'proj'
+    // entries), so a consumer can draw it next to the tap point.
+    if (this.engine) {
+      this.engine.onDebugProject = this.debugEnabled
+        ? (p) => this._debugLog({ type: 'proj', modelId: p.modelId, normalised: p.normalised })
+        : null;
+    }
+    return () => {
+      this.gestures?.destroy();
+      this.gestures = null;
+      if (this.engine) this.engine.onDebugProject = null;
+    };
   }
 
   takeScreenshot(options = {}) { return this.engine.takeScreenshot(options); }

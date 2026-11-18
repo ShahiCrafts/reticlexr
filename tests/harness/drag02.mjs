@@ -1,14 +1,21 @@
-// Engine drag tracking (drag-to-move, second implementation): while
-// a drag is active the render loop keeps a hit-test source for the
-// latest drag point and applies hits directly, so the model stays
-// within a frame or two of the finger. Stub session + stub render
-// loop, modelled on perf02:
+// Engine drag tracking (drag-to-move, third implementation): while
+// a drag is active the loop positions the model EVERY FRAME by
+// intersecting the finger's current ray with the drag plane (the
+// surface height established by the drag's first hit), re-applying
+// the grab offset so the grabbed spot stays under the finger.
+// Hit-test sources run alongside only to establish/refresh the
+// plane height — positioning from their hits trailed the finger,
+// because a source's ray is fixed at its creation-time point.
+// Stub session + stub render loop, modelled on perf02:
 //  A. beginDragMove rejects unknown models; updateDragPoint with no
 //     drag is a no-op.
-//  B. The loop creates ONE source whose ray matches the drag point,
-//     then applies the hit to the model and the anchor record.
-//  C. Moving the point cancels the old source, creates a new one,
-//     and the model follows the new hit.
+//  B. The loop creates ONE source whose ray matches the drag point;
+//     its first hit establishes plane + grab offset WITHOUT moving
+//     the model (no centre snap).
+//  C. Moving the point positions the model the SAME frame from the
+//     current ray (before the new source's hit lands); the stale
+//     source is cancelled and a fresh one created; a later source
+//     hit does not teleport the model.
 //  D. endDragMove cancels the live source; later frames do nothing.
 
 import { test, expect } from 'vitest';
@@ -54,10 +61,13 @@ test('drag02', async () => {
   engine.startRendering();
 
   const proj = new THREE.PerspectiveCamera(90, 1, 0.1, 100).projectionMatrix.toArray();
+  // The viewer hovers 1.4 m above the drag plane (y=0), like a held
+  // phone — a viewer IN the plane could never ray-hit it.
   const identityTransform = {
-    position: { x: 0, y: 0, z: 0 },
+    position: { x: 0, y: 1.4, z: 0 },
     orientation: { x: 0, y: 0, z: 0, w: 1 },
   };
+  const near4 = (a, b) => Math.abs(a - b) < 1e-4;
   const frame = {
     getViewerPose: () => ({ transform: identityTransform, views: [{ projectionMatrix: proj }] }),
     getHitTestResults: (src) => {
@@ -97,25 +107,42 @@ test('drag02', async () => {
   );
   loopCb(32, frame);
   check(
-    'the hit moved the model root',
-    root.position.x === 3 && root.position.y === 0 && root.position.z === -2
+    'the first hit established the drag plane',
+    engine._dragMove.planeY === 0
   );
   check(
-    'the anchor record followed',
-    JSON.stringify(engine.anchors.get('m1').position) === '[3,0,-2]'
+    'the first hit recorded the grab offset (centre - hit)',
+    engine._dragMove.grabOffset.x === -3 && engine._dragMove.grabOffset.z === 2
+  );
+  check(
+    'the first hit did NOT snap the model to the hit',
+    root.position.x === 0 && root.position.y === 0 && root.position.z === 0
   );
 
   // ---------- C: the point moves on ----------
   engine.updateDragPoint(0.25, 0.75);
   loopCb(48, frame);
+  // The new point's ray from (0, 1.4, 0) meets the plane at
+  // (-1.4, 0, -2.8); with the grab offset (-3, +2) the model must
+  // be at (-4.4, 0, -0.8) in THIS frame — before the replacement
+  // source's hit has landed.
+  check(
+    'the model followed the current ray the same frame',
+    near4(root.position.x, -4.4) && root.position.y === 0 && near4(root.position.z, -0.8)
+  );
+  check(
+    'the anchor record followed',
+    near4(engine.anchors.get('m1').position[0], -4.4) &&
+    near4(engine.anchors.get('m1').position[2], -0.8)
+  );
   await tick();
   check('the stale source was cancelled', sources[0].cancelled === true);
   check('a fresh source was created', sources.length === 2);
   hitPosition = [-1, 0, -4];
   loopCb(64, frame);
   check(
-    'the model followed the new hit',
-    root.position.x === -1 && root.position.z === -4
+    'the new source hit did not teleport the model',
+    near4(root.position.x, -4.4) && near4(root.position.z, -0.8)
   );
 
   // ---------- D: end ----------
@@ -124,5 +151,5 @@ test('drag02', async () => {
   loopCb(80, frame);
   await tick();
   check('no new sources after the drag ended', sources.length === 2);
-  check('the model stayed put', root.position.x === -1 && root.position.z === -4);
+  check('the model stayed put', near4(root.position.x, -4.4) && near4(root.position.z, -0.8));
 });
