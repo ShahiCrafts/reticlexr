@@ -1673,7 +1673,17 @@ export class ARCoreWeb extends WebPlugin {
         // provisional plane and grab offset immediately; the first
         // real hit refines both without moving the model (the
         // offset is recomputed from the then-current centre).
-        if (drag.planeY == null) {
+        // The seeding RETRIES until both values exist. The first
+        // version ran only while planeY was null, but planeY is
+        // assigned before the ray test: if the first frame's ray
+        // missed the plane (finger near the horizon at grab time),
+        // the grab offset never seeded, and with no tracked
+        // polygons and no source hit to refine it, the drag was
+        // silently dead for the whole gesture. Tracked polygons
+        // masked this completely (their branch needs no offset);
+        // the minimal-feature build (plane-detection off) exposed
+        // it on device, 2026-11-18.
+        if (drag.planeY == null || !drag.grabOffset) {
           const anchorPos = this.anchors.get(drag.modelId)?.position;
           const pose0 = frame.getViewerPose(this.referenceSpace);
           const view0 = pose0 && pose0.views && pose0.views[0];
@@ -1681,16 +1691,18 @@ export class ARCoreWeb extends WebPlugin {
             const c = Array.isArray(anchorPos)
               ? anchorPos
               : [anchorPos.x, anchorPos.y, anchorPos.z];
-            drag.planeY = c[1];
-            const ray0 = rayFromScreenPoint(
-              pose0.transform,
-              view0.projectionMatrix,
-              drag.point.x,
-              drag.point.y
-            );
-            const t0 = dragPlaneTarget(ray0, drag.planeY, null);
-            if (t0) {
-              drag.grabOffset = { x: c[0] - t0[0], z: c[2] - t0[2] };
+            if (drag.planeY == null) drag.planeY = c[1];
+            if (!drag.grabOffset) {
+              const ray0 = rayFromScreenPoint(
+                pose0.transform,
+                view0.projectionMatrix,
+                drag.point.x,
+                drag.point.y
+              );
+              const t0 = dragPlaneTarget(ray0, drag.planeY, null);
+              if (t0) {
+                drag.grabOffset = { x: c[0] - t0[0], z: c[2] - t0[2] };
+              }
             }
           }
         }
@@ -1724,6 +1736,11 @@ export class ARCoreWeb extends WebPlugin {
               .requestHitTestSource({
                 space: this.referenceSpace,
                 offsetRay: new XRRay(ray.origin, ray.direction),
+                // Feature-point hits included (as in hitTestAtPoint):
+                // where plane trackables are unavailable (e.g. a
+                // session without plane-detection), point hits still
+                // arrive and keep the drag's surface height current.
+                entityTypes: ["plane", "point"],
               })
               .then((source) => {
                 if (this._dragMove !== drag) {
