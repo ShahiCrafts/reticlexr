@@ -2283,6 +2283,22 @@ export class ARCoreWeb extends WebPlugin {
             y
           );
           tapRay = ray;
+          // Fast path: if the tap ray crosses a plane the runtime
+          // is already tracking, settle NOW, on this frame — no
+          // source creation, no waiting frames for results while
+          // the phone drifts. Only a genuine tracked-polygon miss
+          // falls through to the asynchronous runtime hit test
+          // (and, beyond it, the floor-plane fallback).
+          const tracked = this._trackedPlaneHit(frame, ray);
+          if (tracked) {
+            settle({
+              hit: true,
+              position: tracked.position,
+              rotation: tracked.rotation,
+              planeType: tracked.planeType,
+            });
+            return;
+          }
           raySource = await session.requestHitTestSource({
             space: referenceSpace,
             offsetRay: new XRRay(ray.origin, ray.direction),
@@ -2324,6 +2340,77 @@ export class ARCoreWeb extends WebPlugin {
    * @param {{origin: {x,y,z}, direction: {x,y,z}}} ray - From rayFromScreenPoint
    * @returns {number[]|null} [x, y, z] on the floor plane, or null
    */
+  /**
+   * Synchronous raycast of a screen ray against the planes the
+   * runtime is ALREADY tracking (their polygons are the same data
+   * the dot grid renders). Returns the nearest intersection inside
+   * a tracked polygon, or null. This is the fast path behind
+   * hitTestAtPoint: the WebXR hit-test API is asynchronous by
+   * design (create a source, then wait frames for its results), so
+   * a tap resolved that way is answered against a pose the phone
+   * has already moved away from — the core of the "model doesn't
+   * land where I tap" reports. The tracked polygons are here, in
+   * this frame; intersecting them is exact and immediate.
+   */
+  _trackedPlaneHit(frame, ray) {
+    if (
+      !frame ||
+      !ray ||
+      !this.referenceSpace ||
+      !this.detectedPlanes ||
+      this.detectedPlanes.size === 0
+    ) {
+      return null;
+    }
+    const origin = new THREE.Vector3(ray.origin.x, ray.origin.y, ray.origin.z);
+    const direction = new THREE.Vector3(
+      ray.direction.x,
+      ray.direction.y,
+      ray.direction.z
+    );
+    let best = null;
+    for (const [plane, planeData] of this.detectedPlanes) {
+      const polygon = plane.polygon;
+      if (!polygon || polygon.length < 3 || !plane.planeSpace) continue;
+      let pose = null;
+      try {
+        pose = frame.getPose(plane.planeSpace, this.referenceSpace);
+      } catch (_) {
+        pose = null;
+      }
+      if (!pose) continue;
+      const p = pose.transform.position;
+      const o = pose.transform.orientation;
+      const planePos = new THREE.Vector3(p.x, p.y, p.z);
+      const planeQuat = new THREE.Quaternion(o.x, o.y, o.z, o.w);
+      const invQuat = planeQuat.clone().invert();
+      const localOrigin = origin.clone().sub(planePos).applyQuaternion(invQuat);
+      const localDir = direction.clone().applyQuaternion(invQuat);
+      if (Math.abs(localDir.y) < 1e-6) continue;
+      const t = -localOrigin.y / localDir.y;
+      if (!(t >= 0.15 && t <= 8)) continue;
+      const lx = localOrigin.x + localDir.x * t;
+      const lz = localOrigin.z + localDir.z * t;
+      if (!this.isPointInPolygon(lx, lz, polygon)) continue;
+      const world = new THREE.Vector3(lx, 0, lz)
+        .applyQuaternion(planeQuat)
+        .add(planePos);
+      const distance = origin.distanceTo(world);
+      if (!best || distance < best.distance) {
+        best = {
+          position: [world.x, world.y, world.z],
+          rotation: [o.x, o.y, o.z, o.w],
+          planeType:
+            (planeData && planeData.orientation) ||
+            plane.orientation ||
+            this.inferPlaneTypeFromQuaternion(o),
+          distance,
+        };
+      }
+    }
+    return best;
+  }
+
   _floorPlaneHit(ray) {
     if (!ray || !this.lastHitPosition) return null;
     const floorY = this.lastHitPosition[1];
