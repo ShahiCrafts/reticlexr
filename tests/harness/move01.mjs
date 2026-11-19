@@ -1,12 +1,12 @@
-// Gesture contract since 2026-11-18 (owner's call): taps never
-// place or move models; drag is the placement and move gesture.
-// Exercised against the real ARView + gesture controller with a
-// stub engine:
-//  A. A tap with no active model places nothing (onTap still
-//     reports the tap to the host).
-//  B. A drag with no active model places it (drag-to-place).
-//  C. A tap WITH an active model does not move it.
-//  D. A drag with an active model moves it: the settle calls
+// Gesture contract since 2026-11-19 (owner's call): a tap places
+// the model when nothing is placed yet; once a model is active,
+// taps never move it and drag is the only move gesture (drag with
+// nothing placed still places: drag-to-place). Exercised against
+// the real ARView + gesture controller with a stub engine:
+//  A. A tap with no active model places it (onTap still reports
+//     the tap to the host; the placing tap does not also move).
+//  B. A tap WITH an active model does not move it.
+//  C. A drag with an active model moves it: the settle calls
 //     engine.moveModel once, with the active id and the release
 //     point in normalised coordinates; no second model is placed.
 //  E. A settle that misses every surface is silent by design
@@ -68,22 +68,18 @@ test('move01', async () => {
     await tick();
   };
 
-  // A: a tap places nothing.
+  // A: a tap places the model.
   await tap(100, 200);
-  check('tap with no model places nothing', calls.place.length === 0 && view.activeModelId == null);
+  check('tap with no model places it', calls.place.length === 1 && view.activeModelId === 'm1');
   check('the tap is still reported to the host', taps === 1);
+  check('the placing tap does not also move', calls.move.length === 0);
 
-  // B: a drag places.
-  await drag(100, 200, 112, 212);
-  check('drag places the model', calls.place.length === 1 && view.activeModelId === 'm1');
-  check('the placing drag does not also settle-move', calls.move.length === 0);
-
-  // C: a tap does not move the placed model.
+  // B: a tap does not move the placed model.
   await tap(300, 600);
   check('tap with an active model does not move it', calls.move.length === 0);
   check('the tap is still reported', taps === 2);
 
-  // D: a drag moves the placed model, settling at the release point.
+  // C: a drag moves the placed model, settling at the release point.
   await drag(280, 580, 300, 600);
   check('drag calls engine.moveModel once for the settle', calls.move.length === 1);
   check(

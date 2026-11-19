@@ -348,7 +348,7 @@ export default function DemoClient() {
         onError: (e) =>
           setToast(
             /surface/i.test(e?.message || '')
-              ? 'No surface there. Aim at the dots and drag'
+              ? 'No surface there. Aim at the dots and tap'
               : e?.message || 'Something went wrong',
           ),
       });
@@ -457,7 +457,7 @@ export default function DemoClient() {
       setBusy(false);
       setToast(`${MODELS[i].label} switched in place`);
     } else {
-      setToast('Drag onto a dotted surface to place');
+      setToast('Tap a dotted surface to place');
     }
   };
 
@@ -471,7 +471,7 @@ export default function DemoClient() {
     setPlaced(false);
     setScale(1);
     setRotation(0);
-    setToast('Drag onto a dotted surface to place');
+    setToast('Tap a dotted surface to place');
   };
 
   const screenshot = async () => {
@@ -526,7 +526,7 @@ export default function DemoClient() {
             your space.
           </h2>
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-slate-300">
-            Scan a surface, drag to place, pinch to resize and twist to rotate. This demo runs the
+            Scan a surface, tap to place, drag to move, pinch to resize and twist to rotate. This demo runs the
             actual <code className="font-mono text-[0.85em]">reticlexr</code> library in your
             browser.
           </p>
@@ -637,7 +637,7 @@ export default function DemoClient() {
             <button
               type="button"
               aria-label="Gesture help"
-              onClick={() => setToast('Dots = detected surface • drag = place and move • pinch = scale • twist = rotate')}
+              onClick={() => setToast('Dots = detected surface • tap = place • drag = move • pinch = scale • twist = rotate')}
               className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 focus-visible:outline-2 focus-visible:outline-blue-300"
             >
               <LuCircleHelp size={20} aria-hidden="true" />
@@ -768,8 +768,8 @@ export default function DemoClient() {
               ) : (
                 <div className="rounded-full bg-black/50 px-4 py-2 text-xs">
                   {surface
-                    ? `Drag onto a surface to place the ${MODELS[modelIndex].label.toLowerCase()}`
-                    : 'Aim at a flat surface, then drag to place'}
+                    ? `Tap a surface to place the ${MODELS[modelIndex].label.toLowerCase()}`
+                    : 'Aim at a flat surface, then tap to place'}
                 </div>
               )}
             </div>

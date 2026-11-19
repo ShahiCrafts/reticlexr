@@ -20,6 +20,13 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ### Behavior changes
 
+- **Tap places the first model; dragging moves it.** A tap with
+  nothing placed puts the current model at the tap point (owner's
+  call, 2026-11-19). Once a model is active, taps do nothing and
+  dragging is the only move gesture. Drag-to-place still works: a
+  drag with nothing placed puts the model at the drag point and
+  continues as a move.
+
 - **Native Android is explicitly scoped to session + hit-testing
   (NAT-01/NAT-05, Option B).** The native plugin never rendered placed
   models — `placeModel` registered metadata and resolved success, and

@@ -11,9 +11,9 @@ to the active model:
 
 ```js title="gestures.js"
 const cleanup = ar.enableCustomization({
-  // REQUIRED: which model a tap should place. A plain URL string works;
-  // pass a function and it is called on every tap, so the model placed
-  // can follow the user's current selection.
+  // REQUIRED: which model the first tap places. A plain URL string
+  // works; pass a function and it is called on the placing tap, so the
+  // model placed can follow the user's current selection.
   modelUrl: () => currentModelUrl,
   onTap: () => console.log('placed'),
   onScale: (factor) => console.log('scale is now', factor),
@@ -26,15 +26,15 @@ cleanup();
 
 | Gesture | Effect |
 | --- | --- |
-| One-finger tap | Places the current `modelUrl` at the tap point; with a model already placed, moves it to the tap point |
+| One-finger tap | Places the current `modelUrl` at the tap point when nothing is placed yet. Once a model is placed, taps do nothing: dragging is the move gesture |
 | Pinch (two fingers, in/out) | Scales the active model, `ARView.setScale` clamps to **[0.1, 5]** |
 | Twist (two fingers, rotate) | Rotates the active model around Y |
 | Drag (one finger) | Drags the active model across surfaces: the engine re-aims a hit test at your finger every frame, so the model stays under it, and one final move lands it exactly on the release point. Passing over a spot with no surface is silent; the model stays at its last good position |
 
 <Note>
 `modelUrl` accepts a plain URL string or a `() => string` function.
-The function form is called on every tap; use it when the model to
-place can change between taps (the example app reads the latest
+The function form is called on the placing tap; use it when the model
+to place can change between placements (the example app reads the latest
 selected product from a ref). A plain string always places the same
 model. (Before 1.1.0 only the function form worked; a string threw a
 `TypeError` inside the tap handler.)

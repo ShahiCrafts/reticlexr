@@ -19,6 +19,9 @@ repository `CHANGELOG.md`.
 
 ### Behavior changes
 
+- Tap places the first model; dragging moves it. Once a model is
+  active, taps do nothing. Drag-to-place still works.
+
 - **Native Android is scoped to session + hit-testing (Option B).**
   `placeModel`, `moveModel`, `setTransform`, `setMaterial`,
   `removeModel`, `getPlacedModels` and `clearModels` reject with

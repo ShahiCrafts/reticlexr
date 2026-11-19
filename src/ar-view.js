@@ -320,12 +320,35 @@ export class ARView {
       // The gesture payload is {x, y} in pixels (see gestures.js); it
       // has never carried an `event` field (API-06 drift).
       onTap: async ({ x, y }) => {
-        // Taps no longer place or move models (owner's call,
-        // 2026-11-18): drag is the placement and move gesture.
-        // The tap is still logged and reported to the host, so
-        // options.onTap remains available for UI feedback.
         const point = this._normalisePoint(x, y);
         this._debugLog({ type: 'tap', pixel: { x, y }, normalised: point });
+        // Tap-to-place for the FIRST placement only (owner's call,
+        // 2026-11-19): with nothing placed, a tap places the current
+        // modelUrl at the tap point. Once a model is active, taps
+        // stay inert and dragging is the only move gesture. A tap
+        // landing while a drag-place or an earlier tap-place is
+        // still in flight does nothing.
+        if (!this.activeModelId && options.modelUrl && !this._dragPlacing && !this._tapPlacing) {
+          this._tapPlacing = true;
+          try {
+            // modelUrl accepts a plain string or a () => string (BUG-05)
+            const modelUrl = typeof options.modelUrl === 'function' ? options.modelUrl() : options.modelUrl;
+            const result = await this.placeModel(modelUrl, point);
+            // placeModel reports a missed hit test as a result, not
+            // a throw — convert it, so the failure reaches onError
+            // instead of the tap silently doing nothing.
+            if (!result.success) throw codedError('NO_SURFACE', 'No surface found at the tap point');
+          } catch (error) {
+            // The gesture controller never awaits this handler, so
+            // a rejection here would be unhandled. Route the
+            // failure to the caller's error handler instead.
+            this._tapPlacing = false;
+            if (options.onError) { options.onError(error); return; }
+            console.error('[ARView] Tap-to-place failed:', error);
+            return;
+          }
+          this._tapPlacing = false;
+        }
         options.onTap?.({ x, y });
       },
       onDrag: async ({ x, y }) => {
