@@ -206,9 +206,6 @@ export default function DemoClient() {
         // state and auto-placement); only the dots are not drawn.
         showPlaneDots: false,
         dotSpacing: 0.14,
-        // The white footprint outline native viewers draw around
-        // a placed model: the surface-lock cue.
-        showBaseRing: true,
         // Tier 0 feature posture (system design 2026-11-18, now
         // the engine's own default): hit-test + dom-overlay only,
         // the model-viewer-class configuration. Plane detection,
