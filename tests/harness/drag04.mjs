@@ -4,7 +4,7 @@
 // the plane at the model's own goal height, the first frame only
 // seeds the plane point (the grabbed spot stays under the
 // finger), and later frames move the goal by plane-point deltas,
-// with the damped position converging on it. Previously such a
+// with the rendered position snapping onto it. Previously such a
 // drag (ending before any source delivered) moved nothing.
 
 import { test, expect } from 'vitest';
@@ -69,7 +69,7 @@ test('drag04', async () => {
 
   // The finger slides right: the new ray meets the plane at
   // (0, 0, -2.8), so the goal moves by the delta (1.4, 0, 0) and
-  // the damped position converges on it.
+  // the rendered position snaps onto it.
   engine.updateDragPoint(0.5, 0.75);
   runFrames(1);
   check('goal followed the finger with no hit results at all', near3(engine._dragMove.goal, [1.4, 0, 0], 0.01));

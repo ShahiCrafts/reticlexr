@@ -1,5 +1,7 @@
-// The Damper (critically damped spring, model-viewer design)
-// and height-following across a surface step.
+// The exported Damper primitive (critically damped spring,
+// model-viewer design; kept as a public smoothing utility — the
+// drag itself snaps directly since 2026-11-19) and the drag's
+// height-following across a surface step.
 //  A. A damper at its goal stays there.
 //  B. A step goal is approached monotonically — critically
 //     damped means no overshoot, ever — and converges.
