@@ -4,8 +4,9 @@
 // accumulation — each accepted hit moves the goal by the change
 // since the last hit, so the grabbed point stays under the
 // finger (no centre snap, no grab-offset bookkeeping). The
-// rendered position eases toward the goal through critically
-// damped springs, so it approaches without overshoot. Frames
+// rendered position snaps straight onto the goal each frame
+// (direct snap; a damped follow shipped first and was replaced
+// on device feedback, 2026-11-19). Frames
 // where the hit test misses fall back to intersecting the finger
 // ray with the last real surface plane (same delta rule); hits
 // whose surface normal is not near-horizontal are rejected; a
@@ -107,14 +108,13 @@ test('drag02', async () => {
   check('first hit did NOT move the goal', near3(engine._dragMove.goal, [0, 0, -2]));
   check('first hit did NOT move the model', near3(engine.anchors.get('m1').position, [0, 0, -2]));
 
-  // ---------- C: delta accumulation + damped converge ----------
+  // ---------- C: delta accumulation + direct snap ----------
   transientEntries = [hitEntry([0.7, 0, -2.6])];
   runFrames(1);
   check('goal moved by the hit delta only', near3(engine._dragMove.goal, [0.4, 0, -2]));
-  const midPos = [...engine.anchors.get('m1').position];
-  check('position eased toward the goal (not teleported)', midPos[0] > 0 && midPos[0] < 0.4);
+  check('position snapped straight onto the goal', near3(engine.anchors.get('m1').position, [0.4, 0, -2], 1e-9));
   runFrames(120);
-  check('position converged to the goal', near3(engine.anchors.get('m1').position, [0.4, 0, -2]));
+  check('position stays on the goal', near3(engine.anchors.get('m1').position, [0.4, 0, -2]));
   check('no overshoot past the goal', engine.anchors.get('m1').position[0] <= 0.4 + 1e-9);
   check('rendered object matches the record', near(root.position.x, 0.4) && near(root.position.z, -2));
 
@@ -151,7 +151,7 @@ test('drag02', async () => {
   engine.endDragMove();
   check('drag state cleared', engine._dragMove === null);
   check('transient source survives the drag (session-scoped)', transientCancelled === false);
-  // The model freezes at its last damped position (the caller's
+  // The model freezes at its last rendered position (the caller's
   // release settle lands it precisely in production); later
   // frames must not move it at all.
   const frozen = [...engine.anchors.get('m1').position];

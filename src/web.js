@@ -273,26 +273,23 @@ export function intersectRayPlane(ray, planePoint, planeNormal) {
 
 /**
  * A single-axis critically damped spring, integrated with the
- * exact closed-form solution (the model-viewer Damper design).
- * The drag pipeline runs one per axis between the accumulated
- * goal position and the model's rendered position: the goal can
- * jump with the finger's hit tests, but the model eases after it
- * with a fixed decay, which is what makes motion read as smooth
- * and physical instead of teleported or laggy. Critically damped
- * (zeta = 1) means it never overshoots or oscillates.
+ * exact closed-form solution (the model-viewer Damper design):
+ * a value eases after a goal with a fixed decay and never
+ * overshoots or oscillates. Exported as a smoothing primitive
+ * for consumers that want eased motion. The drag pipeline does
+ * NOT use it: the drag shipped with a damped follow (50 ms, then
+ * a device-picked 160 ms), and on device the trailing glide
+ * read as float, so the drag now snaps directly to its goal
+ * (Saugat's call, 2026-11-19).
  */
 export class Damper {
   /**
-   * @param {number} decayMs - Time constant of the decay. The
-   *   drag pipeline uses 160 ms on every axis: model-viewer's
-   *   50 ms was the design's starting point, but on device the
-   *   longer decay is the feel Saugat picked from the design
-   *   page's damper demo (2026-11-19) — a softer glide that
-   *   still tracks the finger.
+   * @param {number} decayMs - Time constant of the decay
+   *   (50 ms matches model-viewer's DECAY_MILLISECONDS).
    * @param {number} maxVelocity - Velocity clamp (units/second),
    *   a runaway guard for glitched goals.
    */
-  constructor(decayMs = 160, maxVelocity = Infinity) {
+  constructor(decayMs = 50, maxVelocity = Infinity) {
     this._omega = 1000 / decayMs;
     this._maxVelocity = maxVelocity;
     this._velocity = 0;
@@ -1793,25 +1790,16 @@ export class ARCoreWeb extends WebPlugin {
 
       // Drag pipeline (model-viewer design, system design
       // 2026-11-18; see beginDragMove): while a drag is active,
-      // accumulate the goal from the finger's hit tests by delta,
-      // and ease the model's position toward the goal through
-      // critically damped springs. The transient-input source is
-      // read ONLY while a gesture point is live, so an idle scene
-      // pays nothing for it.
+      // accumulate the goal from the finger's hit tests by delta
+      // and snap the model's position straight onto it. The
+      // transient-input source is read ONLY while a gesture
+      // point is live, so an idle scene pays nothing for it.
       if (this._dragMove && this.referenceSpace) {
         const drag = this._dragMove;
         const record = this.anchors.get(drag.modelId);
         if (!record) {
           this.endDragMove();
         } else {
-          // Frame delta for the dampers, clamped so a stalled
-          // frame cannot slingshot the model.
-          const dt =
-            drag.lastFrameTs == null
-              ? 1 / 60
-              : Math.min(0.1, Math.max(0.001, (timestamp - drag.lastFrameTs) / 1000));
-          drag.lastFrameTs = timestamp;
-
           if (drag.point) {
             let entries = null;
             if (
@@ -1950,16 +1938,18 @@ export class ARCoreWeb extends WebPlugin {
             }
           }
 
-          // Damped follow: the rendered position eases toward the
-          // goal every frame (even between hit updates), and the
-          // record carries it, so updateModelPositions below
+          // Direct snap: the rendered position IS the goal. The
+          // goal only ever moves by real hit deltas, so the model
+          // sits exactly where the hit test puts the grabbed
+          // point, with no smoothing lag trailing the finger.
+          // The record carries it, so updateModelPositions below
           // renders model, shadow and base ring in the same frame.
-          const c = drag.current;
-          const nx = drag.dampers.x.update(c[0], drag.goal[0], dt);
-          const ny = drag.dampers.y.update(c[1], drag.goal[1], dt);
-          const nz = drag.dampers.z.update(c[2], drag.goal[2], dt);
-          if (nx !== c[0] || ny !== c[1] || nz !== c[2]) {
-            drag.current = [nx, ny, nz];
+          if (
+            drag.current[0] !== drag.goal[0] ||
+            drag.current[1] !== drag.goal[1] ||
+            drag.current[2] !== drag.goal[2]
+          ) {
+            drag.current = [...drag.goal];
             record.position = drag.current;
           }
         }
@@ -3146,8 +3136,10 @@ export class ARCoreWeb extends WebPlugin {
    * with the last real surface plane and the same delta rule
    * applies, so the model keeps tracking across hit-test gaps and
    * follows surface height changes. The model's rendered position
-   * then eases toward the goal through per-axis critically damped
-   * springs (160 ms decay, the device-tuned value). The older routes — one
+   * snaps directly onto the goal every frame: a damped follow
+   * (50 ms, then a device-picked 160 ms) shipped first, and on
+   * device its trailing glide read as float, so the direct snap
+   * replaced it (2026-11-19). The older routes — one
    * hitTestAtPoint promise per pointer move, per-point persistent
    * sources whose rays freeze at creation time, direct
    * positioning on a fixed-height math plane — each put lag, a
@@ -3180,16 +3172,12 @@ export class ARCoreWeb extends WebPlugin {
       // ray on runtimes without transient-input hit testing.
       point: null,
       // The accumulated target the finger is asking for, and the
-      // damped position actually rendered. Both start at the
-      // model's current position: a grab never moves the model
-      // until the finger itself moves.
+      // position actually rendered (a direct copy of the goal
+      // each frame). Both start at the model's current position:
+      // a grab never moves the model until the finger itself
+      // moves.
       goal: [...start],
       current: [...start],
-      dampers: {
-        x: new Damper(160, 4),
-        y: new Damper(160, 1.5),
-        z: new Damper(160, 4),
-      },
       // Last accepted surface hit and the plane it defines. The
       // first hit of a gesture only seeds these (no delta — there
       // is nothing to diff against), which is what keeps the
@@ -3198,7 +3186,6 @@ export class ARCoreWeb extends WebPlugin {
       surfacePoint: null,
       surfaceNormal: null,
       lastPlanePoint: null,
-      lastFrameTs: null,
     };
     return true;
   }
