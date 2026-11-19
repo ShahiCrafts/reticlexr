@@ -5,8 +5,8 @@
 // 2026-11-18: "while dragging the model vanishes ... we should
 // show the model while moving too"). Polygon hits feed the same
 // delta machinery as transient hits: the first only seeds, later
-// ones move the goal by their deltas, and the rendered position
-// snaps onto the goal. Also covers the screen-position cache behind
+// ones move the goal by their deltas, and the damped position
+// converges. Also covers the screen-position cache behind
 // ARView's grab gate.
 
 import { test, expect } from 'vitest';
@@ -84,8 +84,8 @@ test('drag05', async () => {
   check('model unmoved at the grab point', near3(pos, [0, 0, -2]));
 
   // Slide the finger right: the polygon hit moves to
-  // (1.4, 0, -2.8), the goal follows by the delta, and the rendered
-  // position follows DURING the drag.
+  // (1.4, 0, -2.8), the goal follows by the delta, and the damped
+  // position converges DURING the drag.
   engine.updateDragPoint(0.75, 0.75);
   runFrames(1);
   check('goal followed the polygon hit', near3(engine._dragMove.goal, [1.4, 0, -2], 0.01));

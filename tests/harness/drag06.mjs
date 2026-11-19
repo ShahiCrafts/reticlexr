@@ -80,7 +80,7 @@ test('drag06', async () => {
   check('model unmoved at the grab point', near3(engine.anchors.get('m1').position, [0, 0, -2]));
 
   // Frame 3+: slide right — the model follows on the fallback
-  // plane alone and the rendered position reaches the same
+  // plane alone and the damped position converges to the same
   // target the old math-plane pipeline produced: (1.4, 0, -2).
   engine.updateDragPoint(0.75, 0.75);
   runFrames(1);
