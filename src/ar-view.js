@@ -46,6 +46,7 @@ export class ARView {
       enableScreenshots: options.enableScreenshots === true,
       anchors: options.anchors,
       framebufferScale: options.framebufferScale,
+      ktx2TranscoderPath: options.ktx2TranscoderPath,
     });
     // Ensure groups reflect config immediately even if created before setConfig.
     if (this.engine.planesMeshGroup) this.engine.planesMeshGroup.visible = false;

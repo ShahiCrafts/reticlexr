@@ -240,6 +240,9 @@ export default function DemoClient() {
         // resolution. (Dynamic per-frame viewport scaling is the
         // design's next tranche; this fixed scale is its floor.)
         framebufferScale: 0.85,
+        // Basis transcoder for the models' KTX2 textures,
+        // self-hosted under public/libs/basis (three r180's pair).
+        ktx2TranscoderPath: '/libs/basis/',
       });
       v.onFrame((e) => {
         if (e.type === 'surfaceDetected') {

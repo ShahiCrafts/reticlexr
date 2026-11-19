@@ -188,6 +188,13 @@ export interface ARSessionOptions {
    * the session's base layer is created.
    */
   framebufferScale?: number;
+  /**
+   * Path to a self-hosted Basis transcoder directory (the
+   * basis_transcoder.js / .wasm pair), enabling KTX2-compressed
+   * model textures. Meshopt-compressed geometry needs no
+   * configuration. Default: null (KTX2 textures unsupported).
+   */
+  ktx2TranscoderPath?: string | null;
 }
 
 export interface ARSessionResult {

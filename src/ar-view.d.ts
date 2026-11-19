@@ -44,6 +44,12 @@ export interface ARViewCreateOptions {
    * point for mid-range Android phones.
    */
   framebufferScale?: number;
+  /**
+   * Path to a self-hosted Basis transcoder directory, enabling
+   * KTX2-compressed model textures; see the engine's
+   * `ARSessionOptions.ktx2TranscoderPath`.
+   */
+  ktx2TranscoderPath?: string | null;
 }
 
 export interface ARViewPlaceModelOptions {

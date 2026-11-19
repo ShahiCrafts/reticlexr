@@ -26,6 +26,14 @@ The project follows [Semantic Versioning](https://semver.org/).
   dragging is the only move gesture. Drag-to-place still works: a
   drag with nothing placed puts the model at the drag point and
   continues as a move.
+- **Meshopt and KTX2 model support.** The engine's GLTFLoader now
+  carries the Meshopt decoder (no configuration needed), and a new
+  `ktx2TranscoderPath` session option wires a KTX2 loader against
+  a self-hosted Basis transcoder for Basis-compressed textures.
+  The demo's three models were re-encoded with both (total
+  download 12.36 MB to 5.53 MB, texture memory 51.7 MB to 7.0 MB)
+  at identical triangle, joint and animation-duration counts,
+  verified by rendered pixel comparison.
 
 - **Native Android is explicitly scoped to session + hit-testing
   (NAT-01/NAT-05, Option B).** The native plugin never rendered placed

@@ -21,6 +21,11 @@ repository `CHANGELOG.md`.
 
 - Tap places the first model; dragging moves it. Once a model is
   active, taps do nothing. Drag-to-place still works.
+- Meshopt and KTX2 model support: the Meshopt decoder is wired
+  into the model loader, and a new `ktx2TranscoderPath` session
+  option enables KTX2 textures. The demo models were re-encoded
+  with both: 12.36 MB to 5.53 MB total download, texture memory
+  51.7 MB to 7.0 MB, geometry and animation unchanged.
 
 - **Native Android is scoped to session + hit-testing (Option B).**
   `placeModel`, `moveModel`, `setTransform`, `setMaterial`,
