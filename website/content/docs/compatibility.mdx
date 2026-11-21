@@ -29,7 +29,8 @@ minimum Chrome version is established: only versions actually run
 are listed.
 
 iOS Safari does not expose the immersive-ar WebXR flow. The browser
-runtime is not an iOS path.
+runtime is not an iOS path — iOS is served by the native runtime
+below (Capacitor apps only, since 1.2.0).
 
 ## Native Android runtime (Capacitor)
 
@@ -51,6 +52,24 @@ your app: host apps stay installable on non-AR devices. Making
 AR required is an opt-in from your own manifest, see the
 [installation guide](https://github.com/ShahiCrafts/reticlexr/blob/main/docs/INSTALLATION.md).
 </Note>
+
+## Native iOS runtime (Capacitor, since 1.2.0)
+
+| Item | Value | Notes |
+| --- | --- | --- |
+| Minimum iOS | 15.0 | `Package.swift` platforms + podspec `deployment_target` |
+| AR framework | ARKit | `ARWorldTrackingConfiguration` (world tracking, horizontal + vertical planes) |
+| Rendering | RealityKit | Native model rendering — iOS has no WebXR, so the iOS plugin renders for real (unlike Android native) |
+| Device | ARKit-capable iPhone/iPad | A9+ class hardware; a **real device is required** — the iOS Simulator has no ARKit world tracking |
+| Distribution | Swift Package Manager + CocoaPods | `Package.swift` (cap-swift-pm, Capacitor 8) and `Reticlexr.podspec` ship in the package; `cap sync` discovers the plugin from the `capacitor.ios` metadata key |
+| Host requirement | `NSCameraUsageDescription` in the app's `Info.plist` | Without it the app cannot get camera access and `startSession` rejects with `CAMERA_PERMISSION_DENIED` |
+| Models | **USDZ** | ARKit/RealityKit cannot load GLB: pass `usdzPath`/`usdzUrl`, or ship a `.usdz` sibling next to each GLB |
+
+The iOS runtime has **not been device-tested yet**: it was written
+and package-verified on a Linux machine with no Swift compiler, so
+no iPhone run is recorded in the Devices table. Treat the rows
+above as code-level requirements, not tested support — the same
+distinction this page draws everywhere else.
 
 ## Frameworks and tooling
 

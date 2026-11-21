@@ -4,6 +4,49 @@ All notable changes to this project will be documented in this file.
 
 The project follows [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - Unreleased
+
+### Added
+
+- **iOS support: a native ARKit + RealityKit runtime.** The package
+  now ships an iOS Capacitor plugin (`ios/`, Swift, distributed via
+  both Swift Package Manager — `Package.swift` — and CocoaPods —
+  `Reticlexr.podspec`) that Capacitor discovers from the new
+  `capacitor.ios` metadata key during `npx cap sync`. The plugin
+  registers under the same jsName as everywhere else (`ARCore`), so
+  the JS facade, its event names/payloads and its coded-error
+  convention work on iOS unchanged. Requires iOS 15+ and a real
+  ARKit-capable iPhone/iPad (the Simulator has no world tracking);
+  the host app must declare `NSCameraUsageDescription` in its
+  `Info.plist`.
+- **Real native model placement on iOS.** Unlike Android native
+  (Option B: session + hit-testing, models via WebXR), iOS has no
+  WebXR — so the iOS runtime implements the model methods for real:
+  `placeModel`, `setTransform`, `setMaterial`, `moveModel`,
+  `removeModel`, `getPlacedModels` and `clearModels` all operate on
+  RealityKit entities anchored to real `ARAnchor`s, with collision
+  shapes and translation/rotation/scale gestures installed.
+  Session, plane and tracking behaviour mirrors Android's:
+  `checkSupport` resolves (never throws), `hitTest` returns
+  position + quaternion rotation `[qx, qy, qz, qw]` and creates a
+  real anchor whose id it returns, and the same surface/tracking
+  events are emitted.
+- **USDZ model pipeline for iOS.** ARKit/RealityKit cannot load
+  GLB. `placeModel` on iOS accepts new `usdzPath` / `usdzUrl`
+  options (explicit iOS source, takes precedence), and otherwise
+  maps a GLB/GLTF source to its sibling `.usdz` file (same folder,
+  same base name; remote sources are downloaded to Caches first).
+  When no USDZ source exists, the call rejects with the new coded
+  error `MODEL_FORMAT_UNSUPPORTED` — it never fakes success. Other
+  iOS codes: `CAMERA_PERMISSION_DENIED`, `SESSION_NOT_ACTIVE`,
+  `NO_SURFACE`, `MODEL_NOT_FOUND`, `MODEL_LOAD_FAILED`,
+  `INVALID_COLOR`, `UNSUPPORTED_DEVICE_NOT_CAPABLE`.
+- **Facade `getPlacedModels` unwraps the native bridge shape.**
+  The Capacitor native bridge can only resolve a dictionary, so
+  native runtimes return `{models: [...]}` and the facade now
+  unwraps it to the documented array. The WebXR runtime returns
+  the array directly; that path is unchanged.
+
 ## [1.1.0] - Unreleased
 
 ### Package rename

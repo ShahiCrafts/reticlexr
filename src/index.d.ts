@@ -3,8 +3,10 @@
  *
  * The package entry (`src/index.js`) exports:
  * - `ARCore` (default): the Capacitor native facade. On Android it
- *   bridges to the ARCore plugin; on web the same plugin name resolves
- *   to the WebXR engine (`ARCoreWeb`, see web.d.ts).
+ *   bridges to the ARCore plugin; on iOS to the ARKit + RealityKit
+ *   plugin (registered under the same "ARCore" jsName); on web the
+ *   same plugin name resolves to the WebXR engine (`ARCoreWeb`,
+ *   see web.d.ts).
  * - `ARView` / `createARView` + functional helpers: the high-level
  *   WebXR facade (see ar-view.d.ts).
  * - `useARCore`: the React hook — supported via the `reticlexr/react`
@@ -39,6 +41,13 @@ export interface ARCoreHitTestResult {
  * Facade placeModel options (API-01): exactly one of `modelPath` /
  * `modelUrl` is required — the facade forwards both to whichever
  * runtime handles the call.
+ *
+ * iOS note: ARKit/RealityKit load USDZ, not GLB. On iOS the native
+ * runtime maps a GLB/GLTF source to its sibling `.usdz` file (same
+ * folder, same base name); `usdzPath` / `usdzUrl` name the iOS
+ * source explicitly and take precedence there. When no USDZ source
+ * exists, iOS rejects with code `MODEL_FORMAT_UNSUPPORTED`. Other
+ * runtimes ignore the USDZ fields.
  */
 export type ARCorePlaceModelOptions =
   | {
@@ -46,12 +55,36 @@ export type ARCorePlaceModelOptions =
       modelPath: string;
       modelUrl?: string;
       hitId?: string;
+      /** iOS only: explicit USDZ model path/URL; takes precedence over the GLB source. */
+      usdzPath?: string;
+      /** iOS only: alias of `usdzPath`. */
+      usdzUrl?: string;
     }
   | {
       modelPath?: string;
       /** Alias for `modelPath` — a GLB URL/path. */
       modelUrl: string;
       hitId?: string;
+      /** iOS only: explicit USDZ model path/URL; takes precedence over the GLB source. */
+      usdzPath?: string;
+      /** iOS only: alias of `usdzPath`. */
+      usdzUrl?: string;
+    }
+  | {
+      modelPath?: string;
+      modelUrl?: string;
+      hitId?: string;
+      /** iOS only: explicit USDZ model path/URL — sufficient on its own for iOS placement. */
+      usdzPath: string;
+      usdzUrl?: string;
+    }
+  | {
+      modelPath?: string;
+      modelUrl?: string;
+      hitId?: string;
+      usdzPath?: string;
+      /** iOS only: explicit USDZ model URL — sufficient on its own for iOS placement. */
+      usdzUrl: string;
     };
 
 export interface ARCoreSetTransformOptions {
@@ -100,7 +133,8 @@ export interface ARCoreSupportResult {
 
 /**
  * The native facade's event types (API-07). Events are PER RUNTIME:
- * this is the Android plugin's set, bridged lazily on the first
+ * this is the native plugins' set (Android and iOS emit the same
+ * names/payloads), bridged lazily on the first
  * `ARCore.on` subscription (API-02). The WebXR engine emits a
  * different set through its own listener channels
  * (see `EngineFrameEvent` / `EnginePlaneEvent` in web.d.ts) and never
@@ -144,34 +178,41 @@ export interface ARCoreFacade {
   }>;
   /**
    * Update a placed model's transform. Implemented by the WebXR
-   * runtime; on Android the native plugin rejects with code
-   * `NOT_IMPLEMENTED` (Option B: native places no models).
+   * runtime and by the iOS native runtime (RealityKit); on Android
+   * the native plugin rejects with code `NOT_IMPLEMENTED`
+   * (Option B: Android native places no models).
    */
   setTransform(options: ARCoreSetTransformOptions): Promise<void>;
   /**
    * Set a placed model's material/colour. Implemented by the WebXR
-   * runtime; on Android the native plugin rejects with code
-   * `NOT_IMPLEMENTED` (Option B: native places no models).
+   * runtime and by the iOS native runtime (RealityKit); on Android
+   * the native plugin rejects with code `NOT_IMPLEMENTED`
+   * (Option B: Android native places no models).
    */
   setMaterial(options: ARCoreSetMaterialOptions): Promise<void>;
   moveModel(
     options: ARCoreMoveModelOptions
   ): Promise<ARCoreHitTestResult>;
   /**
-   * Remove a placed model. Implemented by the WebXR runtime; on
-   * Android the native plugin rejects with code `NOT_IMPLEMENTED`
-   * (Option B: native places no models).
+   * Remove a placed model. Implemented by the WebXR runtime and
+   * by the iOS native runtime (RealityKit); on Android the native
+   * plugin rejects with code `NOT_IMPLEMENTED` (Option B: Android
+   * native places no models).
    */
   removeModel(options: ARCoreRemoveModelOptions): Promise<void>;
   /**
    * List the currently placed models (API-03). Web returns the
-   * engine's list; on Android the native plugin rejects with code
-   * `NOT_IMPLEMENTED` (Option B: native places no models).
+   * engine's list; the iOS native runtime returns its RealityKit
+   * registry in the same shape (the facade unwraps the native
+   * bridge's `{models}` dictionary to this array). On Android the
+   * native plugin rejects with code `NOT_IMPLEMENTED` (Option B:
+   * Android native places no models).
    */
   getPlacedModels(): Promise<ARCorePlacedModel[]>;
   /**
-   * Remove every placed model (API-03). On Android this rejects
-   * with code `NOT_IMPLEMENTED`, like `getPlacedModels`.
+   * Remove every placed model (API-03). Implemented on web and on
+   * iOS native; on Android this rejects with code
+   * `NOT_IMPLEMENTED`, like `getPlacedModels`.
    */
   clearModels(): Promise<void>;
   checkSupport(): Promise<ARCoreSupportResult>;

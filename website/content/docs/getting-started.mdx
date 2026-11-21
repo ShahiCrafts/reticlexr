@@ -47,8 +47,9 @@ For a Capacitor app, install the package and sync:
 
 <Note>
 The package's `package.json` carries the
-`"capacitor": { "android": { "src": "android" } }` metadata key, so
-`cap sync` discovers and registers the Android plugin automatically
+`"capacitor": { "android": { "src": "android" }, "ios": { "src": "ios" } }`
+metadata key, so
+`cap sync` discovers and registers the native plugins automatically
 (`ARCorePlugin` in the generated `capacitor.plugins.json`, a
 `:reticlexr` project in the generated settings). No manual
 `settings.gradle` edit is needed; the clean consumer flow is
@@ -61,6 +62,11 @@ testing and surface events through ARCore. Be aware of what it does
 in the WebXR runtime. Read
 [WebXR vs native ARCore](/docs/concepts/webxr-vs-native) before planning
 an Android-native-only experience.
+
+**On iOS the native side is the whole experience** (since 1.2.0):
+there is no WebXR in Safari/WKWebView, so the iOS plugin renders
+models itself with ARKit + RealityKit. See the iOS section at the
+end of this guide for its setup steps.
 
 </div>
 <div>
@@ -201,9 +207,46 @@ these keys in production.
 
 ### iOS
 
-iOS Safari does not expose the immersive-ar WebXR flow this SDK's browser
-runtime is built on. The WebXR path is an Android Chrome path; plan a
-separate implementation for iOS if you need it.
+iOS Safari does not expose the immersive-ar WebXR flow this SDK's
+browser runtime is built on — but since 1.2.0 you don't need it to:
+the package ships a **native iOS runtime** (ARKit + RealityKit)
+behind the same `ARCore` facade, and it renders models for real.
+
+Setup for a Capacitor app:
+
+```bash
+npm install reticlexr
+npx cap add ios     # if the ios platform is not in your project yet
+npx cap sync        # discovers the iOS plugin from the capacitor.ios key
+npx cap open ios    # opens the app in Xcode
+```
+
+Then:
+
+1. **Add the camera usage string** to your iOS app's `Info.plist`
+   (`ios/App/App/Info.plist`). Without it, iOS denies camera access
+   and `startSession` rejects with `CAMERA_PERMISSION_DENIED`:
+
+   ```xml
+   <key>NSCameraUsageDescription</key>
+   <string>Used to place products in your space with augmented reality.</string>
+   ```
+
+2. **Use USDZ models.** ARKit/RealityKit cannot load GLB. Either
+   pass the iOS source explicitly —
+   `ARCore.placeModel({ modelUrl: 'models/sofa.glb', usdzUrl: 'models/sofa.usdz' })`
+   — or ship a `.usdz` sibling next to each GLB (same folder, same
+   base name) and iOS picks it up automatically. If neither exists,
+   `placeModel` rejects with `MODEL_FORMAT_UNSUPPORTED`.
+3. **Run on a real iPhone/iPad** (iOS 15+, ARKit-capable) from
+   Xcode. The iOS Simulator has no ARKit world tracking, so AR
+   cannot start there; `checkSupport()` reports it as unsupported.
+
+On iOS you drive AR through the `ARCore` facade (the high-level
+`createARView`/hook layers are WebXR-only): `startSession`,
+`hitTest`, `placeModel`, `setTransform`, `setMaterial`,
+`moveModel`, `removeModel`, `getPlacedModels`, `clearModels`,
+`stopSession`, with the same events as the Android native plugin.
 
 </div>
 </Step>

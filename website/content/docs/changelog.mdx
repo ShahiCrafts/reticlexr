@@ -6,6 +6,34 @@ description: Release history for reticlexr, from the repository CHANGELOG, with 
 All notable changes to this project are documented here. The project
 follows [Semantic Versioning](https://semver.org/).
 
+## 1.2.0 — Unreleased
+
+### Added
+
+- **iOS support: a native ARKit + RealityKit runtime.** The package
+  ships an iOS Capacitor plugin (`ios/`, Swift; Swift Package
+  Manager via `Package.swift` and CocoaPods via
+  `Reticlexr.podspec`), discovered by `cap sync` from the new
+  `capacitor.ios` metadata key. It registers under the same jsName
+  (`ARCore`), so the facade, events and coded errors work
+  unchanged. iOS 15+, real ARKit-capable device required (no
+  Simulator world tracking); the host app must declare
+  `NSCameraUsageDescription`.
+- **Real native model placement on iOS.** With no WebXR to fall
+  back to, the iOS runtime implements `placeModel`,
+  `setTransform`, `setMaterial`, `moveModel`, `removeModel`,
+  `getPlacedModels` and `clearModels` for real — RealityKit
+  entities on real `ARAnchor`s, with gestures. (Android native
+  remains Option B: those methods still reject `NOT_IMPLEMENTED`
+  there.)
+- **USDZ model pipeline.** `placeModel` gains `usdzPath` /
+  `usdzUrl`; otherwise a GLB source maps to its sibling `.usdz`.
+  No USDZ available → coded `MODEL_FORMAT_UNSUPPORTED` rejection,
+  never a fake success.
+- **Facade `getPlacedModels`** unwraps the native bridge's
+  `{ models: [...] }` dictionary to the documented array; the
+  WebXR path is unchanged.
+
 ## 1.1.0 — Unreleased
 
 The audit-remediation release. Summary: the full entry is in the

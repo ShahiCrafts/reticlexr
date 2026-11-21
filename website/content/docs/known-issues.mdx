@@ -90,13 +90,25 @@ open **by decision** rather than by oversight.
 
 ## Still open
 
-- **Native model rendering:** scoped out by decision (Option B).
-  The native plugin provides session management, hit testing and
-  events; `placeModel`, `moveModel`, `setTransform`, `setMaterial`,
-  `removeModel`, `getPlacedModels` and `clearModels` reject with
-  `NOT_IMPLEMENTED` on native instead of pretending to work.
-  Models render in the WebXR runtime. Implementing native
-  rendering (Option A) remains an owner decision.
+- **Native model rendering (Android):** scoped out by decision
+  (Option B). The Android plugin provides session management, hit
+  testing and events; `placeModel`, `moveModel`, `setTransform`,
+  `setMaterial`, `removeModel`, `getPlacedModels` and
+  `clearModels` reject with `NOT_IMPLEMENTED` on Android native
+  instead of pretending to work. Models render in the WebXR
+  runtime there. Implementing Android native rendering (Option A)
+  remains an owner decision. **iOS is not part of this item:**
+  since 1.2.0 the iOS runtime renders models natively (below).
+- **iOS runtime is new and not yet device-tested (1.2.0).** The
+  ARKit + RealityKit plugin was written and package-verified
+  without a Mac or iPhone in the loop, so no device run is
+  recorded yet. Known iOS constraints by design: models must be
+  **USDZ** (a GLB with no `.usdz` sibling and no
+  `usdzPath`/`usdzUrl` rejects with `MODEL_FORMAT_UNSUPPORTED`);
+  the host app must declare `NSCameraUsageDescription` or
+  `startSession` rejects with `CAMERA_PERMISSION_DENIED`; and the
+  **iOS Simulator cannot run AR at all** (no ARKit world
+  tracking) — a real device is required.
 - **Compatibility coverage is one device deep.** The WebXR runtime
   has a first recorded device test (Redmi Note 9S, Android 12,
   Chrome 157, see [Compatibility](/docs/compatibility)); the

@@ -114,6 +114,28 @@ you're on 1.1.0+ and that `node_modules/reticlexr/package.json`
 contains the `capacitor` key. See
 [Capacitor setup](/docs/getting-started#capacitor-setup).
 
+## `placeModel` rejects with `MODEL_FORMAT_UNSUPPORTED` on iOS
+
+iOS (ARKit/RealityKit) cannot load GLB/GLTF at all. The iOS
+runtime looks for a USDZ source in this order: an explicit
+`usdzPath` / `usdzUrl` option, then a `.usdz` sibling next to the
+GLB (same folder, same base name — for remote models, the sibling
+URL is downloaded). If none exists, the call rejects with
+`MODEL_FORMAT_UNSUPPORTED` rather than pretending to place
+anything. Fix: convert the model to USDZ, ship the sibling file,
+or pass `usdzUrl` alongside `modelUrl`.
+
+## AR won't start on iOS: `CAMERA_PERMISSION_DENIED` / nothing happens in the Simulator
+
+Two distinct causes. (1) The host app's `Info.plist` is missing
+`NSCameraUsageDescription` — iOS then denies camera access and
+`startSession` rejects with `CAMERA_PERMISSION_DENIED`. Add the
+string (see [Getting started](/docs/getting-started#ios)) and
+rebuild. (2) You are running in the **iOS Simulator**, which has
+no ARKit world tracking: `checkSupport()` reports unsupported
+there by design. Run on a real ARKit-capable iPhone/iPad from
+Xcode instead.
+
 ## Importing the package in a non-React app pulls in React
 
 Partly by design in 1.x: the package **root** still re-exports

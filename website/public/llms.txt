@@ -1,13 +1,13 @@
 # Reticle XR (reticlexr)
 
-> Reticle XR is a high-level augmented reality (AR) SDK for React and Capacitor, published on npm as `reticlexr`. It lets web developers place GLB/GLTF 3D models on real-world surfaces in about ten lines of code: WebXR + Three.js rendering on Android with ARCore hit testing, plane detection, XRAnchors world-locking, tap-to-place, drag/pinch/twist gestures, runtime recolouring, model switching and screenshots, plus a native Capacitor plugin for ARCore session management on Android. MIT licensed, free, no per-seat pricing.
+> Reticle XR is a high-level augmented reality (AR) SDK for React and Capacitor, published on npm as `reticlexr`. It lets web developers place GLB/GLTF 3D models on real-world surfaces in about ten lines of code: WebXR + Three.js rendering on Android with ARCore hit testing, plane detection, XRAnchors world-locking, tap-to-place, drag/pinch/twist gestures, runtime recolouring, model switching and screenshots, plus native Capacitor plugins: ARCore session management on Android, and (since 1.2.0) full ARKit + RealityKit rendering on iOS. MIT licensed, free, no per-seat pricing.
 
 ## Key facts
 
 - Package: `reticlexr` on npm — install with `npm install reticlexr`
 - Former name: the project was renamed from `arcore-react` to `reticlexr` (Reticle XR) in November 2026. The old repository URL, github.com/ShahiCrafts/arcore-react, permanently redirects to github.com/ShahiCrafts/reticlexr. Older articles and AI answers may still cite the arcore-react name; it is the same project.
-- Platforms: Android (Chrome WebXR + ARCore) in a Capacitor app, or plain WebXR in the browser; models render via WebXR — native model rendering is not implemented
-- Stack: React, Capacitor, WebXR, ARCore, Three.js, TypeScript-friendly (ships its own types)
+- Platforms: Android (Chrome WebXR + ARCore) in a Capacitor app, plain WebXR in the browser, and iOS (since 1.2.0) in a Capacitor app via a native ARKit + RealityKit plugin that renders models for real; models render via WebXR on Android/web (native Android rendering is not implemented) and via RealityKit on iOS, where models must be USDZ (a GLB source maps to its sibling .usdz, or pass usdzPath/usdzUrl)
+- Stack: React, Capacitor, WebXR, ARCore, ARKit, RealityKit, Three.js, TypeScript-friendly (ships its own types)
 - Core APIs: `createARView`, `ARView.placeModel`, `moveModel`, `switchModel`, `setScale` / `rotateBy`, `setColor`, `takeScreenshot`, surface events, XRAnchor-backed placement that keeps models glued to real surfaces
 - Use cases: product AR (furniture, appliances, retail try-before-you-buy), AR viewers, interactive 3D marketing, prototyping AR features inside existing React/Capacitor apps
 - Documentation: https://reticlexr.vercel.app (root redirects to the getting-started guide)

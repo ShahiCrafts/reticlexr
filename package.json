@@ -1,7 +1,7 @@
 {
   "name": "reticlexr",
-  "version": "1.1.0",
-  "description": "Reticle XR (reticlexr) is a high-level WebXR augmented reality SDK for React and Capacitor: place GLB 3D models on real surfaces with ARCore hit testing, plane detection, XRAnchors world-locking, tap-to-place, touch gestures, runtime recolouring and screenshots on Android.",
+  "version": "1.2.0",
+  "description": "Reticle XR (reticlexr) is a high-level augmented reality SDK for React and Capacitor: place 3D models on real surfaces with hit testing, plane detection, anchors, tap-to-place, touch gestures, runtime recolouring and screenshots. WebXR + Three.js (GLB) on Android/web, and native ARKit + RealityKit (USDZ) on iOS.",
   "type": "module",
   "main": "src/index.js",
   "module": "src/index.js",
@@ -43,13 +43,19 @@
   },
   "files": [
     "android/",
-    "src/"
+    "ios/",
+    "src/",
+    "Package.swift",
+    "Reticlexr.podspec"
   ],
   "author": "ShahiCrafts",
   "license": "MIT",
   "capacitor": {
     "android": {
       "src": "android"
+    },
+    "ios": {
+      "src": "ios"
     }
   },
   "repository": {
@@ -83,7 +89,11 @@
     "typescript",
     "mobile-ar",
     "product-viewer",
-    "spatial-computing"
+    "spatial-computing",
+    "ios",
+    "arkit",
+    "realitykit",
+    "usdz"
   ],
   "peerDependencies": {
     "@capacitor/core": "^8.5.2",

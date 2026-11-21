@@ -29,7 +29,7 @@ import { ARCoreWeb } from 'reticlexr/web';
 
 | Export | Kind | Layer |
 | --- | --- | --- |
-| `ARCore` (default) | Native facade object | Capacitor bridge → Android plugin (web → WebXR engine) |
+| `ARCore` (default) | Native facade object | Capacitor bridge → Android / iOS native plugin (web → WebXR engine) |
 | `ARView`, `createARView` | Class + factory | High-level facade over the WebXR engine |
 | `takeScreenshot`, `enableCustomization`, `addTextures`, `switchModel`, `placeModel`, `moveModel` | Functional helpers (view-first) | Same facade, function style |
 | `useARCore` | React hook (import from `reticlexr/react`) | WebXR engine mirrored into React state |
@@ -51,7 +51,8 @@ event payloads, and is removed in the next major version.
 ## ARCore native facade
 
 The default export. Every method delegates to the Capacitor plugin
-registered as `ARCore`, on Android that's the native plugin, on
+registered as `ARCore` — on Android and iOS that's the native
+plugin (the iOS plugin's jsName is also `ARCore`), on
 web it falls through to the WebXR engine (`ARCoreWeb`). Failures
 reject with an `ARError` carrying a stable `code` (a runtime code
 when one exists, otherwise a per-method `*_FAILED` fallback);
@@ -73,7 +74,7 @@ if (support.supported) {
 | `startSession` | `(options?: { planeDetection?, lightEstimation? })` | `Promise<{ success: boolean }>` |
 | `stopSession` | `()` | `Promise<void>` |
 | `hitTest` | `(options: { x: number, y: number })` (normalised [0, 1]) | `Promise<{ hit, position?, rotation?, planeType?, error? }>` |
-| `placeModel` | `(options: { modelPath: string, hitId?: string } \| { modelUrl: string, hitId?: string })` | `Promise<{ modelId: string, anchorId: string }>` |
+| `placeModel` | `(options: { modelPath: string, hitId?: string } \| { modelUrl: string, hitId?: string })` — plus iOS-only `usdzPath?: string` / `usdzUrl?: string` | `Promise<{ modelId: string, anchorId: string }>` |
 | `setTransform` | `(options: { modelId, rotation?: {x,y,z} degrees, scale?: number })` | `Promise<void>` |
 | `setMaterial` | `(options: { modelId, color: string })` (hex colour) | `Promise<void>` |
 | `moveModel` | `(options: { modelId, x: number, y: number })` | `Promise<Object>` |
@@ -88,14 +89,31 @@ if (support.supported) {
 | `addListener` | `(eventType, callback)` | Capacitor listener handle (internal) |
 
 <Warning>
-Native-runtime scope (Option B): on Android the session, hit test
-and events are real; `checkSupport` returns the actual
-`ArCoreApk.checkAvailability()` result and a successful hit test
-creates a real ARCore anchor. But the native plugin does **not**
-render models: `placeModel`, `moveModel`, `setTransform`,
+Native-runtime scope differs by platform. **Android (Option B):**
+the session, hit test and events are real; `checkSupport` returns
+the actual `ArCoreApk.checkAvailability()` result and a successful
+hit test creates a real ARCore anchor. But the Android plugin does
+**not** render models: `placeModel`, `moveModel`, `setTransform`,
 `setMaterial`, `removeModel`, `getPlacedModels` and `clearModels`
-reject with code `NOT_IMPLEMENTED`. WebXR is the runtime that
-renders models. See
+reject with code `NOT_IMPLEMENTED` — WebXR renders models there.
+
+**iOS (since 1.2.0):** there is no WebXR, so the iOS plugin
+(ARKit + RealityKit) implements the model methods **for real**:
+placement, transforms, material colour, move, remove, list and
+clear all operate on RealityKit entities anchored to `ARAnchor`s,
+and the event set is the same as Android's. iOS models are
+**USDZ**: `placeModel` takes the GLB source as usual plus optional
+`usdzPath` / `usdzUrl` (explicit iOS source, takes precedence);
+without them, a `.usdz` sibling next to the GLB is used, and if no
+USDZ exists the call rejects with `MODEL_FORMAT_UNSUPPORTED`.
+Other iOS codes: `CAMERA_PERMISSION_DENIED`,
+`SESSION_NOT_ACTIVE`, `NO_SURFACE`, `MODEL_NOT_FOUND`,
+`MODEL_LOAD_FAILED`, `INVALID_COLOR`,
+`UNSUPPORTED_DEVICE_NOT_CAPABLE`. On iOS, `getPlacedModels`
+still resolves to the same array of
+`{ modelId, anchorId, modelUrl, position, rotation, scale }`
+entries (the facade unwraps the native bridge's `{ models }`
+dictionary). See
 [WebXR vs native ARCore](/docs/concepts/webxr-vs-native).
 </Warning>
 
@@ -397,7 +415,9 @@ Engine codes include `SESSION_START_FAILED`,
 `NO_SURFACE`, `NO_ACTIVE_MODEL`, `OVERLAY_REQUIRED`,
 `CAMERA_CAPTURE_UNAVAILABLE`, `CAPTURE_BUSY`, `INSECURE_CONTEXT`,
 plus native codes surfaced unchanged (e.g. `NOT_IMPLEMENTED`,
-`ACTIVITY_UNAVAILABLE`).
+`ACTIVITY_UNAVAILABLE` on Android; `MODEL_FORMAT_UNSUPPORTED`,
+`CAMERA_PERMISSION_DENIED`, `UNSUPPORTED_DEVICE_NOT_CAPABLE` on
+iOS).
 
 ## Model and texture URLs
 

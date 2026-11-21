@@ -1,9 +1,9 @@
 ---
 title: Architecture
-description: "Two independent AR runtimes behind three JS API layers: the module map, the public surface, and both data flows."
+description: "The package's AR runtimes behind three JS API layers: the module map, the public surface, and the data flows — WebXR, native Android ARCore, and native iOS ARKit/RealityKit (since 1.2.0)."
 ---
 
-The package is a Capacitor plugin with **two independent AR runtimes**
+The package is a Capacitor plugin with **three independent AR runtimes** (two before 1.2.0, which added the iOS runtime)
 behind **three JS API layers**. There is no build step: the published
 entry is the raw ESM source, with hand-written TypeScript declarations
 (`src/*.d.ts`) alongside it.
@@ -99,6 +99,29 @@ Hit test: JS hitTest({x, y}) → plugin → latest frame
   → normalised coords → display pixels → frame.hitTest()
 ```
 
+## Data flow: JS → bridge → native ARKit (iOS, since 1.2.0)
+
+```
+App JS ─ ARCore.startSession() ─ Capacitor bridge ─► ARCorePlugin (Swift)
+  ├─ camera permission (AVCaptureDevice; coded CAMERA_PERMISSION_DENIED)
+  └─ ARViewManager attaches a RealityKit ARView over the web view
+       └─ ARSessionManager configures ARWorldTrackingConfiguration
+            (plane detection horizontal + vertical, light estimation)
+  ARSessionDelegate: plane anchors → surface events;
+    camera tracking state → trackingChanged; failures → error
+
+Hit test: JS hitTest({x, y}) → normalised point → ARView.raycast
+  → position + quaternion rotation [qx, qy, qz, qw] (same shape as
+    Android) + a real ARAnchor registered with the session
+
+Models (USDZ only): placeModel resolves usdzPath/usdzUrl, else the
+  GLB's sibling .usdz (remote files download to Caches first)
+  → Entity.load → AnchorEntity bound to a real ARAnchor
+  → collision shapes + RealityKit gestures (move/rotate/scale)
+  setTransform / setMaterial / moveModel / removeModel /
+  getPlacedModels / clearModels operate on that registry for real
+```
+
 ## Data flow: JS → Three.js → WebXR
 
 ```
@@ -127,7 +150,17 @@ Gestures: Pointer Events on the overlay ─► facade callbacks ─► engine tr
 
 ## The native side at a glance
 
-Eleven Java classes under `android/src/main/java/com/capacitor/arcore/`:
+**iOS:** six Swift files under `ios/Sources/ReticlexrPlugin/`,
+one module mirroring the Android structure: the plugin facade
+(`ARCorePlugin`, jsName `ARCore`), a session manager (ARKit
+configuration + `ARSessionDelegate`), a view manager (the
+RealityKit `ARView` overlay), a model manager (the placed-model
+registry — real entities, not metadata), a coordinate mapper
+(normalised points, quaternion/euler/hex helpers) and an event
+emitter over `notifyListeners`. Distributed via `Package.swift`
+(Swift Package Manager) and `Reticlexr.podspec` (CocoaPods).
+
+**Android:** eleven Java classes under `android/src/main/java/com/capacitor/arcore/`:
 the plugin facade, a session manager (sole owner of the ARCore
 `Session`), a Filament renderer with its own render thread, a surface
 manager, a coordinate mapper for hit tests, an event emitter, a view
@@ -147,6 +180,8 @@ that means in practice is the subject of
 | Android | `com.google.ar:core` | `1.40.0` |
 | Android | Filament (`filament-android`, `gltfio-android`) | `1.52.0` |
 | Android SDK | compile / target / min | 36 / 36 / 24 |
+| iOS | ARKit + RealityKit (system frameworks) | iOS 15+ |
+| iOS distribution | `Package.swift` (cap-swift-pm, Capacitor 8) + `Reticlexr.podspec` | — |
 
 Lockfiles are committed for the package, the example app and this
 site (`package-lock.json` in each), so installs are reproducible

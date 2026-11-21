@@ -1,49 +1,57 @@
 ---
 title: WebXR vs native ARCore
-description: "An honest feature-by-feature split of the package's two runtimes in 1.1.0: what each one actually does, verified against the code."
+description: "An honest feature-by-feature split of the package's runtimes: what each one actually does, verified against the code — WebXR, native Android ARCore, and (since 1.2.0) native iOS ARKit."
 ---
 
-The package contains two AR runtimes that share a JS facade name and
-almost nothing else. Earlier README wording presented them as "two
-runtimes, one API" at feature parity. They are not. This page is the
-corrected, code-verified split, updated for 1.1.0.
+The package contains three AR runtimes that share a JS facade name
+and almost nothing else. Earlier README wording presented them as
+"two runtimes, one API" at feature parity. They are not. This page
+is the corrected, code-verified split, updated for 1.2.0, which
+added the third runtime: native iOS (ARKit + RealityKit).
 
 ## Feature by feature
 
-| Capability | WebXR runtime (`src/web.js`) | Native Android (`android/`) |
-| --- | --- | --- |
-| Session start/stop | Yes, `immersive-ar` XR session | Yes, ARCore `Session` via the plugin |
-| Plane detection | Yes, XR planes, dot/mesh visualisation | Yes, planes tracked, surface state events |
-| Hit testing | Yes, centre reticle path; non-centre coordinates use a ray-based hit test | Yes, real per-coordinate hit test against the frame, served by the render loop |
-| **Model rendering** | **Yes, GLB/GLTF via Three.js, anchored in the scene** | **No, `placeModel` rejects with `NOT_IMPLEMENTED`; there is no native renderer (Option B, see below)** |
-| Model transforms | Yes, position/rotation/scale on placed models | `setTransform` / `setMaterial` reject with `NOT_IMPLEMENTED` |
-| `moveModel` | Hit-test based (centre or ray) | Rejects with `NOT_IMPLEMENTED` |
-| Colours / textures | Yes, materials are real and rendered | Via the WebXR runtime only |
-| Anchors | Yes, XR anchors drive model poses per frame | Hit tests create real ARCore anchors and return their `anchorId`; there are no native model placements to anchor |
-| Screenshots | Yes, camera + scene composite (needs the `enableScreenshots` opt-in) | No |
-| Gestures | Yes, Pointer Events controller over the DOM overlay | Via your web UI (the WebView stays on top) |
-| Support check | Real, feature detection against `navigator.xr`, with an `INSECURE_CONTEXT` code outside secure contexts | Real, `ArCoreApk.checkAvailability()`; unsupported devices and missing ARCore are reported honestly |
-| Pause/resume with the activity | Browser-managed | Wired, the plugin forwards Capacitor's pause/resume/destroy to the session and render loop |
+| Capability | WebXR runtime (`src/web.js`) | Native Android (`android/`) | Native iOS (`ios/`, since 1.2.0) |
+| --- | --- | --- | --- |
+| Session start/stop | Yes, `immersive-ar` XR session | Yes, ARCore `Session` via the plugin | Yes, ARKit world-tracking session on a RealityKit `ARView` over the web view |
+| Plane detection | Yes, XR planes, dot/mesh visualisation | Yes, planes tracked, surface state events | Yes, ARKit plane anchors (horizontal + vertical), same surface events |
+| Hit testing | Yes, centre reticle path; non-centre coordinates use a ray-based hit test | Yes, real per-coordinate hit test against the frame, served by the render loop | Yes, RealityKit raycast at the normalised point; position + quaternion rotation, and a real `ARAnchor` is registered and its id returned |
+| **Model rendering** | **Yes, GLB/GLTF via Three.js, anchored in the scene** | **No, `placeModel` rejects with `NOT_IMPLEMENTED`; there is no native renderer (Option B, see below)** | **Yes, USDZ via RealityKit, anchored to real `ARAnchor`s — iOS has no WebXR, so native renders for real** |
+| Model transforms | Yes, position/rotation/scale on placed models | `setTransform` / `setMaterial` reject with `NOT_IMPLEMENTED` | Yes, Euler-degrees rotation + uniform scale on the placed entity; `setMaterial` applies a flat colour across the model's meshes |
+| `moveModel` | Hit-test based (centre or ray) | Rejects with `NOT_IMPLEMENTED` | Yes, raycast + re-anchor at the new point |
+| Colours / textures | Yes, materials are real and rendered | Via the WebXR runtime only | Colours yes (flat `SimpleMaterial`); textures only as authored in the USDZ |
+| Anchors | Yes, XR anchors drive model poses per frame | Hit tests create real ARCore anchors and return their `anchorId`; there are no native model placements to anchor | Yes, placements and hit tests create real `ARAnchor`s |
+| Screenshots | Yes, camera + scene composite (needs the `enableScreenshots` opt-in) | No | No |
+| Gestures | Yes, Pointer Events controller over the DOM overlay | Via your web UI (the WebView stays on top) | RealityKit gestures on placed models (translation / rotation / scale) once placed |
+| Support check | Real, feature detection against `navigator.xr`, with an `INSECURE_CONTEXT` code outside secure contexts | Real, `ArCoreApk.checkAvailability()`; unsupported devices and missing ARCore are reported honestly | Real, `ARWorldTrackingConfiguration.isSupported`; resolves (never throws), with `UNSUPPORTED_DEVICE_NOT_CAPABLE` when unsupported |
+| Pause/resume with the activity | Browser-managed | Wired, the plugin forwards Capacitor's pause/resume/destroy to the session and render loop | Session runs/pauses with the AR view's attach/detach; plugin destroy detaches the view |
 
 ## Which runtime am I on?
 
 - `createARView`, the functional helpers and `useARCore` → **always
   WebXR**, in a browser and inside a Capacitor app alike.
-- The `ARCore` facade → native plugin on Android; on web platforms the
-  same plugin name resolves to the WebXR engine, so facade calls in a
-  browser behave like the engine (including rendering).
+- The `ARCore` facade → native plugin on Android and on iOS (both
+  register the jsName `ARCore`); on web platforms the same plugin
+  name resolves to the WebXR engine, so facade calls in a browser
+  behave like the engine (including rendering).
 
 ## Guidance
 
-- **Building a product viewer today:** use the WebXR path
-  (`createARView`). It is the only runtime that renders models, and it
-  runs on ARCore-capable Android devices through Chrome or the Capacitor
-  WebView.
-- **Planning on the native path:** it is **session + hit-test +
-  surface events**, by decision (audit Option B): the model methods
-  reject with `NOT_IMPLEMENTED` rather than reporting success for
-  work that never happened. Native model rendering (Option A) remains
-  an owner decision, not a roadmap promise.
+- **Building a product viewer today:** on Android/web use the
+  WebXR path (`createARView`); on iOS use the `ARCore` facade
+  against the native runtime. Both render models — WebXR from GLB,
+  iOS native from USDZ — so a cross-platform product viewer ships
+  each product in both formats (or passes `usdzUrl` alongside the
+  GLB `modelUrl`).
+- **Planning on the Android native path:** it is **session +
+  hit-test + surface events**, by decision (audit Option B): the
+  model methods reject with `NOT_IMPLEMENTED` rather than reporting
+  success for work that never happened. Android native model
+  rendering (Option A) remains an owner decision, not a roadmap
+  promise. **The iOS native path is different by necessity:** with
+  no WebXR to fall back to, it implements the model methods for
+  real — the honest answer there was to build the renderer, not to
+  reject.
 - **Support gating:** either runtime's `checkSupport()` is a real
   check in 1.1.0: the WebXR one feature-detects `navigator.xr` (and
   reports `INSECURE_CONTEXT` outside secure contexts), the native one
@@ -52,9 +60,14 @@ corrected, code-verified split, updated for 1.1.0.
   permissions).
 
 <Note>
-None of this makes the native layer useless: availability handling,
-install flow, session configuration, plane tracking, real hit-test
-anchors and the render loop for the camera background are real,
-working code. The gap is specific, model rendering, and it is
-documented here rather than discovered by users.
+None of this makes the Android native layer useless: availability
+handling, install flow, session configuration, plane tracking,
+real hit-test anchors and the render loop for the camera
+background are real, working code. Its gap is specific, model
+rendering, and it is documented here rather than discovered by
+users. The iOS runtime's model pipeline is USDZ end to end: a GLB
+source maps to its sibling `.usdz`, an explicit `usdzPath` /
+`usdzUrl` wins when given, remote USDZ files are downloaded to the
+app Caches folder before loading, and a source with no USDZ
+available rejects with `MODEL_FORMAT_UNSUPPORTED`.
 </Note>

@@ -114,6 +114,8 @@ export const ARCore = {
    * @param {string} [options.modelPath] - Path to GLB model in assets (e.g., "models/chair.glb") (required by the plugin)
    * @param {string} [options.modelUrl] - Alias for `modelPath` — a GLB URL/path
    * @param {string} [options.hitId] - Optional hit identifier
+   * @param {string} [options.usdzPath] - iOS only: explicit USDZ model path (takes precedence over the GLB source)
+   * @param {string} [options.usdzUrl] - iOS only: explicit USDZ model URL (alias of `usdzPath`)
    * @returns {Promise<{modelId: string, anchorId: string}>}
    */
   placeModel: async (options = {}) => {
@@ -135,10 +137,11 @@ export const ARCore = {
   /**
    * Update model transform (position, rotation, scale).
    *
-   * Implemented by the WebXR runtime. On Android the native plugin
-   * rejects with code `NOT_IMPLEMENTED`: the native runtime is
-   * scoped to session + hit-testing (Option B) and places no models,
-   * so there is nothing to transform.
+   * Implemented by the WebXR runtime and by the iOS native
+   * runtime (ARKit + RealityKit, real placement). On Android the
+   * native plugin rejects with code `NOT_IMPLEMENTED`: that
+   * runtime is scoped to session + hit-testing (Option B) and
+   * places no models, so there is nothing to transform.
    *
    * @param {Object} options
    * @param {string} [options.modelId] - Model identifier (required by the plugin)
@@ -157,9 +160,10 @@ export const ARCore = {
   /**
    * Set model material/color.
    *
-   * Implemented by the WebXR runtime. On Android the native plugin
-   * rejects with code `NOT_IMPLEMENTED` (Option B: the native
-   * runtime places no models, so there is nothing to restyle).
+   * Implemented by the WebXR runtime and by the iOS native
+   * runtime. On Android the native plugin rejects with code
+   * `NOT_IMPLEMENTED` (Option B: that runtime places no models,
+   * so there is nothing to restyle).
    *
    * @param {Object} options
    * @param {string} [options.modelId] - Model identifier (required by the plugin)
@@ -195,9 +199,10 @@ export const ARCore = {
   /**
    * Remove a model.
    *
-   * Implemented by the WebXR runtime. On Android the native plugin
-   * rejects with code `NOT_IMPLEMENTED` (Option B: the native
-   * runtime places no models, so there is nothing to remove).
+   * Implemented by the WebXR runtime and by the iOS native
+   * runtime. On Android the native plugin rejects with code
+   * `NOT_IMPLEMENTED` (Option B: that runtime places no models,
+   * so there is nothing to remove).
    *
    * @param {Object} options
    * @param {string} [options.modelId] - Model identifier (required by the plugin)
@@ -215,9 +220,11 @@ export const ARCore = {
    * List the currently placed models (API-03).
    *
    * On web this returns the engine's placed models
-   * (`{modelId, modelUrl, position, rotation, scale}` entries). On
+   * (`{modelId, modelUrl, position, rotation, scale}` entries).
+   * The iOS native runtime returns the same entries (the facade
+   * unwraps the native bridge's `{models}` dictionary). On
    * Android the native plugin method rejects with code
-   * `NOT_IMPLEMENTED` (Option B: the native runtime places no
+   * `NOT_IMPLEMENTED` (Option B: that runtime places no
    * models, so there is nothing to enumerate).
    *
    * @returns {Promise<Array<Object>>}
@@ -225,6 +232,13 @@ export const ARCore = {
   getPlacedModels: async () => {
     try {
       const result = await ARCoreNative.getPlacedModels();
+      // The WebXR runtime returns the array directly. The Capacitor
+      // native bridge can only resolve a dictionary, so native
+      // runtimes (iOS) return `{ models: [...] }` — unwrap it here
+      // so callers always see the documented array (API-03).
+      if (result && !Array.isArray(result) && Array.isArray(result.models)) {
+        return result.models;
+      }
       return result;
     } catch (e) {
       throw facadeError('Failed to list placed models: ', e, 'GET_PLACED_MODELS_FAILED');
@@ -232,8 +246,9 @@ export const ARCore = {
   },
 
   /**
-   * Remove every placed model (API-03). On Android this rejects
-   * with code `NOT_IMPLEMENTED`, like `getPlacedModels`.
+   * Remove every placed model (API-03). Implemented on web and
+   * on iOS native; on Android this rejects with code
+   * `NOT_IMPLEMENTED`, like `getPlacedModels`.
    *
    * @returns {Promise<void>}
    */

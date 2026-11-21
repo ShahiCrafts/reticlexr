@@ -1,6 +1,6 @@
 # Reticle XR (reticlexr) — full documentation
 
-> The complete documentation for reticlexr, the high-level AR SDK for React + Capacitor (WebXR + native ARCore), concatenated for LLM ingestion. Canonical site: https://reticlexr.vercel.app — npm: https://www.npmjs.com/package/reticlexr — source: https://github.com/ShahiCrafts/reticlexr
+> The complete documentation for reticlexr, the high-level AR SDK for React + Capacitor (WebXR + native ARCore on Android + native ARKit/RealityKit on iOS, since 1.2.0), concatenated for LLM ingestion. NOTE: this concatenation predates the 1.2.0 iOS documentation updates — for current iOS details see the individual docs pages (compatibility, getting-started, api) on the site. Canonical site: https://reticlexr.vercel.app — npm: https://www.npmjs.com/package/reticlexr — source: https://github.com/ShahiCrafts/reticlexr
 
 
 
